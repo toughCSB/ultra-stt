@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { abortRecording } from '../../lib/tauri'
-import { CapsuleWorkIndicator } from './CapsuleWorkIndicator'
+import { CapsuleBrand, CapsuleWorkIndicator } from './CapsuleWorkIndicator'
 
 export function CapsulePolishing() {
   const { t } = useTranslation()
@@ -18,7 +18,8 @@ export function CapsulePolishing() {
 
   return (
     <motion.div className="relative z-10 flex items-center gap-2 h-9 px-3">
-      <CapsuleWorkIndicator tone="thinking" />
+      <CapsuleBrand />
+        <CapsuleWorkIndicator tone="thinking" />
       <p className="text-[11px] text-white leading-snug truncate flex-1 min-w-0">
         {t('capsule.thinking')}
       </p>

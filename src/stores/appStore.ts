@@ -13,6 +13,12 @@ export type PipelineState =
 
 export type VoiceMode = 'dictate' | 'ask' | 'translate'
 
+export interface PipelineTiming {
+  stt_ms: number
+  llm_ms: number
+  total_ms: number
+}
+
 export type SttProvider =
   | 'deepgram'
   | 'assemblyai'
@@ -39,6 +45,7 @@ export type LlmProvider =
   | 'groq'
   | 'claude'
   | 'ollama'
+  | 'codex-cli'
   | 'openrouter'
   | 'cloud'
 export type OutputMode = 'keyboard' | 'clipboard'
@@ -192,7 +199,7 @@ export interface AppConfig {
   stt_provider: SttProvider
   stt_api_key: string
   stt_custom_api_key: string
-  stt_custom_preset: 'speaches' | 'custom'
+  stt_custom_preset: 'speaches' | 'custom' | 'ultra-local' | 'ultra-remote'
   stt_custom_base_url: string
   stt_custom_model: string
   stt_volcengine_resource_id: string
@@ -278,6 +285,8 @@ interface AppState {
   setLastInsertResult: (result: InsertResult | null) => void
   lastContext: ContextProfileSummary | null
   setLastContext: (context: ContextProfileSummary | null) => void
+  lastPipelineTiming: PipelineTiming | null
+  setLastPipelineTiming: (timing: PipelineTiming) => void
 
   // Config
   config: AppConfig
@@ -815,6 +824,8 @@ export const useAppStore = create<AppState>((set) => ({
   setLastInsertResult: (lastInsertResult) => set({ lastInsertResult }),
   lastContext: null,
   setLastContext: (lastContext) => set({ lastContext }),
+  lastPipelineTiming: null,
+  setLastPipelineTiming: (lastPipelineTiming) => set({ lastPipelineTiming }),
 
   config: defaultConfig,
   setConfig: (config) => set((s) => ({ config: syncHotkeyConfig(s.config, config) })),

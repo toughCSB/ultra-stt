@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'src/styles/**/*.test.js', 'remote/**/*.test.js'],
     maxWorkers: 4,
     setupFiles: ['src/test-setup.ts'],
   },

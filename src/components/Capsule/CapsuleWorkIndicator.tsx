@@ -1,7 +1,20 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import appIconUrl from '../../assets/brand/app-icon.png'
 
 interface CapsuleWorkIndicatorProps {
   tone?: 'steady' | 'thinking'
+}
+
+/** The app mark sits at the front of every capsule state. */
+export function CapsuleBrand() {
+  return (
+    <img
+      src={appIconUrl}
+      alt=""
+      aria-hidden="true"
+      className="w-6 h-6 shrink-0 rounded-[22%] object-contain"
+    />
+  )
 }
 
 export function CapsuleWorkIndicator({ tone = 'steady' }: CapsuleWorkIndicatorProps) {

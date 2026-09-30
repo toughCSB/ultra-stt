@@ -1,8 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "OpenTypeless",
+  "productName": "Ultra_STT",
+  "mainBinaryName": "Ultra_STT",
   "version": "1.1.61",
-  "identifier": "com.opentypeless.app",
+  "identifier": "com.ultrastt.personal",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +15,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "OpenTypeless",
+        "title": "Ultra STT",
         "width": 900,
         "height": 700,
         "minWidth": 720,
@@ -29,7 +30,7 @@
       },
       {
         "label": "capsule",
-        "title": "OpenTypeless Capsule",
+        "title": "Ultra STT Capsule",
         "width": 80,
         "height": 80,
         "resizable": false,
@@ -46,7 +47,7 @@
       },
       {
         "label": "ask",
-        "title": "OpenTypeless Ask",
+        "title": "Ultra STT Ask",
         "width": 400,
         "height": 220,
         "minWidth": 360,
@@ -75,14 +76,19 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["opentypeless"]
+        "schemes": [
+          "opentypeless"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
+    "resources": {
+      "resources/server-root.txt": "server-root.txt"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

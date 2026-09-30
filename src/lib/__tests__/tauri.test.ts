@@ -7,10 +7,12 @@ import {
   exportDictionaryCsv,
   exportDictionaryJson,
   getCorrectionRules,
+  loadOnboardingCompleted,
   migrateLegacyCredentials,
   previewDictionaryImport,
   removeCorrectionRule,
   setCorrectionRuleEnabled,
+  saveOnboardingCompleted,
   updateCorrectionRule,
   updateDictionaryEntry,
   waitForAccessibilityPermission,
@@ -19,6 +21,20 @@ import {
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
+
+describe('profile onboarding commands', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('reads and saves completion through the native profile store', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(true).mockResolvedValueOnce(undefined)
+
+    await expect(loadOnboardingCompleted()).resolves.toBe(true)
+    await expect(saveOnboardingCompleted()).resolves.toBeUndefined()
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'load_onboarding_completed')
+    expect(invoke).toHaveBeenNthCalledWith(2, 'save_onboarding_completed')
+  })
+})
 
 describe('waitForAccessibilityPermission', () => {
   beforeEach(() => {

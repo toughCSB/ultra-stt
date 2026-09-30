@@ -8,7 +8,6 @@ import { toast } from '../../components/toast-service'
 
 const eventListeners = vi.hoisted(() => new Map<string, (event: { payload: unknown }) => void>())
 const invalidateCloudSessionOnce = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
-const refreshSubscription = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn((event: string, handler: (event: { payload: unknown }) => void) => {
@@ -40,15 +39,6 @@ vi.mock('../../lib/cloud-session', () => ({
   invalidateCloudSessionOnce,
 }))
 
-vi.mock('../../stores/authStore', () => ({
-  useAuthStore: {
-    getState: () => ({
-      user: { id: 'user-1' },
-      refreshSubscription,
-    }),
-  },
-}))
-
 function HookHarness() {
   useTauriEvents()
   return null
@@ -60,6 +50,7 @@ describe('useTauriEvents', () => {
     useAppStore.setState({
       hotkeyRegistrationError: null,
       lastContext: null,
+      lastPipelineTiming: null,
       activeVoiceMode: null,
     })
     useCloudServiceStore.setState({ incident: null })
@@ -171,6 +162,23 @@ describe('useTauriEvents', () => {
     expect(useAppStore.getState().activeVoiceMode).toBeNull()
   })
 
+  it('keeps the latest completed pipeline timing in this session', async () => {
+    render(<HookHarness />)
+    await waitFor(() => expect(eventListeners.has('pipeline:timing')).toBe(true))
+
+    act(() => {
+      eventListeners.get('pipeline:timing')?.({
+        payload: { stt_ms: 2400, llm_ms: 1100, total_ms: 3900, recording_ms: 5000 },
+      })
+    })
+
+    expect(useAppStore.getState().lastPipelineTiming).toEqual({
+      stt_ms: 2400,
+      llm_ms: 1100,
+      total_ms: 3900,
+    })
+  })
+
   it('shows a persistent incident only for a failing managed-cloud provider', async () => {
     useAppStore.setState((state) => ({
       config: { ...state.config, stt_provider: 'cloud', llm_provider: 'deepseek' },
@@ -250,27 +258,4 @@ describe('useTauriEvents', () => {
     expect(toast).toHaveBeenNthCalledWith(2, 'recordingLimits.deadlineReached', 'info')
   })
 
-  it('refreshes managed usage after output without polling idle windows', async () => {
-    useAppStore.setState({
-      config: {
-        ...useAppStore.getState().config,
-        stt_provider: 'cloud',
-      },
-    })
-    render(<HookHarness />)
-
-    await waitFor(() => expect(eventListeners.has('pipeline:state')).toBe(true))
-    act(() => {
-      eventListeners.get('pipeline:state')?.({ payload: 'preparing' })
-      eventListeners.get('pipeline:state')?.({ payload: 'recording' })
-      eventListeners.get('pipeline:state')?.({ payload: 'idle' })
-    })
-
-    expect(refreshSubscription).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      eventListeners.get('pipeline:state')?.({ payload: 'idle' })
-    })
-    expect(refreshSubscription).toHaveBeenCalledTimes(1)
   })
-})

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppStore, type LlmProvider } from '../../stores/appStore'
 import {
   LLM_DEFAULT_CONFIG,
+  CODEX_CLI_PROVIDER,
   ONBOARDING_LLM_PROVIDERS,
   llmProviderRequiresApiKey,
 } from '../../lib/constants'
@@ -19,14 +20,14 @@ export function LlmSetupStep() {
   const [models, setModels] = useState<string[]>([])
   const [fetchingModels, setFetchingModels] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fallbackProvider =
-    (ONBOARDING_LLM_PROVIDERS[0]?.value as LlmProvider | undefined) ?? 'zhipu'
+  const fallbackProvider = ONBOARDING_LLM_PROVIDERS[0]?.value ?? 'zhipu'
   const selectedProvider: LlmProvider = ONBOARDING_LLM_PROVIDERS.some(
     (provider) => provider.value === config.llm_provider,
   )
     ? config.llm_provider
     : fallbackProvider
   const requiresApiKey = llmProviderRequiresApiKey(selectedProvider)
+  const isCodex = selectedProvider === CODEX_CLI_PROVIDER
 
   useEffect(() => {
     if (selectedProvider === config.llm_provider) return
@@ -48,7 +49,7 @@ export function LlmSetupStep() {
   ])
 
   const doFetchModels = useCallback(async (apiKey: string, provider: string, baseUrl: string) => {
-    if (!baseUrl) return
+    if (!baseUrl || provider === CODEX_CLI_PROVIDER) return
     setFetchingModels(true)
     try {
       const list = await fetchLlmModels(apiKey, provider, baseUrl)
@@ -63,22 +64,29 @@ export function LlmSetupStep() {
   // Auto-fetch when API key changes (debounced)
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if ((requiresApiKey && !config.llm_api_key) || !config.llm_base_url) return
+    if (isCodex || (requiresApiKey && !config.llm_api_key) || !config.llm_base_url) return
     debounceRef.current = setTimeout(() => {
       doFetchModels(config.llm_api_key, selectedProvider, config.llm_base_url)
     }, 500)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [config.llm_api_key, config.llm_base_url, doFetchModels, requiresApiKey, selectedProvider])
+  }, [
+    config.llm_api_key,
+    config.llm_base_url,
+    doFetchModels,
+    isCodex,
+    requiresApiKey,
+    selectedProvider,
+  ])
 
   const handleTest = async () => {
     setLlmTestStatus('testing')
     try {
       const ok = await testLlmConnection(
-        config.llm_api_key,
+        isCodex ? '' : config.llm_api_key,
         selectedProvider,
-        config.llm_base_url,
+        isCodex ? '' : config.llm_base_url,
         config.llm_model,
       )
       setLlmTestStatus(ok ? 'success' : 'error')
@@ -91,14 +99,19 @@ export function LlmSetupStep() {
     <div className="space-y-5">
       <Field label={t('onboarding.llm.serviceLabel')}>
         <select
+          aria-label={t('onboarding.llm.serviceLabel')}
           value={selectedProvider}
           onChange={(e) => {
-            const provider = e.target.value as typeof config.llm_provider
+            const provider = ONBOARDING_LLM_PROVIDERS.find(
+              (item) => item.value === e.target.value,
+            )?.value
+            if (!provider) return
             const defaults = LLM_DEFAULT_CONFIG[provider]
             updateConfig({
               llm_provider: provider,
               llm_base_url: defaults?.baseUrl ?? config.llm_base_url,
               llm_model: defaults?.model ?? config.llm_model,
+              ...(provider === CODEX_CLI_PROVIDER ? { llm_api_key: '' } : {}),
             })
             setLlmTestStatus('idle')
             setModels([])
@@ -112,6 +125,24 @@ export function LlmSetupStep() {
           ))}
         </select>
       </Field>
+
+      {isCodex && (
+        <Field label={t('ultra.codex')}>
+          <p className="text-[12px] text-text-secondary leading-relaxed break-keep">
+            {t('ultra.codexHint')}
+          </p>
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={llmTestStatus === 'testing'}
+            className="mt-2 px-4 py-2.5 bg-accent text-white rounded-[10px] text-[13px] border-none cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+          >
+            {llmTestStatus === 'testing' && <Loader2 size={14} className="animate-spin" />}
+            {t('ultra.checkLogin')}
+          </button>
+          <TestStatusHint status={llmTestStatus} isCodex />
+        </Field>
+      )}
 
       {requiresApiKey && (
         <Field label={t('onboarding.llm.apiKeyLabel')}>
@@ -144,6 +175,8 @@ export function LlmSetupStep() {
           <div className="relative flex-1">
             <input
               list="onboarding-llm-model-list"
+              aria-label={t('onboarding.llm.modelLabel')}
+              readOnly={isCodex}
               value={config.llm_model}
               onChange={(e) => updateConfig({ llm_model: e.target.value })}
               placeholder={t('onboarding.llm.modelPlaceholder')}
@@ -155,48 +188,54 @@ export function LlmSetupStep() {
               ))}
             </datalist>
           </div>
-          <button
-            onClick={() => doFetchModels(config.llm_api_key, selectedProvider, config.llm_base_url)}
-            disabled={
-              fetchingModels || !config.llm_base_url || (requiresApiKey && !config.llm_api_key)
-            }
-            className="px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-secondary cursor-pointer hover:border-border-focus disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-            title={t('onboarding.llm.fetchModelsTitle')}
-          >
-            <RefreshCw size={14} className={fetchingModels ? 'animate-spin' : ''} />
-          </button>
+          {!isCodex && (
+            <button
+              onClick={() =>
+                doFetchModels(config.llm_api_key, selectedProvider, config.llm_base_url)
+              }
+              disabled={
+                fetchingModels || !config.llm_base_url || (requiresApiKey && !config.llm_api_key)
+              }
+              className="px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-secondary cursor-pointer hover:border-border-focus disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              title={t('onboarding.llm.fetchModelsTitle')}
+            >
+              <RefreshCw size={14} className={fetchingModels ? 'animate-spin' : ''} />
+            </button>
+          )}
         </div>
-        {models.length > 0 && (
+        {!isCodex && models.length > 0 && (
           <p className="text-[11px] text-text-tertiary mt-1">
             {t('onboarding.llm.modelsAvailable', { count: models.length })}
           </p>
         )}
       </Field>
 
-      <Field label={t('onboarding.llm.baseUrlLabel')}>
-        <div className="flex gap-2">
-          <input
-            value={config.llm_base_url}
-            onChange={(e) => updateConfig({ llm_base_url: e.target.value })}
-            placeholder={
-              LLM_DEFAULT_CONFIG[selectedProvider]?.baseUrl ?? 'https://api.openai.com/v1'
-            }
-            className="min-w-0 flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
-          />
-          {!requiresApiKey && (
-            <button
-              type="button"
-              onClick={handleTest}
-              disabled={!config.llm_base_url || llmTestStatus === 'testing'}
-              className="px-4 py-2.5 bg-accent text-white rounded-[10px] text-[13px] border-none cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-            >
-              {llmTestStatus === 'testing' && <Loader2 size={14} className="animate-spin" />}
-              {t('onboarding.llm.testButton')}
-            </button>
-          )}
-        </div>
-        {!requiresApiKey && <TestStatusHint status={llmTestStatus} />}
-      </Field>
+      {!isCodex && (
+        <Field label={t('onboarding.llm.baseUrlLabel')}>
+          <div className="flex gap-2">
+            <input
+              value={config.llm_base_url}
+              onChange={(e) => updateConfig({ llm_base_url: e.target.value })}
+              placeholder={
+                LLM_DEFAULT_CONFIG[selectedProvider]?.baseUrl ?? 'https://api.openai.com/v1'
+              }
+              className="min-w-0 flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
+            />
+            {!requiresApiKey && (
+              <button
+                type="button"
+                onClick={handleTest}
+                disabled={!config.llm_base_url || llmTestStatus === 'testing'}
+                className="px-4 py-2.5 bg-accent text-white rounded-[10px] text-[13px] border-none cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              >
+                {llmTestStatus === 'testing' && <Loader2 size={14} className="animate-spin" />}
+                {t('onboarding.llm.testButton')}
+              </button>
+            )}
+          </div>
+          {!requiresApiKey && <TestStatusHint status={llmTestStatus} />}
+        </Field>
+      )}
     </div>
   )
 }
@@ -210,12 +249,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function TestStatusHint({ status }: { status: string }) {
+function TestStatusHint({ status, isCodex = false }: { status: string; isCodex?: boolean }) {
   const { t } = useTranslation()
   if (status === 'success') {
     return (
-      <p className="flex items-center gap-1 text-[12px] text-success mt-2">
-        <CheckCircle2 size={13} /> {t('onboarding.llm.connectionOk')}
+      <p className="flex items-center gap-1 text-[12px] text-success mt-2 break-keep">
+        <CheckCircle2 size={13} /> {t(isCodex ? 'ultra.loginReady' : 'onboarding.llm.connectionOk')}
       </p>
     )
   }

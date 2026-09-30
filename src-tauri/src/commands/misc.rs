@@ -808,6 +808,15 @@ fn build_system_diagnostics_report(
 fn probe_microphone_input() -> ProbeResult {
     use cpal::traits::{DeviceTrait, HostTrait};
 
+    match crate::audio::permission::authorization_status() {
+        Ok(crate::audio::permission::MicrophoneAuthorization::Authorized) => {}
+        Ok(status) => {
+            return ProbeResult::err(format!(
+                "Microphone permission is {status:?}. Enable Ultra STT in System Settings > Privacy & Security > Microphone."
+            ));
+        }
+        Err(error) => return ProbeResult::err(error.to_string()),
+    }
     let host = cpal::default_host();
     let Some(device) = host.default_input_device() else {
         return ProbeResult::err("No default microphone input was found");

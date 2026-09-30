@@ -8,6 +8,7 @@ pub mod deepgram;
 pub mod managed_audio;
 pub mod volcengine;
 pub mod whisper_compat;
+pub mod ultra_local;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -99,6 +100,10 @@ pub fn create_provider(
             let wc = custom_whisper_config.ok_or_else(|| {
                 AppError::Config("Local / Custom Whisper is missing base URL or model".to_string())
             })?;
+            if wc.endpoint == format!("{}/audio/transcriptions", ultra_local::BASE)
+                && wc.model == ultra_local::MODEL {
+                return Ok(Box::new(ultra_local::UltraLocalProvider::new()));
+            }
             Ok(match client {
                 Some(ref c) => Box::new(WhisperCompatProvider::with_client(wc, c.clone())),
                 None => Box::new(WhisperCompatProvider::new(wc)),

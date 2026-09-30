@@ -35,6 +35,7 @@ Thumbs.db
 nul
 
 # Test & debug artifacts
+__pycache__/
 test_api.*
 capsule-debug*.png
 jelly-reference*.png

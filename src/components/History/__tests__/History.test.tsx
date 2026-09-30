@@ -62,7 +62,29 @@ describe('History correction creation', () => {
 
   afterEach(() => {
     cleanup()
+    window.location.hash = ''
     useAppStore.setState(useAppStore.getInitialState())
+  })
+
+  it('filters loaded records by the URL date and clears the filter', async () => {
+    useAppStore.setState({ history: [
+      { ...entry, created_at: '2026-09-30T10:00:00', polished_text: 'Wednesday record' },
+      { ...entry, id: 2, created_at: '2026-09-29T10:00:00', polished_text: 'Tuesday record' },
+    ] })
+    window.location.hash = '#/history?date=2026-09-30'
+
+    render(<History />)
+    expect(screen.getByText('Wednesday record')).toBeInTheDocument()
+    expect(screen.queryByText('Tuesday record')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'history.clearDateFilter' }))
+    expect(window.location.hash).toBe('#/history')
+    await waitFor(() => expect(screen.getByText('Tuesday record')).toBeInTheDocument())
+  })
+
+  it('explains an empty selected date within the loaded history scope', () => {
+    window.location.hash = '#/history?date=2026-09-28'
+    render(<History />)
+    expect(screen.getByText('history.noRecordsOnDate')).toBeInTheDocument()
   })
 
   it('does not infer a correction until the user explicitly opens and saves it', async () => {

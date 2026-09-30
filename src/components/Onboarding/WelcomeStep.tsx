@@ -3,6 +3,7 @@ import i18n from '../../i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { UI_LANGUAGES } from '../../lib/constants'
 import { useAppStore } from '../../stores/appStore'
+import titleUrl from '../../assets/brand/title-lockup.png'
 
 export function WelcomeStep() {
   const { t } = useTranslation()
@@ -20,11 +21,18 @@ export function WelcomeStep() {
 
   return (
     <div className="space-y-6">
-      <div className="text-center py-4">
-        <div className="text-[40px] mb-2">🎙</div>
-        <p className="text-[15px] text-text-secondary leading-relaxed">
+      <div className="py-4">
+        <p className="term-eyebrow">system tray · windows &amp; macos</p>
+        <img src={titleUrl} alt={t('app.name') + ' — ' + t('app.tagline')} className="w-full h-auto block mt-4" />
+        <p className="text-[14px] text-text-secondary leading-[1.75] break-keep max-w-[52ch] mt-6 mx-auto text-center">
           {t('onboarding.speakToWrite')}
         </p>
+        <div className="flex flex-wrap gap-2 mt-6 justify-center">
+          <span className="term-chip">Whisper large-v3</span>
+          <span className="term-chip">Codex cleanup</span>
+          <span className="term-chip term-chip-muted">100% local</span>
+        </div>
+        <hr className="term-rule my-6" />
       </div>
 
       <div>

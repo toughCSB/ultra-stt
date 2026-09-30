@@ -384,7 +384,10 @@ pub fn get_stt_provider_diagnostics(
     custom_model: Option<String>,
     provider_region: Option<String>,
 ) -> Result<SttProviderDiagnostics, String> {
-    let resolved_api_key = if provider == "cloud" {
+    let resolved_api_key = if provider == "cloud"
+        || (provider == stt::config::CUSTOM_WHISPER_PROVIDER
+            && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
+            && custom_model.as_deref() == Some(stt::ultra_local::MODEL)) {
         String::new()
     } else {
         resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
@@ -443,11 +446,26 @@ pub async fn test_stt_connection(
         return Ok(has_managed_cloud_access(&body));
     }
 
-    let api_key = resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
-        .map_err(|e| e.to_string())?;
+    let api_key = if provider == stt::config::CUSTOM_WHISPER_PROVIDER
+        && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
+        && custom_model.as_deref() == Some(stt::ultra_local::MODEL) {
+        String::new()
+    } else {
+        resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
+            .map_err(|e| e.to_string())?
+    };
 
     if stt::config::stt_provider_requires_api_key(&provider) && api_key.is_empty() {
         return Ok(false);
+    }
+
+    if provider == stt::config::CUSTOM_WHISPER_PROVIDER
+        && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
+        && custom_model.as_deref() == Some(stt::ultra_local::MODEL)
+    {
+        stt::ultra_local::transcribe(&vec![0; 3200], Some("ko"))
+            .await.map_err(|e| e.to_string())?;
+        return Ok(true);
     }
 
     match provider.as_str() {
@@ -763,11 +781,27 @@ pub async fn bench_stt_connection(
         return Ok(elapsed);
     }
 
-    let api_key = resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
-        .map_err(|e| e.to_string())?;
+    let api_key = if provider == stt::config::CUSTOM_WHISPER_PROVIDER
+        && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
+        && custom_model.as_deref() == Some(stt::ultra_local::MODEL) {
+        String::new()
+    } else {
+        resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
+            .map_err(|e| e.to_string())?
+    };
 
     if stt::config::stt_provider_requires_api_key(&provider) && api_key.is_empty() {
         return Err("API key is empty".to_string());
+    }
+
+    if provider == stt::config::CUSTOM_WHISPER_PROVIDER
+        && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
+        && custom_model.as_deref() == Some(stt::ultra_local::MODEL)
+    {
+        let t0 = std::time::Instant::now();
+        stt::ultra_local::transcribe(&vec![0; 3200], Some("ko"))
+            .await.map_err(|e| e.to_string())?;
+        return Ok(t0.elapsed().as_millis().min(u32::MAX as u128) as u32);
     }
 
     match provider.as_str() {

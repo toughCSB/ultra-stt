@@ -642,7 +642,8 @@ fn should_use_byok(config: &storage::AppConfig, llm_api_key: &str) -> bool {
     if config.llm_provider == "cloud" {
         return false;
     }
-    if config.llm_base_url.trim().is_empty() || config.llm_model.trim().is_empty() {
+    if (config.llm_provider != "codex-cli" && config.llm_base_url.trim().is_empty())
+        || config.llm_model.trim().is_empty() {
         return false;
     }
     crate::llm::has_usable_provider_credentials(&config.llm_provider, llm_api_key)
@@ -685,6 +686,10 @@ fn ask_stt_api_key(
     config: &storage::AppConfig,
     token_store: &SessionTokenStore,
 ) -> Result<String, String> {
+    if config.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
+        && config.stt_custom_preset == "ultra-local" {
+        return Ok(String::new());
+    }
     if config.stt_provider == "cloud" {
         return Ok(token_store
             .0
@@ -741,6 +746,14 @@ async fn answer_question(
     operation_id: Option<&str>,
     voice_intent: &VoiceIntent,
 ) -> Result<String, AppError> {
+    if config.llm_provider == "codex-cli" {
+        let question = validate_ask_question(question).map_err(AppError::Config)?;
+        let selected = selected_text.and_then(sanitize_selected_text_for_ask);
+        let prompt = format!("{}\n{}", ask_system_prompt(selected.is_some()),
+            build_ask_user_content_from_sanitized(&question, selected.as_ref()));
+        let answer = crate::llm::codex::run_text(&config.llm_model, &prompt).await?;
+        return validate_ask_answer(&answer).map_err(AppError::Config);
+    }
     let llm_api_key = if config.llm_provider == "cloud" {
         String::new()
     } else {
@@ -1053,10 +1066,7 @@ pub(crate) async fn start_reserved_ask_dictation(
 
         let custom_whisper_config = if config.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
         {
-            Some(stt::config::build_custom_whisper_config(
-                &config.stt_custom_base_url,
-                &config.stt_custom_model,
-            )?)
+            Some(stt::config::build_custom_whisper_for_app(&config)?)
         } else {
             None
         };

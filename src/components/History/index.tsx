@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Search, Copy, Trash2, MoreHorizontal } from 'lucide-react'
 import { spring } from '../../lib/animations'
+import { useRoute } from '../../lib/router'
 import { useAppStore, type HistoryEntry } from '../../stores/appStore'
 import { addCorrectionRule, clearHistory, getCorrectionRules } from '../../lib/tauri'
 import { toast } from '../toast-service'
@@ -13,6 +14,7 @@ export function History() {
   const history = useAppStore((s) => s.history)
   const setHistory = useAppStore((s) => s.setHistory)
   const setCorrectionRules = useAppStore((s) => s.setCorrectionRules)
+  const { historyDate, navigate } = useRoute()
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [copiedId, setCopiedId] = useState<number | null>(null)
@@ -43,15 +45,13 @@ export function History() {
 
   const filtered = useMemo(
     () =>
-      search
-        ? history.filter(
+      (historyDate ? history.filter((entry) => entry.created_at.slice(0, 10) === historyDate) : history)
+        .filter(
             (h) =>
-              h.polished_text.includes(search) ||
-              h.raw_text.includes(search) ||
-              h.context_label.includes(search),
-          )
-        : history,
-    [history, search],
+              !search || h.polished_text.includes(search) ||
+              h.raw_text.includes(search) || h.context_label.includes(search),
+          ),
+    [history, historyDate, search],
   )
 
   const handleCopy = (id: number, text: string) => {
@@ -106,10 +106,13 @@ export function History() {
   // Group by date
   const grouped = useMemo(() => {
     const map = new Map<string, typeof filtered>()
+    const todayDate = new Date()
+    const yesterdayDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() - 1)
+    const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const today = localDateKey(todayDate)
+    const yesterday = localDateKey(yesterdayDate)
     for (const entry of filtered) {
       const date = entry.created_at.split('T')[0] || entry.created_at.split(' ')[0]
-      const today = new Date().toISOString().split('T')[0]
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
       const label =
         date === today ? t('history.today') : date === yesterday ? t('history.yesterday') : date
       if (!map.has(label)) map.set(label, [])
@@ -140,6 +143,15 @@ export function History() {
             style={{ transform: 'none' }}
           />
         </div>
+        {historyDate && (
+          <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
+            <span className="text-text-secondary">{t('history.dateFilter', { date: historyDate })}</span>
+            <button type="button" onClick={() => navigate('history')} className="rounded-[6px] bg-transparent px-2 py-1 text-accent hover:bg-bg-tertiary">
+              {t('history.clearDateFilter')}
+            </button>
+          </div>
+        )}
+        {historyDate && <p className="mt-1 text-[11px] text-text-tertiary">{t('home.loadedHistoryNotice', { count: history.length })}</p>}
       </div>
 
       {/* List */}
@@ -148,6 +160,8 @@ export function History() {
           <p className="text-center text-text-tertiary text-[13px] py-12">
             {search ? (
               t('history.noResults')
+            ) : historyDate ? (
+              t('history.noRecordsOnDate')
             ) : (
               <>
                 {t('history.noHistory')}

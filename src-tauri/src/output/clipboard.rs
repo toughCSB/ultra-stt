@@ -205,24 +205,6 @@ fn restore_clipboard_if_safe(
     clear_pending_clipboard_restore(restore_id);
 }
 
-#[cfg(target_os = "macos")]
-fn simulate_paste(_shortcut: PasteShortcut) -> Result<(), AppError> {
-    let status = std::process::Command::new("osascript")
-        .args([
-            "-e",
-            r#"tell application "System Events" to keystroke "v" using command down"#,
-        ])
-        .status()
-        .map_err(|e| AppError::Output(format!("osascript error: {}", e)))?;
-    if !status.success() {
-        return Err(AppError::Output(format!(
-            "osascript paste failed with exit code: {:?}",
-            status.code()
-        )));
-    }
-    Ok(())
-}
-
 #[cfg(not(target_os = "macos"))]
 fn paste_keys(shortcut: PasteShortcut) -> (Vec<enigo::Key>, enigo::Key) {
     use enigo::Key;
@@ -233,12 +215,19 @@ fn paste_keys(shortcut: PasteShortcut) -> (Vec<enigo::Key>, enigo::Key) {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
 fn simulate_paste(shortcut: PasteShortcut) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    super::ensure_accessibility_trusted()?;
+
     super::windows_modifier_guard::wait_for_modifier_release()?;
 
     use enigo::{Direction, Enigo, Keyboard, Settings};
+    #[cfg(target_os = "macos")]
+    let (modifiers, primary) = (vec![enigo::Key::Meta], enigo::Key::Other(0x09));
+    #[cfg(not(target_os = "macos"))]
     let (modifiers, primary) = paste_keys(shortcut);
+    #[cfg(target_os = "macos")]
+    let _ = shortcut;
     let mut enigo = Enigo::new(&Settings::default())
         .map_err(|e| AppError::Output(format!("Failed to create Enigo: {:?}", e)))?;
 
@@ -306,7 +295,9 @@ impl TextOutput for ClipboardOutput {
 
             if let Err(error) = simulate_paste(options.paste_shortcut) {
                 tracing::warn!("Clipboard paste failed; leaving output text on clipboard: {error}");
-                return Ok(clipboard_insert_result(false, &text));
+                let mut result = clipboard_insert_result(false, &text);
+                result.message = Some(error.to_string());
+                return Ok(result);
             }
 
             if options.restore_after_paste {

@@ -1,157 +1,120 @@
-import { Mic, Settings, History, Crown } from 'lucide-react'
+import { Settings, History } from 'lucide-react'
+import titleUrl from '../../assets/brand/title-lockup.png'
 import { motion } from 'framer-motion'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { spring } from '../../lib/animations'
 import { useAppStore } from '../../stores/appStore'
-import { hasManagedCloudAccess, useAuthStore } from '../../stores/authStore'
 import { useRoute } from '../../lib/router'
+
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
 
 export function HomePage() {
   const config = useAppStore((s) => s.config)
   const history = useAppStore((s) => s.history)
+  const lastPipelineTiming = useAppStore((s) => s.lastPipelineTiming)
   const { navigate } = useRoute()
-  const {
-    user,
-    displayName,
-    quotaModel,
-    displayWordsUsedEstimate,
-    displayWordsLimit,
-    displayWordsResetAt,
-    cloudWordsUsed,
-    cloudWordsLimit,
-    cloudWordsResetAt,
-    sttSecondsUsed,
-    sttSecondsLimit,
-    llmTokensUsed,
-    llmTokensLimit,
-  } = useAuthStore()
   const { t } = useTranslation()
-  const hasCloudAccess = useAuthStore(hasManagedCloudAccess)
 
-  const now = new Date()
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const todayCount = history.filter((h) => h.created_at.startsWith(today)).length
-  const wordsUsed =
-    quotaModel === 'legacy_dual_meter' && displayWordsLimit > 0
-      ? displayWordsUsedEstimate
-      : cloudWordsUsed
-  const wordsLimit =
-    quotaModel === 'legacy_dual_meter' && displayWordsLimit > 0
-      ? displayWordsLimit
-      : cloudWordsLimit
-  const wordsResetAt =
-    quotaModel === 'legacy_dual_meter' && displayWordsLimit > 0
-      ? displayWordsResetAt
-      : cloudWordsResetAt
-
+  const today = localDateKey(new Date())
+  const activity = useMemo(() => {
+    const [year, month, day] = today.split('-').map(Number)
+    const counts = new Map<string, number>()
+    for (const entry of history) {
+      const date = entry.created_at.slice(0, 10)
+      counts.set(date, (counts.get(date) ?? 0) + 1)
+    }
+    return Array.from({ length: 14 }, (_, index) => {
+      const date = new Date(year, month - 1, day - 13 + index)
+      const key = localDateKey(date)
+      return { date: key, count: counts.get(key) ?? 0 }
+    })
+  }, [history, today])
+  const todayCount = activity[13].count
+  const maxCount = Math.max(1, ...activity.map((day) => day.count))
+  const isUltraRemote = config.stt_provider === 'custom-whisper' && config.stt_custom_preset === 'ultra-remote'
+  const timingItems: Array<[string, number]> = lastPipelineTiming
+    ? isUltraRemote
+      ? [['remoteProcessingTime', lastPipelineTiming.stt_ms], ['totalTime', lastPipelineTiming.total_ms]]
+      : [['sttTime', lastPipelineTiming.stt_ms], ['polishTime', lastPipelineTiming.llm_ms], ['totalTime', lastPipelineTiming.total_ms]]
+    : []
   return (
     <div className="p-6 space-y-6">
-      {/* Welcome */}
-      <div className="rounded-[18px] p-5 jelly-card">
-        <div className="flex items-center gap-3 mb-2">
-          <div
-            className="w-9 h-9 rounded-[10px] flex items-center justify-center"
-            style={{
-              background: 'linear-gradient(145deg, rgba(42,187,167,0.15), rgba(42,187,167,0.08))',
-            }}
-          >
-            <Mic size={18} className="text-text-secondary" />
+      {/* Hero */}
+      <div className="jelly-card overflow-hidden">
+        <img src={titleUrl} alt={t('app.name') + ' — ' + t('app.tagline')} className="w-full h-auto block" />
+        <div className="px-5 py-5">
+          <p className="term-eyebrow">system tray · windows &amp; macos</p>
+          <p className="text-[14px] leading-[1.75] text-text-secondary mt-3 break-keep max-w-[62ch]">
+            {t('home.description', { hotkey: config.hotkey })}
+          </p>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <span className="term-chip">Whisper large-v3</span>
+            <span className="term-chip">Codex cleanup</span>
+            <span className="term-chip term-chip-muted">{t('home.welcome')}</span>
           </div>
-          <h2 className="text-[17px] font-semibold">{t('home.welcome')}</h2>
         </div>
-        <p className="text-[13px] text-text-secondary leading-relaxed">
-          {t('home.description', { hotkey: config.hotkey })}
-        </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-[18px] p-4 jelly-card">
-          <p className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">
-            {t('home.totalRecordings')}
-          </p>
-          <p className="text-[22px] font-semibold">{history.length}</p>
-        </div>
-        <div className="rounded-[18px] p-4 jelly-card">
-          <p className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">
+      {/* Readout */}
+      <div className="jelly-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[11px] uppercase tracking-[0.2em] text-text-secondary">
             {t('home.today')}
-          </p>
-          <p className="text-[22px] font-semibold">{todayCount}</p>
+          </span>
+          <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-accent">
+            <span className="term-dot" />
+            live
+          </span>
+        </div>
+        <p className="term-figure text-[44px] leading-none">{todayCount}</p>
+        <p className="text-[12px] text-text-tertiary mt-2">
+          {t('home.loadedRecordings', { count: history.length })}
+        </p>
+        <div className="mt-5 flex items-center justify-between gap-2 text-[11px] text-text-secondary">
+          <span>{t('home.recentActivity')}</span>
+          <span>{t('home.loadedHistoryNotice', { count: history.length })}</span>
+        </div>
+        <div className="mt-2 flex gap-1" role="group" aria-label={t('home.recentActivity')}>
+          {activity.map(({ date, count }) => {
+            const label = t('home.activityOnDate', { date, count })
+            return (
+              <button
+                key={date}
+                type="button"
+                onClick={() => navigate('history', { date })}
+                aria-label={label}
+                title={label}
+                className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[4px] bg-transparent px-0.5 text-text-tertiary hover:bg-bg-tertiary focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                <span className="text-[10px] tabular-nums">{count}</span>
+                <span className="flex h-12 w-full items-end justify-center">
+                  <span
+                    className={`w-full max-w-7 rounded-t-[2px] ${count === 0 ? 'bg-bg-tertiary' : date === today ? 'bg-accent' : 'bg-accent/55'}`}
+                    style={{ height: count === 0 ? '2px' : `${Math.max(15, (count / maxCount) * 100)}%` }}
+                  />
+                </span>
+                <span className="text-[9px] tabular-nums">{date.slice(5).replace('-', '/')}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Plan / Quota summary */}
-      {user && (
-        <div className="rounded-[18px] p-5 jelly-card">
-          {hasCloudAccess ? (
-            <>
-              <div className="flex items-center gap-2 mb-3">
-                <Crown size={16} className="text-amber-500" />
-                <h3 className="text-[13px] font-medium">{displayName}</h3>
+      {lastPipelineTiming && (
+        <div className="jelly-card p-5">
+          <h3 className="text-[13px] font-medium mb-3">{t('home.lastProcessingTime')}</h3>
+          <div className={`grid gap-3 text-center ${isUltraRemote ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {timingItems.map(([label, milliseconds]) => (
+              <div key={label} className="rounded-[10px] bg-bg-secondary p-2">
+                <p className="text-[11px] text-text-tertiary">{t(`home.${label}`)}</p>
+                <p className="mt-1 text-[16px] font-medium tabular-nums">{t('home.seconds', { value: (milliseconds / 1000).toFixed(1) })}</p>
               </div>
-              <div className="space-y-3">
-                {wordsLimit > 0 ? (
-                  <>
-                    <RemainingWords used={wordsUsed} limit={wordsLimit} resetAt={wordsResetAt} />
-                    <QuotaBar
-                      label={t('account.cloudWords', 'Cloud words')}
-                      used={wordsUsed}
-                      limit={wordsLimit}
-                      unit={t('account.quotaKWords', 'k words')}
-                      divisor={1000}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <QuotaBar
-                      label={t('upgrade.stt')}
-                      used={sttSecondsUsed}
-                      limit={sttSecondsLimit}
-                      unit={t('account.quotaHours')}
-                      divisor={3600}
-                    />
-                    <QuotaBar
-                      label={t('upgrade.llm')}
-                      used={llmTokensUsed}
-                      limit={llmTokensLimit}
-                      unit={t('account.quotaTokens')}
-                      divisor={1000}
-                    />
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[13px] font-medium">{t('home.freePlan')}</h3>
-                <button
-                  onClick={() => navigate('upgrade')}
-                  className="text-[12px] text-accent font-medium bg-transparent border-none cursor-pointer hover:underline"
-                >
-                  {t('home.upgradeToPro')}
-                </button>
-              </div>
-              {sttSecondsLimit > 0 && (
-                <div className="space-y-3 mt-3">
-                  <QuotaBar
-                    label={t('upgrade.stt')}
-                    used={sttSecondsUsed}
-                    limit={sttSecondsLimit}
-                    unit={t('account.quotaMin')}
-                    divisor={60}
-                  />
-                  <QuotaBar
-                    label={t('upgrade.llm')}
-                    used={llmTokensUsed}
-                    limit={llmTokensLimit}
-                    unit={t('account.quotaTokens')}
-                    divisor={1000}
-                  />
-                </div>
-              )}
-            </>
-          )}
+            ))}
+          </div>
+          {isUltraRemote && <p className="mt-2 text-[11px] text-text-tertiary">{t('home.remoteTimingNote')}</p>}
         </div>
       )}
 
@@ -202,71 +165,6 @@ export function HomePage() {
           <History size={16} className="text-text-secondary" />
           <span className="text-[13px] font-medium">{t('nav.history')}</span>
         </motion.button>
-      </div>
-    </div>
-  )
-}
-
-function RemainingWords({
-  used,
-  limit,
-  resetAt,
-}: {
-  used: number
-  limit: number
-  resetAt: string | null
-}) {
-  const { t } = useTranslation()
-  const remaining = Math.max(limit - used, 0)
-  const formattedRemaining = new Intl.NumberFormat().format(remaining)
-
-  return (
-    <div className="rounded-[10px] bg-bg-secondary/60 px-3 py-2.5">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[12px] text-text-secondary">{t('home.wordsRemaining')}</span>
-        <span className="text-[18px] font-semibold text-text-primary tabular-nums">
-          {formattedRemaining}
-        </span>
-      </div>
-      {resetAt && (
-        <p className="mt-1 text-[11px] text-text-tertiary">
-          {t('home.wordsReset', { date: new Date(resetAt).toLocaleDateString() })}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function QuotaBar({
-  label,
-  used,
-  limit,
-  unit,
-  divisor,
-}: {
-  label: string
-  used: number
-  limit: number
-  unit: string
-  divisor: number
-}) {
-  const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
-  const usedDisplay = (used / divisor).toFixed(1)
-  const limitDisplay = (limit / divisor).toFixed(1)
-
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-[12px]">
-        <span className="text-text-secondary">{label}</span>
-        <span className="text-text-tertiary">
-          {usedDisplay} / {limitDisplay} {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-bg-secondary rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${pct > 90 ? 'bg-red-500' : 'bg-accent'}`}
-          style={{ width: `${pct}%` }}
-        />
       </div>
     </div>
   )

@@ -2,10 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../stores/appStore'
 import type { PolishStyle } from '../../stores/appStore'
-import { hasManagedCloudAccess, useAuthStore } from '../../stores/authStore'
-import { LLM_PROVIDERS, LLM_DEFAULT_CONFIG, llmProviderRequiresApiKey } from '../../lib/constants'
+import {
+  CODEX_CLI_PROVIDER,
+  LLM_PROVIDERS,
+  LLM_DEFAULT_CONFIG,
+  llmProviderRequiresApiKey,
+} from '../../lib/constants'
 import {
   benchLlmConnection,
+  testLlmConnection,
   fetchLlmModels,
   getLatestMappingCandidate,
   listCustomAppMappings,
@@ -20,7 +25,6 @@ import {
   XCircle,
   Loader2,
   RefreshCw,
-  Crown,
   ChevronDown,
   MoreHorizontal,
 } from 'lucide-react'
@@ -38,17 +42,12 @@ export function LlmPane() {
   const llmLatencyMs = useAppStore((s) => s.llmLatencyMs)
   const setLlmLatencyMs = useAppStore((s) => s.setLlmLatencyMs)
   const lastContext = useAppStore((s) => s.lastContext)
-  const { user } = useAuthStore()
-  const hasCloudAccess = useAuthStore(hasManagedCloudAccess)
   const { t } = useTranslation()
 
-  const isCloud = config.llm_provider === 'cloud'
+  const isCodex = config.llm_provider === CODEX_CLI_PROVIDER
   const requiresApiKey = llmProviderRequiresApiKey(config.llm_provider)
   const polishPromptLength = config.polish_custom_prompt.length
   const hasCustomPolishConfig = config.polish_custom_prompt.trim().length > 0
-  const goUpgrade = () => {
-    window.location.hash = '#/upgrade'
-  }
 
   const models = useAppStore((s) => s.llmModels)
   const setModels = useAppStore((s) => s.setLlmModels)
@@ -126,7 +125,7 @@ export function LlmPane() {
   }, [hasCustomPolishConfig])
 
   useEffect(() => {
-    if (isCloud || !requiresApiKey) {
+    if (!requiresApiKey) {
       setLlmApiKey('')
       setCredentialErrorMessage(null)
       return
@@ -145,11 +144,11 @@ export function LlmPane() {
     return () => {
       cancelled = true
     }
-  }, [config.llm_api_key, config.llm_provider, isCloud, requiresApiKey])
+  }, [config.llm_api_key, config.llm_provider, requiresApiKey])
 
   const persistLlmCredential = useCallback(
     (value: string, delayMs = 350) => {
-      if (isCloud || !requiresApiKey) return
+      if (!requiresApiKey) return
       if (credentialSaveRef.current) clearTimeout(credentialSaveRef.current)
       credentialSaveRef.current = setTimeout(() => {
         credentialSaveRef.current = null
@@ -162,12 +161,12 @@ export function LlmPane() {
           })
       }, delayMs)
     },
-    [config.llm_provider, isCloud, requiresApiKey],
+    [config.llm_provider, requiresApiKey],
   )
 
   const doFetchModels = useCallback(
     async (apiKey: string, provider: string, baseUrl: string) => {
-      if (!baseUrl) return
+      if (!baseUrl || provider === CODEX_CLI_PROVIDER) return
       setFetchingModels(true)
       try {
         const list = await fetchLlmModels(apiKey, provider, baseUrl)
@@ -184,7 +183,7 @@ export function LlmPane() {
 
   // Auto-fetch when API key or base URL changes (debounced); skips if models already cached
   useEffect(() => {
-    if (isCloud) return
+    if (isCodex) return
     if ((requiresApiKey && !llmApiKey) || !config.llm_base_url) return
     if (models.length > 0) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -201,7 +200,7 @@ export function LlmPane() {
     config.llm_base_url,
     config.llm_provider,
     doFetchModels,
-    isCloud,
+    isCodex,
     llmApiKey,
     models.length,
     requiresApiKey,
@@ -212,6 +211,11 @@ export function LlmPane() {
     setLlmLatencyMs(null)
     setTestErrorMessage(null)
     try {
+      if (isCodex) {
+        const ok = await testLlmConnection('', CODEX_CLI_PROVIDER, '', config.llm_model)
+        setLlmTestStatus(ok ? 'success' : 'error')
+        return
+      }
       const ms = await benchLlmConnection(
         llmApiKey,
         config.llm_provider,
@@ -231,9 +235,13 @@ export function LlmPane() {
   const renderConnectionFeedback = (includeCredentialStatus: boolean) => (
     <>
       {llmTestStatus === 'success' && (
-        <p className="flex items-center gap-1 text-[12px] text-success mt-2">
+        <p className="flex items-center gap-1 text-[12px] text-success mt-2 break-keep">
           <CheckCircle2 size={13} />{' '}
-          {llmLatencyMs !== null ? `${llmLatencyMs}ms` : t('settings.connectionSuccess')}
+          {isCodex
+            ? t('ultra.loginReady')
+            : llmLatencyMs !== null
+              ? `${llmLatencyMs}ms`
+              : t('settings.connectionSuccess')}
         </p>
       )}
       {(llmTestStatus === 'error' || testErrorMessage) && (
@@ -257,6 +265,7 @@ export function LlmPane() {
     <div className="space-y-4">
       <FormField label={t('settings.provider')}>
         <select
+          aria-label={t('settings.provider')}
           value={config.llm_provider}
           onChange={(e) => {
             const provider = e.target.value as typeof config.llm_provider
@@ -265,6 +274,7 @@ export function LlmPane() {
               llm_provider: provider,
               llm_base_url: defaults?.baseUrl ?? config.llm_base_url,
               llm_model: defaults?.model ?? config.llm_model,
+              ...(provider === CODEX_CLI_PROVIDER ? { llm_api_key: '' } : {}),
             })
             setLlmTestStatus('idle')
             setLlmLatencyMs(null)
@@ -281,32 +291,25 @@ export function LlmPane() {
         </select>
       </FormField>
 
-      {isCloud && (
-        <div className="border border-border rounded-[10px] px-3 py-3 space-y-2">
-          <div className="flex items-center gap-2 text-[13px]">
-            <Crown size={14} className="text-accent" />
-            <span className="text-text-primary font-medium">{t('settings.cloudLlmPro')}</span>
-          </div>
-          {!user ? (
-            <p className="text-[12px] text-text-secondary">{t('settings.llmSignInHint')}</p>
-          ) : !hasCloudAccess ? (
-            <div className="space-y-2">
-              <p className="text-[12px] text-text-secondary">{t('settings.llmUpgradeHint')}</p>
-              <button
-                type="button"
-                onClick={goUpgrade}
-                className="rounded-[8px] border border-accent bg-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-accent-hover"
-              >
-                {t('nav.upgrade')}
-              </button>
-            </div>
-          ) : (
-            <p className="text-[12px] text-green-500">{t('settings.llmProActive')}</p>
-          )}
-        </div>
+      {isCodex && (
+        <FormField label={t('ultra.codex')}>
+          <p className="text-[12px] text-text-secondary leading-relaxed break-keep">
+            {t('ultra.codexHint')}
+          </p>
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={llmTestStatus === 'testing'}
+            className="mt-2 px-4 py-2.5 bg-accent text-white rounded-[10px] text-[13px] border-none cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+          >
+            {llmTestStatus === 'testing' && <Loader2 size={14} className="animate-spin" />}
+            {t('ultra.checkLogin')}
+          </button>
+          {renderConnectionFeedback(false)}
+        </FormField>
       )}
 
-      {!isCloud && (
+      <>
         <>
           {requiresApiKey && (
             <FormField label={t('settings.apiKey')}>
@@ -344,6 +347,8 @@ export function LlmPane() {
               <div className="relative flex-1">
                 <input
                   list="llm-model-list"
+                  aria-label={t('settings.model')}
+                  readOnly={isCodex}
                   value={config.llm_model}
                   onChange={(e) => {
                     updateConfig({ llm_model: e.target.value })
@@ -359,53 +364,58 @@ export function LlmPane() {
                   ))}
                 </datalist>
               </div>
-              <button
-                onClick={() => doFetchModels(llmApiKey, config.llm_provider, config.llm_base_url)}
-                disabled={fetchingModels || !config.llm_base_url || (requiresApiKey && !llmApiKey)}
-                className="px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-secondary cursor-pointer hover:border-border-focus disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-                title={t('settings.fetchModels')}
-              >
-                <RefreshCw size={14} className={fetchingModels ? 'animate-spin' : ''} />
-              </button>
+              {!isCodex && (
+                <button
+                  onClick={() => doFetchModels(llmApiKey, config.llm_provider, config.llm_base_url)}
+                  disabled={
+                    fetchingModels || !config.llm_base_url || (requiresApiKey && !llmApiKey)
+                  }
+                  className="px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-secondary cursor-pointer hover:border-border-focus disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                  title={t('settings.fetchModels')}
+                >
+                  <RefreshCw size={14} className={fetchingModels ? 'animate-spin' : ''} />
+                </button>
+              )}
             </div>
-            {models.length > 0 && (
+            {!isCodex && models.length > 0 && (
               <p className="text-[11px] text-text-tertiary mt-1">
                 {t('settings.modelsAvailable', { count: models.length })}
               </p>
             )}
           </FormField>
 
-          <FormField label={t('settings.baseUrl')}>
-            <div className="flex gap-2">
-              <input
-                value={config.llm_base_url}
-                onChange={(e) => {
-                  updateConfig({ llm_base_url: e.target.value })
-                  setLlmTestStatus('idle')
-                  setLlmLatencyMs(null)
-                  setTestErrorMessage(null)
-                }}
-                placeholder={
-                  LLM_DEFAULT_CONFIG[config.llm_provider]?.baseUrl ?? 'https://api.openai.com/v1'
-                }
-                className="min-w-0 flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
-              />
-              {!requiresApiKey && (
-                <button
-                  type="button"
-                  onClick={handleTest}
-                  disabled={!config.llm_base_url || llmTestStatus === 'testing'}
-                  className="px-4 py-2.5 bg-accent text-white rounded-[10px] text-[13px] border-none cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-                >
-                  {llmTestStatus === 'testing' && <Loader2 size={14} className="animate-spin" />}
-                  {t('settings.test')}
-                </button>
-              )}
-            </div>
-            {!requiresApiKey && renderConnectionFeedback(false)}
-          </FormField>
+          {!isCodex && (
+            <FormField label={t('settings.baseUrl')}>
+              <div className="flex gap-2">
+                <input
+                  value={config.llm_base_url}
+                  onChange={(e) => {
+                    updateConfig({ llm_base_url: e.target.value })
+                    setLlmTestStatus('idle')
+                    setLlmLatencyMs(null)
+                    setTestErrorMessage(null)
+                  }}
+                  placeholder={
+                    LLM_DEFAULT_CONFIG[config.llm_provider]?.baseUrl ?? 'https://api.openai.com/v1'
+                  }
+                  className="min-w-0 flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
+                />
+                {!requiresApiKey && (
+                  <button
+                    type="button"
+                    onClick={handleTest}
+                    disabled={!config.llm_base_url || llmTestStatus === 'testing'}
+                    className="px-4 py-2.5 bg-accent text-white rounded-[10px] text-[13px] border-none cursor-pointer hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                  >
+                    {llmTestStatus === 'testing' && <Loader2 size={14} className="animate-spin" />}
+                    {t('settings.test')}
+                  </button>
+                )}
+              </div>
+              {!requiresApiKey && renderConnectionFeedback(false)}
+            </FormField>
+          )}
         </>
-      )}
 
       <div className="space-y-3 pt-1">
         <div>
@@ -602,6 +612,7 @@ export function LlmPane() {
           }}
         />
       )}
+    </>
     </div>
   )
 }

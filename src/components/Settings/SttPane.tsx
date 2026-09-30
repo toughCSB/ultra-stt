@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isMacPlatform, useAppStore } from '../../stores/appStore'
-import { hasManagedCloudAccess, useAuthStore } from '../../stores/authStore'
 import {
   STT_PROVIDERS,
   LANGUAGES,
@@ -9,6 +8,7 @@ import {
   CUSTOM_WHISPER_PROVIDER,
   CUSTOM_STT_DEFAULTS,
   CUSTOM_STT_PRESETS,
+  ULTRA_LOCAL_STT_PRESET,
   VOLCENGINE_STT_RESOURCES,
 } from '../../lib/constants'
 import {
@@ -21,7 +21,7 @@ import {
   type SttProviderDiagnostics,
 } from '../../lib/tauri'
 import { FormField } from './shared/FormField'
-import { CheckCircle2, XCircle, Loader2, Crown } from 'lucide-react'
+import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 
 const RECORDING_LIMIT_PRESETS = [30, 60, 120, 300, 600, 1800, 3600]
 const MIN_CUSTOM_RECORDING_SECONDS = 30
@@ -45,17 +45,15 @@ export function SttPane() {
   const sttLatencyMs = useAppStore((s) => s.sttLatencyMs)
   const setSttLatencyMs = useAppStore((s) => s.setSttLatencyMs)
   const platformCapabilities = useAppStore((s) => s.platformCapabilities)
-  const { user } = useAuthStore()
-  const hasCloudAccess = useAuthStore(hasManagedCloudAccess)
   const { t } = useTranslation()
   const [testErrorMessage, setTestErrorMessage] = useState<string | null>(null)
   const [credentialErrorMessage, setCredentialErrorMessage] = useState<string | null>(null)
   const [recordingLimit, setRecordingLimit] = useState<ResolvedSttRecordingLimit | null>(null)
   const [customDurationEntryRequested, setCustomDurationEntryRequested] = useState(false)
 
-  const isCloud = config.stt_provider === 'cloud'
   const isAppleSpeech = config.stt_provider === APPLE_SPEECH_PROVIDER
   const isCustomWhisper = config.stt_provider === CUSTOM_WHISPER_PROVIDER
+  const isUltraLocal = isCustomWhisper && config.stt_custom_preset === ULTRA_LOCAL_STT_PRESET
   const isVolcengineDoubao = config.stt_provider === 'volcengine-doubao'
   const isAliyunQwen3 = config.stt_provider === 'aliyun-qwen3-asr'
   const credentialProvider = isCustomWhisper ? CUSTOM_WHISPER_PROVIDER : config.stt_provider
@@ -78,12 +76,8 @@ export function SttPane() {
     : isCustomWhisper
       ? Boolean(config.stt_custom_base_url.trim() && config.stt_custom_model.trim())
       : Boolean(apiKeyDraft)
-  const goUpgrade = () => {
-    window.location.hash = '#/upgrade'
-  }
-
   useEffect(() => {
-    if (isCloud || isAppleSpeech) {
+    if (isAppleSpeech || isUltraLocal) {
       setApiKeyDraft('')
       setCredentialErrorMessage(null)
       return
@@ -101,7 +95,7 @@ export function SttPane() {
     return () => {
       cancelled = true
     }
-  }, [credentialProvider, isAppleSpeech, isCloud, legacyApiKey])
+  }, [credentialProvider, isAppleSpeech, isUltraLocal, legacyApiKey])
 
   useEffect(() => {
     if (!isCustomWhisper && !isAppleSpeech) {
@@ -111,7 +105,7 @@ export function SttPane() {
 
     let cancelled = false
     getSttProviderDiagnostics(
-      isAppleSpeech ? '' : apiKeyDraft,
+      isAppleSpeech || isUltraLocal ? '' : apiKeyDraft,
       config.stt_provider,
       isCustomWhisper ? config.stt_custom_base_url : undefined,
       isCustomWhisper ? config.stt_custom_model : undefined,
@@ -134,6 +128,7 @@ export function SttPane() {
     config.stt_provider,
     isAppleSpeech,
     isCustomWhisper,
+    isUltraLocal,
   ])
 
   useEffect(() => {
@@ -174,7 +169,7 @@ export function SttPane() {
 
   const persistSttCredential = useCallback(
     (value: string, delayMs = 350) => {
-      if (isCloud || isAppleSpeech) return
+      if (isAppleSpeech || isUltraLocal) return
       if (credentialSaveRef.current) clearTimeout(credentialSaveRef.current)
       credentialSaveRef.current = setTimeout(() => {
         credentialSaveRef.current = null
@@ -187,7 +182,7 @@ export function SttPane() {
           })
       }, delayMs)
     },
-    [credentialProvider, isAppleSpeech, isCloud],
+    [credentialProvider, isAppleSpeech, isUltraLocal],
   )
 
   const handleTest = async () => {
@@ -198,7 +193,7 @@ export function SttPane() {
       let ms: number
       if (isCustomWhisper) {
         ms = await benchSttConnection(
-          apiKeyDraft,
+          isUltraLocal ? '' : apiKeyDraft,
           config.stt_provider,
           config.stt_custom_base_url,
           config.stt_custom_model,
@@ -353,30 +348,7 @@ export function SttPane() {
         </select>
       </FormField>
 
-      {isCloud ? (
-        <div className="border border-border rounded-[10px] px-3 py-3 space-y-2">
-          <div className="flex items-center gap-2 text-[13px]">
-            <Crown size={14} className="text-accent" />
-            <span className="text-text-primary font-medium">{t('settings.cloudSttPro')}</span>
-          </div>
-          {!user ? (
-            <p className="text-[12px] text-text-secondary">{t('settings.sttSignInHint')}</p>
-          ) : !hasCloudAccess ? (
-            <div className="space-y-2">
-              <p className="text-[12px] text-text-secondary">{t('settings.sttUpgradeHint')}</p>
-              <button
-                type="button"
-                onClick={goUpgrade}
-                className="rounded-[8px] border border-accent bg-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-accent-hover"
-              >
-                {t('nav.upgrade')}
-              </button>
-            </div>
-          ) : (
-            <p className="text-[12px] text-green-500">{t('settings.sttProActive')}</p>
-          )}
-        </div>
-      ) : isAppleSpeech ? (
+      {isAppleSpeech ? (
         <FormField label={t('providers.stt.appleSpeech')}>
           <div className="flex gap-2">
             <div className="flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary">
@@ -435,11 +407,13 @@ export function SttPane() {
                 <select
                   value={config.stt_custom_preset}
                   onChange={(e) => {
-                    const preset = e.target.value as typeof config.stt_custom_preset
-                    const selected = CUSTOM_STT_PRESETS.find((p) => p.value === preset)
-                    const hasDefaults = selected && 'baseUrl' in selected && 'model' in selected
+                    const selected = CUSTOM_STT_PRESETS.find((p) => p.value === e.target.value)
+                    if (!selected) return
+                    const preset = selected.value
+                    const hasDefaults = 'baseUrl' in selected && 'model' in selected
                     updateConfig({
                       stt_custom_preset: preset,
+                      ...(preset === ULTRA_LOCAL_STT_PRESET ? { stt_custom_api_key: '' } : {}),
                       ...(hasDefaults
                         ? {
                             stt_custom_base_url: selected.baseUrl,
@@ -463,6 +437,8 @@ export function SttPane() {
 
               <FormField label={t('settings.customSttBaseUrl')}>
                 <input
+                  aria-label={t('settings.customSttBaseUrl')}
+                  readOnly={isUltraLocal}
                   value={config.stt_custom_base_url}
                   onChange={(e) => {
                     updateConfig({ stt_custom_base_url: e.target.value })
@@ -477,6 +453,8 @@ export function SttPane() {
 
               <FormField label={t('settings.customSttModel')}>
                 <input
+                  aria-label={t('settings.customSttModel')}
+                  readOnly={isUltraLocal}
                   value={config.stt_custom_model}
                   onChange={(e) => {
                     updateConfig({ stt_custom_model: e.target.value })
@@ -487,8 +465,8 @@ export function SttPane() {
                   placeholder={t('settings.customSttModelPlaceholder')}
                   className="w-full px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
                 />
-                <p className="text-[11px] text-text-tertiary mt-1.5">
-                  {t('settings.customSttSetupHint')}
+                <p className="text-[11px] text-text-tertiary mt-1.5 break-keep">
+                  {t(isUltraLocal ? 'ultra.localSpeechHint' : 'settings.customSttSetupHint')}
                 </p>
                 {sttDiagnostics && (
                   <p
@@ -569,23 +547,31 @@ export function SttPane() {
           )}
 
           <FormField
-            label={isCustomWhisper ? t('settings.customSttApiKeyOptional') : t('settings.apiKey')}
+            label={
+              isUltraLocal
+                ? t('ultra.localSpeech')
+                : isCustomWhisper
+                  ? t('settings.customSttApiKeyOptional')
+                  : t('settings.apiKey')
+            }
           >
             <div className="flex gap-2">
-              <input
-                type="password"
-                value={apiKeyDraft}
-                onChange={(e) => {
-                  setApiKeyDraft(e.target.value)
-                  persistSttCredential(e.target.value)
-                  setSttTestStatus('idle')
-                  setSttLatencyMs(null)
-                  setTestErrorMessage(null)
-                }}
-                onBlur={() => persistSttCredential(apiKeyDraft, 0)}
-                placeholder={t('settings.enterApiKey')}
-                className="flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
-              />
+              {!isUltraLocal && (
+                <input
+                  type="password"
+                  value={apiKeyDraft}
+                  onChange={(e) => {
+                    setApiKeyDraft(e.target.value)
+                    persistSttCredential(e.target.value)
+                    setSttTestStatus('idle')
+                    setSttLatencyMs(null)
+                    setTestErrorMessage(null)
+                  }}
+                  onBlur={() => persistSttCredential(apiKeyDraft, 0)}
+                  placeholder={t('settings.enterApiKey')}
+                  className="flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
+                />
+              )}
               <button
                 onClick={handleTest}
                 disabled={!canTest || sttTestStatus === 'testing'}
@@ -607,13 +593,16 @@ export function SttPane() {
                 <span>{testErrorMessage || t('settings.connectionFailed')}</span>
               </div>
             )}
-            {credentialErrorMessage ? (
-              <p className="text-[11px] text-error mt-1.5">
-                {t('settings.credentialSaveFailed', { details: credentialErrorMessage })}
-              </p>
-            ) : (
-              <p className="text-[11px] text-text-tertiary mt-1.5">{t('settings.storedLocally')}</p>
-            )}
+            {!isUltraLocal &&
+              (credentialErrorMessage ? (
+                <p className="text-[11px] text-error mt-1.5">
+                  {t('settings.credentialSaveFailed', { details: credentialErrorMessage })}
+                </p>
+              ) : (
+                <p className="text-[11px] text-text-tertiary mt-1.5">
+                  {t('settings.storedLocally')}
+                </p>
+              ))}
             {isVolcengineDoubao && (
               <p className="text-[11px] text-text-tertiary mt-1.5">
                 {t('settings.volcengineSttKeyHint')}

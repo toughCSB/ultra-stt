@@ -50,10 +50,15 @@ export function AccessibilityBanner() {
   }, [lastContext?.browserAccessStatus])
 
   useEffect(() => {
-    if (macAccessibilityNeeded && !accessibilityTrusted) {
-      const onFocus = () => checkAccessibilityPermission().then(setAccessibilityTrusted)
-      window.addEventListener('focus', onFocus)
-      return () => window.removeEventListener('focus', onFocus)
+    if (!macAccessibilityNeeded || accessibilityTrusted) return
+    const recheck = () => checkAccessibilityPermission().then(setAccessibilityTrusted)
+    // The grant happens in System Settings, and a Tauri webview does not always
+    // emit focus when the user returns, so poll as well as listen.
+    const timer = window.setInterval(recheck, 2000)
+    window.addEventListener('focus', recheck)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', recheck)
     }
   }, [macAccessibilityNeeded, accessibilityTrusted, setAccessibilityTrusted])
 

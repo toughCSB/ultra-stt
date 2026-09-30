@@ -134,9 +134,11 @@ fn system_entry(account: &str) -> Result<keyring::Entry> {
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn write_system_secret(account: &str, secret: &str) -> Result<()> {
-    system_entry(account)?
-        .set_password(secret)
-        .with_context(|| format!("write system credential vault {account}"))
+    with_system_vault(|| {
+        system_entry(account)?
+            .set_password(secret)
+            .with_context(|| format!("write system credential vault {account}"))
+    })
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
@@ -148,11 +150,11 @@ fn write_system_secret(_account: &str, _secret: &str) -> Result<()> {
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn read_system_secret(account: &str) -> Result<Option<String>> {
-    match system_entry(account)?.get_password() {
+    with_system_vault(|| match system_entry(account)?.get_password() {
         Ok(secret) => Ok(Some(secret)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(error) => Err(anyhow!("read system credential vault {account}: {error}")),
-    }
+    })
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
@@ -164,10 +166,10 @@ fn read_system_secret(_account: &str) -> Result<Option<String>> {
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn delete_system_secret(account: &str) -> Result<()> {
-    match system_entry(account)?.delete_credential() {
+    with_system_vault(|| match system_entry(account)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(error) => Err(anyhow!("delete system credential vault {account}: {error}")),
-    }
+    })
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
@@ -175,6 +177,44 @@ fn delete_system_secret(_account: &str) -> Result<()> {
     Err(anyhow!(
         "system credential vault is not supported on this platform"
     ))
+}
+
+#[cfg(target_os = "macos")]
+fn with_system_vault<Value>(operation: impl FnOnce() -> Result<Value>) -> Result<Value> {
+    #[link(name = "Security", kind = "framework")]
+    extern "C" {
+        fn SecKeychainGetUserInteractionAllowed(state: *mut u8) -> i32;
+        fn SecKeychainSetUserInteractionAllowed(state: u8) -> i32;
+    }
+
+    static KEYCHAIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _lock = KEYCHAIN_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+    let mut previous = 0;
+    let status = unsafe { SecKeychainGetUserInteractionAllowed(&mut previous) };
+    if status != 0 {
+        return Err(anyhow!("read Keychain interaction state: {status}"));
+    }
+    let status = unsafe { SecKeychainSetUserInteractionAllowed(0) };
+    if status != 0 {
+        return Err(anyhow!("disable Keychain interaction for vault operation: {status}"));
+    }
+
+    struct RestoreInteraction(u8);
+    impl Drop for RestoreInteraction {
+        fn drop(&mut self) {
+            let status = unsafe { SecKeychainSetUserInteractionAllowed(self.0) };
+            if status != 0 {
+                tracing::warn!(status, "Could not restore Keychain interaction state");
+            }
+        }
+    }
+    let _restore = RestoreInteraction(previous);
+    operation()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn with_system_vault<Value>(operation: impl FnOnce() -> Result<Value>) -> Result<Value> {
+    operation()
 }
 
 fn current_credential_timestamp() -> String {
@@ -242,21 +282,9 @@ pub fn migrate_legacy_config_secrets<V: CredentialVault + CredentialSecretReader
         }
     }
 
-    if pending
-        .iter()
-        .any(|(namespace, provider, _)| namespace == "stt" && provider != "custom-whisper")
-    {
-        config.stt_api_key.clear();
-    }
-    if pending
-        .iter()
-        .any(|(namespace, provider, _)| namespace == "stt" && provider == "custom-whisper")
-    {
-        config.stt_custom_api_key.clear();
-    }
-    if pending.iter().any(|(namespace, _, _)| namespace == "llm") {
-        config.llm_api_key.clear();
-    }
+    config.stt_api_key.clear();
+    config.stt_custom_api_key.clear();
+    config.llm_api_key.clear();
 
     Ok(CredentialMigrationReport {
         migrated: pending
@@ -278,7 +306,18 @@ pub fn resolve_config_secret<V: CredentialSecretReader>(
     if !legacy_secret.trim().is_empty() {
         return Ok(legacy_secret.to_string());
     }
-    Ok(vault.get_secret(namespace, provider)?.unwrap_or_default())
+    // A keychain that refuses to answer, which macOS does when the app has no
+    // unlocked session, must surface as a missing key rather than a hard error,
+    // otherwise dictation fails with an opaque message.
+    match vault.get_secret(namespace, provider) {
+        Ok(secret) => Ok(secret.unwrap_or_default()),
+        Err(error) => {
+            tracing::warn!(
+                "Could not read the {namespace}.{provider} credential: {error}"
+            );
+            Ok(String::new())
+        }
+    }
 }
 
 pub fn stt_credential_provider(config: &AppConfig) -> &str {
@@ -294,13 +333,21 @@ pub fn resolve_stt_config_secret<V: CredentialSecretReader>(
     vault: &V,
 ) -> Result<String> {
     let provider = stt_credential_provider(config);
-    let legacy_secret = if provider == crate::stt::config::CUSTOM_WHISPER_PROVIDER {
-        &config.stt_custom_api_key
-    } else {
-        &config.stt_api_key
-    };
+    if provider == crate::stt::config::CUSTOM_WHISPER_PROVIDER {
+        // A custom endpoint key can land in either field depending on whether the
+        // user typed it into the custom box or the shared one, so accept both
+        // before falling back to the vault.
+        if !config.stt_custom_api_key.trim().is_empty() {
+            return Ok(config.stt_custom_api_key.clone());
+        }
+        if !config.stt_api_key.trim().is_empty() {
+            return Ok(config.stt_api_key.clone());
+        }
+    } else if !config.stt_api_key.trim().is_empty() {
+        return Ok(config.stt_api_key.clone());
+    }
 
-    resolve_config_secret(legacy_secret, "stt", provider, vault)
+    Ok(vault.get_secret("stt", provider)?.unwrap_or_default())
 }
 
 pub fn resolve_llm_config_secret<V: CredentialSecretReader>(
@@ -418,6 +465,62 @@ mod tests {
         assert!(config.stt_api_key.is_empty());
         assert!(config.stt_custom_api_key.is_empty());
         assert!(config.llm_api_key.is_empty());
+    }
+
+    #[test]
+    fn migrates_custom_provider_shared_key_once() {
+        let mut config = AppConfig {
+            stt_provider: "custom-whisper".to_string(),
+            stt_api_key: "shared-custom-secret".to_string(),
+            ..AppConfig::default()
+        };
+        let vault = MemoryVault::default();
+
+        migrate_legacy_config_secrets(&mut config, &vault).unwrap();
+
+        assert!(config.stt_api_key.is_empty());
+        assert_eq!(
+            resolve_stt_config_secret(&config, &vault).unwrap(),
+            "shared-custom-secret"
+        );
+        assert!(migrate_legacy_config_secrets(&mut config, &vault)
+            .unwrap()
+            .migrated
+            .is_empty());
+        assert_eq!(vault.records().len(), 1);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn vault_operation_restores_interaction_after_success_error_and_panic() {
+        #[link(name = "Security", kind = "framework")]
+        extern "C" {
+            fn SecKeychainGetUserInteractionAllowed(state: *mut u8) -> i32;
+        }
+        let read_state = || {
+            let mut state = 0;
+            assert_eq!(unsafe { SecKeychainGetUserInteractionAllowed(&mut state) }, 0);
+            state
+        };
+        let previous = read_state();
+
+        with_system_vault(|| {
+            assert_eq!(read_state(), 0);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(read_state(), previous);
+
+        let failure: Result<()> = with_system_vault(|| Err(anyhow!("fixture failure")));
+        assert!(failure.is_err());
+        assert_eq!(read_state(), previous);
+
+        assert!(std::panic::catch_unwind(|| {
+            let _: Result<()> = with_system_vault(|| panic!("fixture panic"));
+        })
+        .is_err());
+        assert_eq!(read_state(), previous);
+        assert!(with_system_vault(|| Ok(())).is_ok());
     }
 
     #[test]
@@ -568,5 +671,45 @@ mod tests {
         let secret = resolve_llm_config_secret(&config, &vault).unwrap();
 
         assert_eq!(secret, "llm-secret");
+    }
+
+    #[test]
+    fn custom_whisper_uses_the_shared_key_field_when_the_custom_one_is_empty() {
+        // The key can land in either field depending on which box the user typed
+        // it into, and on macOS the custom field is often the one left empty.
+        let mut config = AppConfig::new_install_default();
+        config.stt_provider = crate::stt::config::CUSTOM_WHISPER_PROVIDER.to_string();
+        config.stt_custom_api_key = String::new();
+        config.stt_api_key = "shared-token".to_string();
+
+        let vault = MemoryVault::default();
+        let resolved = resolve_stt_config_secret(&config, &vault).expect("resolution should not fail");
+        assert_eq!(resolved, "shared-token");
+    }
+
+    #[test]
+    fn custom_whisper_prefers_its_own_key_field() {
+        let mut config = AppConfig::new_install_default();
+        config.stt_provider = crate::stt::config::CUSTOM_WHISPER_PROVIDER.to_string();
+        config.stt_custom_api_key = "custom-token".to_string();
+        config.stt_api_key = "shared-token".to_string();
+
+        let vault = MemoryVault::default();
+        let resolved = resolve_stt_config_secret(&config, &vault).expect("resolution should not fail");
+        assert_eq!(resolved, "custom-token");
+    }
+
+    #[test]
+    fn an_unreadable_vault_yields_no_key_instead_of_an_error() {
+        // macOS refuses the keychain when the app has no unlocked session. That
+        // must read as a missing key, not as a hard recognition failure.
+        let mut config = AppConfig::new_install_default();
+        config.stt_provider = "some-cloud-provider".to_string();
+        config.stt_api_key = String::new();
+
+        let vault = MemoryVault::with_failure("some-cloud-provider");
+        let resolved = resolve_stt_config_secret(&config, &vault)
+            .expect("a vault read failure must not propagate");
+        assert!(resolved.is_empty());
     }
 }

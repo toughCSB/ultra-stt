@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import { SttPane } from '../SttPane'
 import * as tauri from '../../../lib/tauri'
 
@@ -223,6 +223,33 @@ describe('SttPane', () => {
   })
 
   describe('Provider selection', () => {
+    it('uses the managed local endpoint without reading or forwarding a provider key', async () => {
+      mockAppStore.platformCapabilities.os = 'windows'
+      mockAppStore.config = {
+        ...mockAppStore.config,
+        stt_provider: 'custom-whisper',
+        stt_custom_preset: 'ultra-local',
+        stt_custom_api_key: 'stale-provider-key',
+        stt_custom_base_url: 'http://127.0.0.1:17845/v1',
+      }
+      vi.mocked(tauri.benchSttConnection).mockResolvedValue(42)
+      const { container } = render(<SttPane />)
+      expect(container.querySelector('input[type="password"]')).toBeNull()
+      expect(screen.getByRole('textbox', { name: 'Base URL' })).toHaveAttribute('readonly')
+      expect(screen.getByRole('textbox', { name: 'Model' })).toHaveAttribute('readonly')
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+      })
+      expect(tauri.benchSttConnection).toHaveBeenCalledWith(
+        '',
+        'custom-whisper',
+        'http://127.0.0.1:17845/v1',
+        'Systran/faster-whisper-large-v3',
+      )
+      expect(tauri.readCredential).not.toHaveBeenCalled()
+      expect(mockAppStore.setSttTestStatus).toHaveBeenLastCalledWith('success')
+    })
+
     it('renders provider dropdown with current value', () => {
       render(<SttPane />)
       const selects = screen.getAllByRole('combobox')
@@ -615,41 +642,6 @@ describe('SttPane', () => {
     })
   })
 
-  describe('Cloud provider UI', () => {
-    it('shows cloud info when provider is cloud and user not signed in', () => {
-      mockAppStore.config.stt_provider = 'cloud'
-      render(<SttPane />)
-      expect(screen.getByText('Sign in to use cloud STT')).toBeInTheDocument()
-    })
-
-    it('shows upgrade hint when user is signed in but not pro', () => {
-      mockAppStore.config.stt_provider = 'cloud'
-      mockAuthStore.user = { id: '1', email: 'test@example.com' }
-      mockAuthStore.plan = 'free'
-
-      render(<SttPane />)
-      expect(screen.getByText('Upgrade to Pro to use cloud STT')).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Upgrade' }))
-      expect(window.location.hash).toBe('#/upgrade')
-    })
-
-    it('shows active status when user is pro', () => {
-      mockAppStore.config.stt_provider = 'cloud'
-      mockAuthStore.user = { id: '1', email: 'test@example.com' }
-      mockAuthStore.plan = 'pro'
-
-      render(<SttPane />)
-      expect(screen.getByText('Cloud STT active')).toBeInTheDocument()
-    })
-
-    it('hides API key input when provider is cloud', () => {
-      mockAppStore.config.stt_provider = 'cloud'
-
-      const { container } = render(<SttPane />)
-      const inputs = container.querySelectorAll('input[placeholder="Enter API Key"]')
-      expect(inputs.length).toBe(0)
-    })
-  })
 
   describe('API Key input', () => {
     it('renders API key input with current value', () => {

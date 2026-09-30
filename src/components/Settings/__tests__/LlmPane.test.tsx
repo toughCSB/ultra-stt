@@ -194,7 +194,7 @@ describe('LlmPane', () => {
   })
 
   describe('Provider selection', () => {
-    it('renders provider dropdown with current value', () => {
+            it('renders provider dropdown with current value', () => {
       render(<LlmPane />)
       const selects = screen.getAllByRole('combobox')
       const providerSelect = selects[0] // First select is provider
@@ -240,42 +240,7 @@ describe('LlmPane', () => {
       expect(screen.queryByText('Voice question')).not.toBeInTheDocument()
     })
 
-    it('shows cloud info when provider is cloud and user not signed in', () => {
-      mockAppStore.config.llm_provider = 'cloud'
-      render(<LlmPane />)
-      expect(screen.getByText('Cloud LLM (Pro)')).toBeInTheDocument()
-      expect(
-        screen.getByText('Sign in and subscribe to Pro to use cloud AI polish. No API key needed.'),
-      ).toBeInTheDocument()
-    })
-
-    it('shows upgrade hint when user is signed in but not pro', () => {
-      mockAppStore.config.llm_provider = 'cloud'
-      mockAuthStore.user = { id: '1', email: 'test@example.com' }
-      mockAuthStore.plan = 'free'
-
-      render(<LlmPane />)
-      expect(screen.getByText('Cloud LLM (Pro)')).toBeInTheDocument()
-      expect(
-        screen.getByText(
-          'Upgrade to Pro for cloud AI polish and monthly usage. No API key needed.',
-        ),
-      ).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Upgrade' }))
-      expect(window.location.hash).toBe('#/upgrade')
-    })
-
-    it('shows active status when user is pro', () => {
-      mockAppStore.config.llm_provider = 'cloud'
-      mockAuthStore.user = { id: '1', email: 'test@example.com' }
-      mockAuthStore.plan = 'pro'
-
-      render(<LlmPane />)
-      expect(
-        screen.getByText('Pro active — cloud AI polish is ready. No API key needed.'),
-      ).toBeInTheDocument()
-    })
-  })
+              })
 
   describe('API Key input', () => {
     it('renders API key input with current value', () => {

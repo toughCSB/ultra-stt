@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#050806" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+    <title>Ultra STT · 원격 음성 입력</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand" aria-label="Ultra STT">
+          <span class="signal" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span aria-hidden="true"><strong>ULTRA</strong><b>&nbsp;</b><strong>STT</strong></span>
+        </div>
+        <span class="private-label">Voice Keyboard</span>
+      </header>
+
+      <section class="intro" aria-labelledby="headline">
+        <p class="eyebrow">서버의 성능을, 지금 이 기기에서</p>
+        <h1 id="headline">말한 그대로 듣고,<br /><em>쓸 문장으로 정리합니다.</em></h1>
+        <img class="hero-mark" src="title-lockup.png" alt="" aria-hidden="true" />
+        <p class="intro-copy">
+          녹음은 이 기기에서, 음성 인식과 문장 정리는 내 서버 PC에서 처리합니다.
+          이 기기에 AI 모델이나 API 키를 설치할 필요가 없습니다.
+        </p>
+        <div class="chips">
+          <span class="chip">Whisper large-v3</span>
+          <span class="chip">Codex cleanup</span>
+          <span class="chip muted">100% local by default</span>
+        </div>
+        <hr class="rule" />
+      </section>
+
+      <section class="recorder" aria-label="음성 입력">
+        <div class="recorder-heading">
+          <div class="mic-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3" />
+              <path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8" />
+            </svg>
+          </div>
+          <div>
+            <h2>음성으로 입력</h2>
+            <p>한국어 · Whisper large-v3 · Codex 정리</p>
+          </div>
+        </div>
+
+        <div class="status-row">
+          <span id="indicator" class="indicator" aria-hidden="true"></span>
+          <p id="status" role="status" aria-live="polite">마이크를 누르면 녹음을 시작합니다.</p>
+        </div>
+        <div class="actions">
+          <button id="record" class="button primary" type="button">녹음 시작</button>
+          <button id="stop" class="button dark" type="button" disabled>완료하고 정리</button>
+          <button id="cancel" class="button subtle" type="button" disabled>취소</button>
+        </div>
+        <p class="helper">취소하면 이번 녹음은 서버의 처리 결과에도 사용하지 않습니다.</p>
+      </section>
+
+      <section id="result" class="result" aria-labelledby="result-heading" hidden>
+        <div class="result-top">
+          <div>
+            <p class="eyebrow">READY TO USE</p>
+            <h2 id="result-heading">정리된 문장</h2>
+          </div>
+          <span class="result-badge">Ultra STT</span>
+        </div>
+        <p id="polished"></p>
+        <div class="result-actions">
+          <button id="copy" class="button primary" type="button">문장 복사</button>
+          <button id="share" class="button subtle" type="button">다른 앱으로 공유</button>
+        </div>
+        <details>
+          <summary>원본 인식 결과 보기</summary>
+          <p id="raw"></p>
+        </details>
+      </section>
+
+      <footer>내 서버 PC가 켜져 있고 Tailscale에 연결돼 있어야 합니다.</footer>
+    </main>
+  </body>
+</html>

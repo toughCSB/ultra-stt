@@ -3,18 +3,18 @@
 </p>
 
 <p align="center">
-  <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="OpenTypeless Logo" />
+  <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Ultra STT microphone logo" />
 </p>
 
-<h1 align="center">OpenTypeless</h1>
+<h1 align="center">Ultra STT</h1>
 
 <p align="center">
-  Open-source alternative to Wispr Flow and Superwhisper for AI voice input, rewriting, and voice Q&A on macOS, Windows, and Linux.
+  A personal voice keyboard for macOS and Windows, built on the OpenTypeless open-source project.
 </p>
 
 <p align="center">
-  Press a hotkey, speak naturally, and get clean text in the app you are already using.<br/>
-  Or ask a one-shot voice question and get a concise AI answer without opening a chat app.
+  Speak naturally, transcribe locally or with your chosen provider, and type the result into the app you are using.<br/>
+  Optional AI cleanup, translation, and voice Q&amp;A are available when configured.
 </p>
 
 <p align="center">
@@ -33,31 +33,31 @@
 </p>
 
 <p align="center">
-  If OpenTypeless helps your workflow, a GitHub star helps more people discover the project.
+  Download the latest build or run Ultra STT from source.
 </p>
 
 <p align="center">
-  <img src="docs/images/website-hero.png" width="860" alt="OpenTypeless website hero" />
+  <img src="docs/images/ultra-stt-dashboard.png" width="900" alt="Ultra STT dashboard on Windows" />
 </p>
 
 <p align="center">
-  <strong>Dictate anywhere</strong> · <strong>Rewrite selected text</strong> · <strong>Ask one-shot voice questions</strong> · <strong>Bring your own keys or use managed cloud words</strong>
+  <strong>Voice typing</strong> · <strong>Local history</strong> · <strong>Optional AI cleanup</strong> · <strong>macOS and Windows</strong>
 </p>
 
-## What's New in v1.1.55
+## At a Glance
 
-- **Stripe checkout for new purchases** with existing Creem subscriptions kept valid.
-- **More reliable cloud sign-in and billing** with secure session storage, clearer service-status messages, and stronger account-state recovery.
-- **Faster and more reliable providers** through connection reuse and warm-up, complete Deepgram and AssemblyAI final transcripts, and preserved Custom Whisper URL queries.
-- **Modern model support** for GPT-5/o-series requests and the native Anthropic Claude Messages API, while Claude through OpenRouter remains supported.
-- **More STT choices and safer recording limits** including regional Qwen3 ASR Realtime, provider-aware duration controls, and preserved audio while providers connect.
-- **Better platform support** including Linux ARM64 packages, Wayland direct typing with compositor-specific helpers, and safer Windows modifier-key output.
+- Global shortcuts start and stop voice capture without switching apps.
+- Speech recognition can use supported providers or a local engine, depending on your setup.
+- Results can be typed into the focused app or copied to the clipboard.
+- Optional LLM cleanup, selected-text editing, and translation use the provider you configure.
+- Transcription history and app preferences are stored locally.
+- The system-tray icon opens and hides the main window.
 
-See the complete notes and verified installers on the [latest release page](https://github.com/tover0314-w/opentypeless/releases/latest).
+> Provider availability depends on platform, configuration, and credentials. Ultra STT does not include a managed cloud quota or subscription service.
 
 ## Product Highlights
 
-OpenTypeless understands more of the workflow around your voice, not only the words you said:
+Ultra STT is focused on a fast, keyboard-first voice workflow:
 
 - **App-aware writing** detects the active application locally and adapts structure and tone for email, chat, documents, issue trackers, coding tools, and more.
 - **Voice intent routing** distinguishes dictation, selected-text editing, translation, Ask Anything, and supported voice actions in English, Simplified Chinese, and Traditional Chinese.
@@ -70,7 +70,7 @@ All application detection, mappings, dictionary entries, and correction rules ar
 
 ## Ask Anything
 
-Ask Anything is a shortcut-first voice Q&A flow, not a chat tab. Press the Ask Anything hotkey, speak a question, stop recording, and OpenTypeless transcribes it, sends a one-shot request to the LLM, then shows only the final answer in a small floating note.
+Ask Anything is an optional shortcut-first voice Q&A flow. Speak a question, stop recording, and the configured providers transcribe it and return a one-shot answer in a small floating note.
 
 It is designed for quick answers with no chat history, no input box, and no extra send step. If selected-text context is enabled, Ask can also answer questions about the text currently selected in another app.
 
@@ -84,10 +84,10 @@ Default shortcuts now follow the Typeless-style flow:
 
 Linux keeps conservative Ctrl-based defaults because global Right Alt handling is less reliable across desktop environments, especially on Wayland.
 
-## Visual Tour
+## Feature Examples
 
 <p align="center">
-  <img src="docs/images/v1.1.49-app-context-showcase.jpg" width="820" alt="OpenTypeless app-aware voice typing across Gmail, Slack, Google Docs, Cursor, Zendesk, and LinkedIn" />
+  <img src="docs/images/v1.1.49-app-context-showcase.jpg" width="820" alt="OpenTypeless v1.1.49 app-aware voice typing example" />
 </p>
 
 <p align="center">
@@ -109,9 +109,9 @@ Linux keeps conservative Ctrl-based defaults because global Right Alt handling i
 
 ---
 
-## What OpenTypeless Does
+## What Ultra STT Does
 
-OpenTypeless gives you four voice-first desktop workflows:
+Ultra STT provides voice-first desktop workflows:
 
 | Workflow              | What happens                                                                                                           |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -140,22 +140,22 @@ flowchart LR
   EditLLM --> Output
 ```
 
-## Why OpenTypeless?
+## Why Ultra STT?
 
-Most desktop dictation tools stop at transcription. OpenTypeless adds the AI rewrite layer, provider choice, and open-source control that power users need.
+Ultra STT combines speech input, optional AI editing, and direct keyboard output in one desktop app.
 
-|                        | OpenTypeless                                                         | macOS Dictation | Windows Voice Typing | Whisper Desktop |
+|                        | Ultra STT                                                            | macOS Dictation | Windows Voice Typing | Whisper Desktop |
 | ---------------------- | -------------------------------------------------------------------- | --------------- | -------------------- | --------------- |
 | AI text polishing      | ✅ Multiple LLMs                                                     | ❌              | ❌                   | ❌              |
 | Ask Anything voice Q&A | ✅                                                                   | ❌              | ❌                   | ❌              |
-| STT provider choice    | ✅ Cloud, Deepgram, AssemblyAI, Whisper-compatible, Doubao, and more | ❌ Apple only   | ❌ Microsoft only    | ❌ Whisper only |
+| STT provider choice    | ✅ Local and configurable providers                              | ❌ Apple only   | ❌ Microsoft only    | ❌ Whisper only |
 | Works in any app       | ✅                                                                   | ✅              | ✅                   | ❌ Copy-paste   |
 | Translation mode       | ✅                                                                   | ❌              | ❌                   | ❌              |
 | Selected-text rewrite  | ✅                                                                   | ❌              | ❌                   | ❌              |
 | App-aware writing      | ✅ Local detection and mappings                                      | ❌              | ❌                   | ❌              |
 | Multiple shortcuts     | ✅ Per voice workflow                                                 | ❌              | ❌                   | ❌              |
-| Open source            | ✅ MIT                                                               | ❌              | ❌                   | ✅              |
-| Cross-platform         | ✅ Win/Mac/Linux                                                     | ❌ Mac only     | ❌ Windows only      | ✅              |
+| Open source            | ✅ MIT-based codebase                                                | ❌              | ❌                   | ✅              |
+| Cross-platform         | ✅ macOS / Windows                                                    | ❌ Mac only     | ❌ Windows only      | ✅              |
 | Custom dictionary      | ✅                                                                   | ❌              | ❌                   | ❌              |
 | Self-hostable          | ✅ BYOK                                                              | ❌              | ❌                   | ✅              |
 
@@ -167,15 +167,15 @@ Most desktop dictation tools stop at transcription. OpenTypeless adds the AI rew
 | AI rewriting      | App-aware writing, local per-app style mappings, polish styles, streaming polish, selected-text context, and custom instructions             |
 | Ask Anything      | One-shot voice question flow: record in the capsule, think, then show a small answer note with copy support                                 |
 | Voice actions     | Deterministic English, Simplified Chinese, and Traditional Chinese routing for editing, translation, Ask, and supported actions              |
-| STT providers     | Cloud STT, Apple Speech on macOS, Deepgram, AssemblyAI, GLM-ASR, OpenAI Whisper, Groq Whisper, SiliconFlow, Volcengine Doubao, custom endpoints |
-| LLM providers     | Cloud LLM or OpenAI-compatible APIs including OpenAI, DeepSeek, Claude via OpenRouter, Gemini, Groq, Qwen, Moonshot, Ollama, and more       |
+| STT providers     | Local speech recognition and configurable remote providers, depending on platform and setup                                                |
+| LLM providers     | Configurable LLM providers, including OpenAI-compatible services and local endpoints                                                      |
 | Output            | Keyboard simulation, clipboard paste/copy-only, Windows SendInput, clipboard restore, and output-failure diagnostics                       |
 | Language          | Auto-detect speech, dedicated translation shortcut, switchable target languages, and 20+ translation targets                                |
 | Dictionary        | Custom terms, import/export, and local correction rules for recurring transcription mistakes                                                 |
 | Scenes            | Built-in scenes, local custom scenes, active scene metadata, import/export for reusable writing styles                                      |
 | Privacy           | Local app detection and mappings, provider keys in the OS credential vault where available, plus BYOK and local/self-hosted paths            |
-| Account and quota | Optional Pro and Lifetime Starter plans with shared cloud words for voice and AI                                                            |
-| Desktop polish    | Dark/light/system theme, onboarding, local history search, auto-start, auto-update, cross-platform Tauri app                                |
+| History           | Searchable local transcription history and recording statistics                                                                            |
+| Desktop polish    | Dark/light/system theme, onboarding, auto-start, tray controls, macOS and Windows Tauri app                                                  |
 
 UI localization currently ships with complete English and Chinese copy, plus additional locale files that may still fall back to English for newer advanced features.
 
@@ -184,14 +184,14 @@ UI localization currently ships with complete English and Chinese copy, plus add
 ```mermaid
 sequenceDiagram
   participant User
-  participant Desktop as OpenTypeless Desktop
+  participant Desktop as Ultra STT
   participant STT as STT Provider
   participant LLM as LLM Provider
   participant App as Active App
 
   User->>Desktop: Hold dictation hotkey and speak
   Desktop->>Desktop: Detect local app category and style
-  Desktop->>STT: Send audio via BYOK or Cloud
+  Desktop->>STT: Send audio to configured STT provider
   STT-->>Desktop: Raw transcript
   Desktop->>LLM: Optional context-aware polish / translate / rewrite
   LLM-->>Desktop: Final text
@@ -206,15 +206,15 @@ sequenceDiagram
 > | 🗣️ STT       | Groq     | `whisper-large-v3-turbo` |
 > | 🤖 AI Polish | Google   | `gemini-2.5-flash`       |
 >
-> This combo delivers fast, accurate transcription with high-quality text polishing — and both offer generous free tiers.
+> Provider pricing, availability, and model behavior are controlled by the providers; choose settings that fit your needs.
 
 ## Try It in 5 Minutes
 
 1. Download the latest build for your platform from [Releases](https://github.com/tover0314-w/opentypeless/releases).
-2. Choose **BYOK** for full provider control or **Cloud** if you want managed quota without API keys.
+2. Configure a speech provider in **Settings**. Add provider credentials if required.
 3. Pick speech recognition and AI polish providers in Settings.
 4. Set one or more shortcuts for Dictation, Ask Anything, and Translation.
-5. Open any desktop app, press the hotkey, speak, and let OpenTypeless type the polished result.
+5. Focus a text field, use the shortcut, speak, and review the result in the target app.
 
 ## Download
 
@@ -247,13 +247,7 @@ If the installer shows a publisher validation warning:
 
 ### macOS
 
-macOS builds are Developer ID signed. If Gatekeeper still blocks first launch while notarization/stapling catches up, remove the quarantine attribute:
-
-```bash
-xattr -cr /Applications/OpenTypeless.app
-```
-
-Then open the app normally.
+macOS may ask you to grant microphone and Accessibility permissions. Allow them in **System Settings → Privacy & Security** so recording and keyboard output can work.
 
 ### Linux
 
@@ -281,7 +275,7 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 ./OpenTypeless
 - KDE Plasma/KWin Wayland uses [`kwtype`](https://github.com/Sporif/KWtype), which must currently be built and installed using the upstream instructions.
 - Other Wayland compositors use `wtype`. On Ubuntu/Debian run `sudo apt install wtype`; on Arch/Manjaro run `sudo pacman -S wtype`.
 
-Global hotkeys can still depend on the desktop environment. If the matching helper is unavailable or fails, OpenTypeless keeps the result in the clipboard instead of running an untrusted user script.
+Global hotkeys can still depend on the desktop environment. If the matching helper is unavailable or fails, Ultra STT keeps the result in the clipboard instead of running an untrusted user script.
 
 ## Prerequisites
 
@@ -313,46 +307,10 @@ All settings are accessible from the in-app Settings panel:
 - **General** — manage multiple Dictation, Ask Anything, and Translation shortcuts, output mode, auto-start, and idle capsule visibility
 - **Dictionary** — add or import custom terms, export your dictionary, and create local correction rules for recurring transcription mistakes
 - **Scenes** — built-in and local prompt templates with import/export for reusable writing styles
-- **Account / Upgrade** — sign in, check cloud words, manage Pro or Lifetime Starter access
 
-API keys are stored locally in the OS credential vault where available, with a local fallback for unsupported environments. No BYOK keys are sent to OpenTypeless servers — STT/LLM requests go directly to the provider you configure.
+Provider credentials are stored locally using the platform's available secure storage. Audio and text are sent to the provider selected in settings when you use that provider. Review its privacy and retention policies before use.
 
-### Cloud Option
-
-OpenTypeless also offers optional managed cloud access so you do not need your own provider keys. Pro and Lifetime Starter plans include shared cloud words for speech recognition and AI rewriting. BYOK remains fully supported.
-
-[Learn more about Pro](https://www.opentypeless.com)
-
-### BYOK vs Cloud
-
-|                  | BYOK Mode                                        | Cloud (Pro) Mode                            |
-| ---------------- | ------------------------------------------------ | ------------------------------------------- |
-| STT              | Your own API key or local endpoint               | Managed cloud words                         |
-| LLM              | Your own API key or local endpoint               | Managed cloud words                         |
-| Cloud dependency | None — all requests go directly to your provider | Requires connection to www.opentypeless.com |
-| Cost             | Pay your provider directly                       | Optional Pro or Lifetime Starter            |
-
-All core features — recording, transcription, AI polish, keyboard/clipboard output, dictionary, history — work entirely offline from OpenTypeless servers in BYOK mode.
-
-### Self-Hosting / No Cloud
-
-To run OpenTypeless without any cloud dependency:
-
-1. Choose any non-Cloud STT and LLM provider in Settings
-2. Enter your own API keys
-3. That's it — no account or internet connection to www.opentypeless.com is needed
-
-If you want to point the optional cloud features at your own backend, set these environment variables before building:
-
-| Variable            | Default                        | Description                     |
-| ------------------- | ------------------------------ | ------------------------------- |
-| `VITE_API_BASE_URL` | `https://www.opentypeless.com` | Frontend cloud API base URL     |
-| `API_BASE_URL`      | `https://www.opentypeless.com` | Rust backend cloud API base URL |
-
-```bash
-# Example: build with a custom backend
-VITE_API_BASE_URL=https://my-server.example.com API_BASE_URL=https://my-server.example.com npm run tauri build
-```
+Ultra STT does not require an Ultra STT account. A network connection is needed for remote providers and update/download checks; local engines can be used where supported and configured. No managed cloud quota or subscription service is included.
 
 ## Architecture
 
@@ -368,8 +326,6 @@ flowchart TB
   Pipeline --> LLMs["LLM providers"]
   Pipeline --> Storage["SQLite history + dictionary"]
   Pipeline --> Output["Keyboard / clipboard output"]
-  Account["Account + updater + cloud quota"] --> UI
-  Account --> Tauri
 ```
 
 ```
@@ -381,8 +337,8 @@ src/                  # React frontend (TypeScript)
 
 src-tauri/src/        # Rust backend
 ├── audio/            # Audio capture via cpal
-├── stt/              # STT providers (Deepgram, AssemblyAI, Whisper-compat, Cloud)
-├── llm/              # LLM providers (OpenAI-compat, Cloud)
+├── stt/              # Speech recognition providers and local engines
+├── llm/              # LLM providers and local-compatible endpoints
 ├── output/           # Text output (keyboard simulation, clipboard paste)
 ├── storage/          # Config (tauri-plugin-store) + history/dictionary (SQLite)
 ├── app_detector/     # Detect active application for context
@@ -400,17 +356,17 @@ src-tauri/src/        # Rust backend
 
 ## FAQ
 
-**Is my audio sent to the cloud?**
-In BYOK mode, audio goes directly to your chosen STT provider or local endpoint. Nothing passes through OpenTypeless servers. In Cloud mode, audio is sent to the managed proxy for transcription and quota accounting.
+**Where does my audio go?**
+Local engines process audio on your device. If you select a remote STT provider, audio is sent to that provider; optional AI features send the relevant text to your configured LLM. Check each provider's privacy policy.
 
 **Can I use it offline?**
-With a local Whisper-compatible STT endpoint and a local OpenAI-compatible LLM such as Ollama, the app can run without OpenTypeless cloud services.
+Offline use depends on having a supported local STT engine and, for AI cleanup, a local LLM endpoint configured. Remote services require an internet connection.
 
 **Which languages are supported?**
 STT supports 99+ languages depending on the provider. AI polish and translation support 20+ target languages.
 
-**Is the app free?**
-Yes. The app is fully functional with your own API keys (BYOK). Cloud plans are optional.
+**Does Ultra STT have a subscription?**
+No managed quota or subscription is included. Remote provider fees, if any, are billed by those providers.
 
 ## Community
 

@@ -10,6 +10,7 @@ use crate::HotkeyRoleCache;
 use crate::SessionTokenStore;
 use serde_json::{json, Map, Value};
 use tauri::{Emitter, Manager, Window};
+use tauri_plugin_store::StoreExt;
 
 fn config_patch_between(previous: &storage::AppConfig, next: &storage::AppConfig) -> Value {
     let mut patch = Map::new();
@@ -226,9 +227,34 @@ pub(crate) async fn save_capsule_auto_hide(
 
 #[tauri::command]
 pub async fn get_config(
-    state: tauri::State<'_, storage::ConfigManager>,
+    app: tauri::AppHandle,
 ) -> Result<storage::AppConfig, String> {
-    state.load().await.map_err(|e| e.to_string())
+    crate::wait_for_config_ready().await?;
+    app.state::<storage::ConfigManager>()
+        .load()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn load_onboarding_completed(app: tauri::AppHandle) -> Result<bool, String> {
+    crate::wait_for_config_ready().await?;
+    let store = app
+        .store(storage::profile_store_path("settings.json"))
+        .map_err(|error| error.to_string())?;
+    Ok(store
+        .get("onboarding_completed")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false))
+}
+
+#[tauri::command]
+pub fn save_onboarding_completed(app: tauri::AppHandle) -> Result<(), String> {
+    let store = app
+        .store(storage::profile_store_path("settings.json"))
+        .map_err(|error| error.to_string())?;
+    store.set("onboarding_completed", true);
+    store.save().map_err(|error| error.to_string())
 }
 
 #[tauri::command]

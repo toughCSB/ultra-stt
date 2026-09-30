@@ -200,6 +200,8 @@ impl ContextDetectorHandle {
         };
         drop(cached);
 
+        let target_guard = self.source.current_target_guard().unwrap_or(target_guard);
+
         let generation = self.candidate_generation.fetch_add(1, Ordering::SeqCst) + 1;
         let next_candidate = candidate_template.map(|mut candidate| {
             candidate.generation = generation;
@@ -280,10 +282,16 @@ impl ContextDetectorHandle {
         if expected.is_empty() {
             return true;
         }
-        self.source
-            .collect()
-            .map(|signals| expected.matches(&TargetAppGuard::from(&signals)))
-            .unwrap_or(false)
+        let current = self.source.current_target_guard().or_else(|| {
+            self.source
+                .collect()
+                .map(|signals| TargetAppGuard::from(&signals))
+        });
+        let matches = current.as_ref().is_some_and(|current| expected.matches(current));
+        if !matches {
+            tracing::warn!(?expected, ?current, "Output target identity did not match");
+        }
+        matches
     }
 
     pub fn restore_target_application(&self, expected: &TargetAppGuard) -> bool {
@@ -447,6 +455,7 @@ mod tests {
     struct FakeSource {
         signals: Mutex<Option<ContextSignals>>,
         calls: AtomicUsize,
+        fast_guard: Mutex<Option<TargetAppGuard>>,
     }
 
     impl FakeSource {
@@ -454,6 +463,7 @@ mod tests {
             Self {
                 signals: Mutex::new(signals),
                 calls: AtomicUsize::new(0),
+                fast_guard: Mutex::new(None),
             }
         }
 
@@ -466,6 +476,10 @@ mod tests {
     }
 
     impl ContextSignalSource for FakeSource {
+        fn current_target_guard(&self) -> Option<TargetAppGuard> {
+            self.fast_guard.lock().unwrap().clone()
+        }
+
         fn collect(&self) -> Option<ContextSignals> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.signals
@@ -517,6 +531,42 @@ mod tests {
             Duration::from_millis(50),
             Duration::from_millis(100),
         )
+    }
+
+    #[test]
+    fn recording_uses_current_target_even_when_the_profile_cache_is_old() {
+        let source = Arc::new(FakeSource::new(Some(gmail_signals())));
+        let handle = detector(source.clone());
+        wait_for_profile(&handle, "email.gmail");
+        let current = TargetAppGuard {
+            process_id: Some(99),
+            native_identity: Some("com.apple.TextEdit".to_string()),
+        };
+        *source.fast_guard.lock().unwrap() = Some(current.clone());
+
+        let snapshot = handle.snapshot_for_recording();
+
+        assert_eq!(snapshot.target_guard, current);
+        assert!(handle.target_still_matches_now(&snapshot.target_guard));
+        *source.fast_guard.lock().unwrap() = Some(TargetAppGuard {
+            process_id: Some(100),
+            native_identity: Some("com.apple.TextEdit".to_string()),
+        });
+        assert!(!handle.target_still_matches_now(&snapshot.target_guard));
+    }
+
+    #[test]
+    fn fast_target_check_does_not_depend_on_optional_context_collection() {
+        let source = Arc::new(FakeSource::new(None));
+        let handle = detector(source.clone());
+        let current = TargetAppGuard {
+            process_id: Some(99),
+            native_identity: Some("com.apple.TextEdit".to_string()),
+        };
+        *source.fast_guard.lock().unwrap() = Some(current.clone());
+
+        assert!(handle.target_still_matches_now(&current));
+        assert_eq!(handle.snapshot_for_recording().target_guard, current);
     }
 
     #[test]

@@ -70,6 +70,10 @@ pub async fn test_llm_connection(
         return Ok(false);
     }
 
+    if provider == "codex-cli" {
+        return crate::llm::codex::check_chatgpt_login().await.map(|_| true).map_err(|e| e.to_string());
+    }
+
     // Cloud provider: verify session token + managed cloud entitlement via API.
     if provider == "cloud" {
         let token = token_store
@@ -150,6 +154,9 @@ pub async fn fetch_llm_models(
     base_url: String,
     client: tauri::State<'_, reqwest::Client>,
 ) -> Result<Vec<String>, String> {
+    if provider == "codex-cli" {
+        return Ok(vec!["gpt-6-luna".to_string()]);
+    }
     if base_url.is_empty() {
         return Ok(vec![]);
     }
@@ -291,6 +298,11 @@ pub async fn bench_llm_connection(
 ) -> Result<u32, String> {
     if provider.is_empty() {
         return Err("No provider specified".to_string());
+    }
+    if provider == "codex-cli" {
+        let t0 = std::time::Instant::now();
+        crate::llm::codex::run_text(&model, "Return exactly: ok").await.map_err(|e| e.to_string())?;
+        return Ok(t0.elapsed().as_millis().min(u32::MAX as u128) as u32);
     }
 
     if provider == "cloud" {

@@ -3,19 +3,18 @@
 </p>
 
 <p align="center">
-  <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="OpenTypeless 로고" />
+  <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Ultra STT 마이크 로고" />
 </p>
 
-<h1 align="center">OpenTypeless</h1>
+<h1 align="center">Ultra STT</h1>
 
 <p align="center">
-  데스크톱을 위한 오픈소스 AI 음성 입력. 자연스럽게 말하면, 모든 앱에서 다듬어진 텍스트를 얻으세요.
+  OpenTypeless 오픈소스 프로젝트를 바탕으로 만든 macOS·Windows용 음성 키보드입니다.
 </p>
 
 <p align="center">
-  이메일 작성, 코딩, 채팅, 메모 등 — 단축키를 누르고<br/>
-  생각을 말하면 OpenTypeless가 AI로 음성을 전사하고 텍스트를 다듬어<br/>
-  사용 중인 앱에 직접 입력합니다.
+  단축키를 누르고 말하면 음성을 전사해 현재 사용 중인 앱에 입력합니다.<br/>
+  설정에 따라 로컬 또는 선택한 제공자로 전사하며, AI 다듬기·번역·음성 질문은 선택 기능입니다.
 </p>
 
 <p align="center">
@@ -27,12 +26,19 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/v1.1.49-app-context-showcase.jpg" width="820" alt="Gmail, Slack, Google Docs, Cursor, Zendesk, LinkedIn에서 동작하는 OpenTypeless 앱 인식 음성 입력" />
+  <img src="docs/images/ultra-stt-dashboard.png" width="860" alt="Windows에서 실행 중인 Ultra STT 대시보드" />
 </p>
 
-<p align="center">
-  <img src="docs/images/voice-flow-demo.gif" width="720" alt="OpenTypeless 데모" />
-</p>
+## 한눈에 보기
+
+- 전역 단축키로 앱을 전환하지 않고 음성 입력을 시작·종료합니다.
+- 플랫폼과 설정에 따라 로컬 엔진 또는 선택한 음성 인식 제공자를 사용합니다.
+- 결과를 현재 커서 위치에 입력하거나 클립보드에 복사합니다.
+- 설정한 LLM을 통한 문장 다듬기·선택 텍스트 편집·번역·음성 질문을 지원합니다.
+- 전사 기록과 앱 설정은 로컬에 저장합니다.
+- 시스템 트레이 아이콘을 클릭해 메인 창을 열거나 숨깁니다.
+
+> 제공자와 기능은 운영체제, 설정, 인증 정보에 따라 달라집니다. 관리형 클라우드 할당량이나 구독 서비스는 포함하지 않습니다.
 
 ## 주요 기능
 
@@ -64,16 +70,16 @@
 
 ---
 
-## 왜 OpenTypeless인가?
+## 주요 기능
 
-| | OpenTypeless | macOS Dictation | Windows Voice Typing | Whisper Desktop |
+| | Ultra STT | macOS Dictation | Windows Voice Typing | Whisper Desktop |
 |---|---|---|---|---|
 | AI 텍스트 다듬기 | ✅ 다중 LLM | ❌ | ❌ | ❌ |
-| STT 제공자 선택 | ✅ 6개 이상 제공자 | ❌ Apple만 | ❌ Microsoft만 | ❌ Whisper만 |
+| STT 제공자 선택 | ✅ 로컬·설정 가능한 제공자 | ❌ Apple만 | ❌ Microsoft만 | ❌ Whisper만 |
 | 모든 앱에서 작동 | ✅ | ✅ | ✅ | ❌ 복사-붙여넣기 |
 | 번역 모드 | ✅ | ❌ | ❌ | ❌ |
 | 오픈 소스 | ✅ MIT | ❌ | ❌ | ✅ |
-| 크로스 플랫폼 | ✅ Win/Mac/Linux | ❌ Mac만 | ❌ Windows만 | ✅ |
+| 플랫폼 | ✅ macOS / Windows | ❌ Mac만 | ❌ Windows만 | ✅ |
 | 사용자 사전 | ✅ | ❌ | ❌ | ❌ |
 | 셀프 호스팅 가능 | ✅ BYOK | ❌ | ❌ | ✅ |
 
@@ -81,8 +87,8 @@
 
 - 🎙️ 글로벌 단축키 녹음 — 길게 눌러 녹음 또는 토글 모드
 - 💊 항상 위에 표시되는 플로팅 캡슐 위젯
-- 🗣️ 6개 이상의 STT 제공자: Deepgram, AssemblyAI, Whisper, Groq, GLM-ASR, SiliconFlow
-- 🤖 다양한 LLM으로 텍스트 다듬기: OpenAI, DeepSeek, Claude, Gemini, Ollama 등
+- 🗣️ 플랫폼과 구성에 맞춘 로컬·원격 STT 제공자
+- 🤖 설정한 원격 또는 로컬 LLM으로 텍스트 다듬기
 - ⚡ 스트리밍 출력 — LLM이 생성하는 대로 텍스트 표시
 - ⌨️ 키보드 시뮬레이션 또는 클립보드 출력
 - 📝 녹음 전 텍스트를 선택하면 LLM에 컨텍스트로 전달
@@ -101,7 +107,7 @@
 > | 🗣️ STT | Groq | `whisper-large-v3-turbo` |
 > | 🤖 AI 다듬기 | Google | `gemini-2.5-flash` |
 >
-> 이 조합은 빠르고 정확한 전사와 고품질 텍스트 다듬기를 제공하며, 둘 다 넉넉한 무료 티어를 제공합니다.
+> 제공자의 요금·가용성·모델 동작은 각 제공자가 관리합니다. 사용 전 해당 서비스의 조건을 확인하세요.
 
 ## 다운로드
 
@@ -147,44 +153,9 @@ npm run tauri build
 - **사전** — 더 나은 전사 정확도를 위한 사용자 용어 추가
 - **장면** — 다양한 사용 사례를 위한 프롬프트 템플릿
 
-API 키는 `tauri-plugin-store`를 통해 로컬에 저장됩니다. OpenTypeless 서버로 키가 전송되지 않습니다 — 모든 STT/LLM 요청은 설정한 제공자에게 직접 전송됩니다.
+제공자 인증 정보는 플랫폼에서 사용할 수 있는 보안 저장소를 이용해 로컬에 보관합니다. 원격 STT를 선택하면 음성이 해당 제공자로 전송되고, 선택형 AI 기능을 사용하면 관련 텍스트가 설정한 LLM으로 전송됩니다. 사용 전에 각 제공자의 개인정보 처리 방침을 확인하세요.
 
-### Cloud (Pro) 옵션
-
-OpenTypeless는 자체 API 키 없이도 관리형 STT 및 LLM 할당량을 제공하는 선택적 Pro 구독도 제공합니다. 이는 완전히 선택 사항입니다 — 앱은 자체 키만으로도 완전히 작동합니다.
-
-[Pro에 대해 자세히 알아보기](https://www.opentypeless.com)
-
-### BYOK (Bring Your Own Key) vs Cloud
-
-| | BYOK 모드 | Cloud (Pro) 모드 |
-|---|---|---|
-| STT | 자체 API 키 (Deepgram, AssemblyAI 등) | 관리형 할당량 (10시간/월) |
-| LLM | 자체 API 키 (OpenAI, DeepSeek 등) | 관리형 할당량 (~50만 토큰/월) |
-| 클라우드 의존성 | 없음 — 모든 요청이 제공자에게 직접 전송 | www.opentypeless.com 연결 필요 |
-| 비용 | 제공자에게 직접 지불 | $4.99/월 구독 |
-
-모든 핵심 기능 — 녹음, 전사, AI 다듬기, 키보드/클립보드 출력, 사전, 기록 — 은 BYOK 모드에서 OpenTypeless 서버 없이 완전히 오프라인으로 작동합니다.
-
-### 셀프 호스팅 / 클라우드 없이 사용
-
-클라우드 의존성 없이 OpenTypeless를 실행하려면:
-
-1. 설정에서 Cloud가 아닌 STT 및 LLM 제공자를 선택
-2. 자체 API 키를 입력
-3. 끝 — www.opentypeless.com에 대한 계정이나 인터넷 연결이 필요하지 않습니다
-
-선택적 클라우드 기능을 자체 백엔드로 연결하려면 빌드 전에 다음 환경 변수를 설정하세요:
-
-| 변수 | 기본값 | 설명 |
-|---|---|---|
-| `VITE_API_BASE_URL` | `https://www.opentypeless.com` | 프론트엔드 클라우드 API 기본 URL |
-| `API_BASE_URL` | `https://www.opentypeless.com` | Rust 백엔드 클라우드 API 기본 URL |
-
-```bash
-# 예시: 커스텀 백엔드로 빌드
-VITE_API_BASE_URL=https://my-server.example.com API_BASE_URL=https://my-server.example.com npm run tauri build
-```
+Ultra STT 계정은 필요하지 않습니다. 원격 제공자 이용에는 인터넷 연결이 필요하며, 로컬 엔진은 지원되는 환경에서 설정해 사용할 수 있습니다. 관리형 할당량이나 구독은 제공하지 않습니다.
 
 ## 아키텍처
 
@@ -203,8 +174,8 @@ src/                  # React 프론트엔드 (TypeScript)
 
 src-tauri/src/        # Rust 백엔드
 ├── audio/            # cpal을 통한 오디오 캡처
-├── stt/              # STT 제공자 (Deepgram, AssemblyAI, Whisper 호환, Cloud)
-├── llm/              # LLM 제공자 (OpenAI 호환, Cloud)
+├── stt/              # STT 제공자 및 로컬 엔진
+├── llm/              # LLM 제공자 및 로컬 호환 엔드포인트
 ├── output/           # 텍스트 출력 (키보드 시뮬레이션, 클립보드 붙여넣기)
 ├── storage/          # 설정 (tauri-plugin-store) + 기록/사전 (SQLite)
 ├── app_detector/     # 컨텍스트를 위한 활성 애플리케이션 감지
@@ -223,17 +194,17 @@ src-tauri/src/        # Rust 백엔드
 
 ## 자주 묻는 질문
 
-**내 오디오가 클라우드로 전송되나요?**
-BYOK 모드에서는 오디오가 선택한 STT 제공자(예: Groq, Deepgram)에게 직접 전송됩니다. OpenTypeless 서버를 거치지 않습니다. Cloud(Pro) 모드에서는 오디오가 관리형 프록시로 전송되어 전사됩니다.
+**음성 데이터는 어디로 전송되나요?**
+로컬 엔진은 기기에서 처리합니다. 원격 STT를 선택하면 음성이 해당 제공자로 전송되고, 선택형 AI 기능은 관련 텍스트를 설정한 LLM으로 보냅니다. 각 제공자의 개인정보 처리 방침을 확인하세요.
 
 **오프라인에서 사용할 수 있나요?**
-로컬 STT 제공자(Ollama를 통한 Whisper)와 로컬 LLM(Ollama)을 사용하면 완전히 오프라인으로 작동합니다. 인터넷 연결이 필요 없습니다.
+오프라인 사용 여부는 지원되는 로컬 STT 엔진과 로컬 LLM을 구성했는지에 따라 달라집니다. 원격 제공자는 인터넷 연결이 필요합니다.
 
 **어떤 언어가 지원되나요?**
 STT는 제공자에 따라 99개 이상의 언어를 지원합니다. AI 다듬기와 번역은 20개 이상의 대상 언어를 지원합니다.
 
-**앱은 무료인가요?**
-네. 자체 API 키(BYOK)로 모든 기능을 사용할 수 있습니다. Cloud Pro 구독($4.99/월)은 선택 사항입니다.
+**구독이나 사용량 요금제가 있나요?**
+관리형 할당량이나 구독은 포함하지 않습니다. 원격 제공자의 사용료가 발생할 수 있으며, 해당 제공자가 직접 청구합니다.
 
 ## 커뮤니티
 
@@ -259,10 +230,6 @@ STT는 제공자에 따라 99개 이상의 언어를 지원합니다. AI 다듬�
     <img alt="Star History 차트" src="https://api.star-history.com/svg?repos=tover0314-w/opentypeless&type=Date" />
   </picture>
 </a>
-
-## Claude Code로 하루 만에 개발
-
-이 프로젝트 전체는 [Claude Code](https://claude.com/claude-code)를 사용하여 하루 만에 구축되었습니다 — 아키텍처 설계부터 완전한 구현까지, Tauri 백엔드, React 프론트엔드, CI/CD 파이프라인, 이 README를 포함합니다.
 
 ## 라이선스
 

@@ -3,11 +3,11 @@ import { listen } from '@tauri-apps/api/event'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAppStore } from '../stores/appStore'
-import { useAuthStore } from '../stores/authStore'
 import type {
   AppConfig,
   ContextProfileSummary,
   InsertResult,
+  PipelineTiming,
   PipelineState,
   RecordingDeadlineSnapshot,
   VoiceMode,
@@ -61,6 +61,7 @@ export function useTauriEvents() {
     setTargetApp,
     setLastInsertResult,
     setLastContext,
+    setLastPipelineTiming,
     setPipelineError,
     setAccessibilityTrusted,
     setHistory,
@@ -70,8 +71,7 @@ export function useTauriEvents() {
 
   useEffect(() => {
     let cancelled = false
-    let managedRunActive = false
-    const unlisteners: Unlisten[] = []
+      const unlisteners: Unlisten[] = []
 
     function addListener<T>(event: string, handler: (payload: T) => void) {
       listen<T>(event, (e) => handler(e.payload))
@@ -93,12 +93,6 @@ export function useTauriEvents() {
     addListener<string>('llm:chunk', appendPolishedChunk)
     addListener<PipelineState>('pipeline:state', (state) => {
       setPipelineState(state)
-      if (state === 'preparing' || state === 'recording' || state === 'ask_recording') {
-        const config = useAppStore.getState().config
-        managedRunActive =
-          config.stt_provider === 'cloud' ||
-          (config.polish_enabled && config.llm_provider === 'cloud')
-      }
       if (state === 'preparing' || state === 'idle') {
         setRecordingDeadline(null)
       }
@@ -116,12 +110,6 @@ export function useTauriEvents() {
           .catch((err) => {
             console.error('Failed to refresh history:', err)
           })
-        if (managedRunActive && useAuthStore.getState().user) {
-          // The managed request has already completed, so this read cannot add
-          // stop-to-output latency and Neon is already awake from real usage.
-          void useAuthStore.getState().refreshSubscription()
-        }
-        managedRunActive = false
       }
     })
     addListener<RecordingDeadlineSnapshot>('recording:deadline', setRecordingDeadline)
@@ -146,6 +134,9 @@ export function useTauriEvents() {
     addListener<string>('pipeline:target_app', setTargetApp)
     addListener<InsertResult>('pipeline:insert_result', setLastInsertResult)
     addListener<ContextProfileSummary>('pipeline:context', setLastContext)
+    addListener<PipelineTiming & { recording_ms?: number | null }>('pipeline:timing', ({ stt_ms, llm_ms, total_ms }) => {
+      setLastPipelineTiming({ stt_ms, llm_ms, total_ms })
+    })
     addListener<PipelineErrorPayload>('pipeline:error', (payload) => {
       const capsuleErrorKey = capsuleErrorKeyFromPayload(payload)
       setPipelineError(t(`capsule.errors.${capsuleErrorKey}`))
@@ -206,6 +197,7 @@ export function useTauriEvents() {
     setTargetApp,
     setLastInsertResult,
     setLastContext,
+    setLastPipelineTiming,
     setPipelineError,
     setAccessibilityTrusted,
     setHistory,

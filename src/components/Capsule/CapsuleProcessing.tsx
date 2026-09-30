@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { abortRecording } from '../../lib/tauri'
 import { useAppStore } from '../../stores/appStore'
-import { CapsuleWorkIndicator } from './CapsuleWorkIndicator'
+import { CapsuleBrand, CapsuleWorkIndicator } from './CapsuleWorkIndicator'
 
 export function CapsuleProcessing() {
   const { t } = useTranslation()
@@ -27,7 +27,8 @@ export function CapsuleProcessing() {
 
   return (
     <motion.div className="relative z-10 flex items-center gap-2 h-9 px-3">
-      <CapsuleWorkIndicator tone="steady" />
+      <CapsuleBrand />
+        <CapsuleWorkIndicator tone="steady" />
       <p className="text-[11px] text-white leading-snug truncate flex-1 min-w-0">
         {displayText}
         <motion.span

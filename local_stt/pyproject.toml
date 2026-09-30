@@ -1,0 +1,26 @@
+[project]
+name = "ultra-stt-runtime"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "faster-whisper==1.2.1",
+    "ctranslate2==4.8.1",
+    "pydantic==2.13.4",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+    "python-multipart>=0.0.20,<1",
+    "anyio>=4,<5",
+    "nvidia-cublas-cu12>=12,<13",
+    "nvidia-cudnn-cu12>=9,<10",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "httpx>=0.28,<1",
+    "basedpyright",
+    "ruff",
+]
+
+[tool.uv]
+package = false

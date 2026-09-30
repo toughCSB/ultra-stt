@@ -1,4 +1,5 @@
 pub mod cloud;
+pub mod codex;
 pub mod context_policy;
 pub mod model_capabilities;
 pub mod openai;
@@ -90,7 +91,7 @@ pub trait LlmProvider: Send + Sync {
 }
 
 pub fn provider_requires_api_key(provider: &str) -> bool {
-    !matches!(provider.trim().to_ascii_lowercase().as_str(), "ollama")
+    !matches!(provider.trim().to_ascii_lowercase().as_str(), "ollama" | "codex-cli")
 }
 
 pub fn has_usable_provider_credentials(provider: &str, api_key: &str) -> bool {
@@ -115,6 +116,7 @@ pub fn create_provider(
     client: Option<reqwest::Client>,
 ) -> Box<dyn LlmProvider> {
     match (provider_name, client) {
+        ("codex-cli", _) => Box::new(codex::CodexProvider),
         ("cloud", Some(c)) => Box::new(cloud::CloudLlmProvider::with_client(c)),
         ("cloud", None) => Box::new(cloud::CloudLlmProvider::new()),
         (_, Some(c)) => Box::new(openai::OpenAiProvider::with_client(c)),
@@ -130,6 +132,8 @@ mod provider_capability_tests {
     fn ollama_is_keyless_and_remote_providers_require_keys() {
         assert!(!provider_requires_api_key("ollama"));
         assert!(!provider_requires_api_key(" Ollama "));
+        assert!(!provider_requires_api_key("codex-cli"));
+        assert_eq!(create_provider("codex-cli", None).name(), "Codex (ChatGPT subscription)");
         assert!(provider_requires_api_key("openai"));
         assert!(provider_requires_api_key("custom-openai-compatible"));
     }

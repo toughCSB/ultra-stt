@@ -1,3 +1,5 @@
+import type { LlmProvider, SttProvider } from '../stores/appStore'
+
 // App metadata
 export const UI_LANGUAGES = [
   { value: 'en', label: 'English' },
@@ -12,7 +14,7 @@ export const UI_LANGUAGES = [
   { value: 'it', label: 'Italiano' },
 ] as const
 
-export const APP_NAME = 'OpenTypeless'
+export const APP_NAME = 'Ultra STT'
 export const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? 'v1.1.61'
 export const CLIENT_VERSION_HEADER = 'X-OpenTypeless-Version'
 export const APP_VERSION_HEADER_VALUE = APP_VERSION.replace(/^v/i, '')
@@ -87,6 +89,20 @@ export function isActiveCloudPlan(plan: string): plan is (typeof ACTIVE_CLOUD_PL
 
 export const CUSTOM_WHISPER_PROVIDER = 'custom-whisper' as const
 export const APPLE_SPEECH_PROVIDER = 'apple-speech' as const
+export const CODEX_CLI_PROVIDER = 'codex-cli' as const
+export const ULTRA_LOCAL_STT_PRESET = 'ultra-local' as const
+
+export const ULTRA_REMOTE_STT_PRESET = 'ultra-remote' as const
+export const ULTRA_REMOTE_STT_DEFAULTS = {
+  preset: ULTRA_REMOTE_STT_PRESET,
+  baseUrl: 'https://sb.tail337f88.ts.net:10443/v1',
+  model: 'large-v3',
+} as const
+export const ULTRA_LOCAL_STT_DEFAULTS = {
+  preset: ULTRA_LOCAL_STT_PRESET,
+  baseUrl: 'http://127.0.0.1:17845/v1',
+  model: 'Systran/faster-whisper-large-v3',
+} as const
 
 export const CUSTOM_STT_DEFAULTS = {
   preset: 'speaches',
@@ -95,6 +111,18 @@ export const CUSTOM_STT_DEFAULTS = {
 } as const
 
 export const CUSTOM_STT_PRESETS = [
+
+  {
+    value: ULTRA_REMOTE_STT_PRESET,
+    labelKey: 'ultra.remoteSpeech',
+    baseUrl: ULTRA_REMOTE_STT_DEFAULTS.baseUrl,
+    model: ULTRA_REMOTE_STT_DEFAULTS.model,
+  },  {
+    value: ULTRA_LOCAL_STT_PRESET,
+    labelKey: 'ultra.localSpeech',
+    baseUrl: ULTRA_LOCAL_STT_DEFAULTS.baseUrl,
+    model: ULTRA_LOCAL_STT_DEFAULTS.model,
+  },
   {
     value: 'speaches',
     labelKey: 'settings.customSttPresetSpeaches',
@@ -107,7 +135,7 @@ export const CUSTOM_STT_PRESETS = [
   },
 ] as const
 
-export const STT_PROVIDERS: { value: string; labelKey: string }[] = [
+export const STT_PROVIDERS: { value: SttProvider; labelKey: string }[] = [
   { value: 'deepgram', labelKey: 'providers.stt.deepgram' },
   { value: 'assemblyai', labelKey: 'providers.stt.assemblyai' },
   { value: 'aliyun-qwen3-asr', labelKey: 'providers.stt.aliyunQwen3Asr' },
@@ -118,7 +146,6 @@ export const STT_PROVIDERS: { value: string; labelKey: string }[] = [
   { value: 'siliconflow', labelKey: 'providers.stt.siliconflow' },
   { value: APPLE_SPEECH_PROVIDER, labelKey: 'providers.stt.appleSpeech' },
   { value: CUSTOM_WHISPER_PROVIDER, labelKey: 'providers.stt.customWhisper' },
-  { value: 'cloud', labelKey: 'providers.stt.cloud' },
 ] as const
 
 export const VOLCENGINE_STT_RESOURCES = [
@@ -132,14 +159,16 @@ export const VOLCENGINE_STT_RESOURCES = [
   },
 ] as const
 
-export const ONBOARDING_STT_PROVIDERS = STT_PROVIDERS.filter(
-  (provider) =>
-    provider.value !== CUSTOM_WHISPER_PROVIDER &&
-    provider.value !== APPLE_SPEECH_PROVIDER &&
-    provider.value !== 'cloud',
-)
+export const ONBOARDING_STT_PROVIDERS = [
+  ...STT_PROVIDERS.filter(
+    (provider) =>
+      provider.value !== CUSTOM_WHISPER_PROVIDER &&
+      provider.value !== APPLE_SPEECH_PROVIDER,
+  ),
+  { value: ULTRA_LOCAL_STT_PRESET, labelKey: 'ultra.localSpeech' },
+] as const
 
-export const LLM_PROVIDERS: { value: string; labelKey: string }[] = [
+export const LLM_PROVIDERS: { value: LlmProvider; labelKey: string }[] = [
   { value: 'zhipu', labelKey: 'providers.llm.zhipu' },
   { value: 'deepseek', labelKey: 'providers.llm.deepseek' },
   { value: 'siliconflow', labelKey: 'providers.llm.siliconflow' },
@@ -152,12 +181,10 @@ export const LLM_PROVIDERS: { value: string; labelKey: string }[] = [
   { value: 'claude', labelKey: 'providers.llm.claude' },
   { value: 'ollama', labelKey: 'providers.llm.ollama' },
   { value: 'openrouter', labelKey: 'providers.llm.openrouter' },
-  { value: 'cloud', labelKey: 'providers.llm.cloud' },
+  { value: CODEX_CLI_PROVIDER, labelKey: 'ultra.codex' },
 ] as const
 
-export const ONBOARDING_LLM_PROVIDERS = LLM_PROVIDERS.filter(
-  (provider) => provider.value !== 'cloud',
-)
+export const ONBOARDING_LLM_PROVIDERS = LLM_PROVIDERS
 
 export const LLM_DEFAULT_CONFIG: Record<string, { baseUrl: string; model: string }> = {
   zhipu: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
@@ -177,12 +204,14 @@ export const LLM_DEFAULT_CONFIG: Record<string, { baseUrl: string; model: string
   groq: { baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
   claude: { baseUrl: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-0' },
   ollama: { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2' },
+  [CODEX_CLI_PROVIDER]: { baseUrl: '', model: 'gpt-6-luna' },
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini' },
   cloud: { baseUrl: `${API_BASE_URL}/api/proxy`, model: 'default' },
 }
 
 export function llmProviderRequiresApiKey(provider: string): boolean {
-  return provider.trim().toLowerCase() !== 'ollama'
+  const normalized = provider.trim().toLowerCase()
+  return normalized !== 'ollama' && normalized !== CODEX_CLI_PROVIDER
 }
 
 export const LANGUAGES: { value: string; label?: string; labelKey?: string }[] = [

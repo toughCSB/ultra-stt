@@ -977,6 +977,13 @@ pub fn build_shortcut_handler(
        + 'static {
     move |_app, shortcut, event| {
         let handle = app_handle.clone();
+        #[cfg(target_os = "windows")]
+        if handle
+            .state::<pipeline::PipelineHandle>()
+            .take_escape_event_for_global(shortcut)
+        {
+            return;
+        }
         let role = hotkey_role_for_shortcut(&handle, shortcut);
         handle_hotkey_role_event(handle, role, event.state);
     }

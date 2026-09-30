@@ -48,6 +48,21 @@ impl WhisperCompatProvider {
         }
     }
 
+
+    /// Peak sample and root mean square of a mono PCM16 buffer, on a 0..32767 scale.
+    fn measure_level(pcm: &[u8]) -> (f64, f64) {
+        let mut peak = 0f64;
+        let mut sum = 0f64;
+        let mut count = 0f64;
+        for frame in pcm.chunks_exact(2) {
+            let sample = i16::from_le_bytes([frame[0], frame[1]]) as f64;
+            peak = peak.max(sample.abs());
+            sum += sample * sample;
+            count += 1.0;
+        }
+        let rms = if count > 0.0 { (sum / count).sqrt() } else { 0.0 };
+        (peak, rms)
+    }
     /// Build a WAV file from raw PCM 16-bit mono audio. Public so test helpers can reuse it.
     pub fn build_wav(pcm: &[u8], sample_rate: u32) -> Vec<u8> {
         let data_len = pcm.len() as u32;
@@ -127,11 +142,17 @@ impl SttProvider for WhisperCompatProvider {
 
         let audio_len_secs = self.audio_buffer.len() as f64 / (config.sample_rate as f64 * 2.0);
         let wav_data = Self::build_wav(&self.audio_buffer, config.sample_rate);
+        // Report the level of what we captured. A dictation that returns no text is
+        // almost always a silent capture, and the level turns that into evidence
+        // instead of a guess.
+        let (peak, rms) = Self::measure_level(&self.audio_buffer);
         self.audio_buffer.clear();
         tracing::info!(
-            "{}: sending {:.1}s of audio for transcription",
+            "{}: sending {:.1}s of audio, peak {:.0}, rms {:.0}",
             self.provider_config.provider_name,
-            audio_len_secs
+            audio_len_secs,
+            peak,
+            rms
         );
 
         let mut attempt = 0u32;
@@ -177,7 +198,22 @@ impl SttProvider for WhisperCompatProvider {
                     if status.is_success() {
                         let v: serde_json::Value = serde_json::from_str(&body)
                             .map_err(|e| AppError::Config(e.to_string()))?;
-                        let text = v["text"].as_str().unwrap_or("").trim().to_string();
+                        if v.get("error").is_some_and(|error| !error.is_null()) {
+                            return Err(AppError::Config(
+                                "Speech recognition server returned an error instead of a transcript"
+                                    .to_string(),
+                            ));
+                        }
+                        let text = v
+                            .get("text")
+                            .and_then(|text| text.as_str())
+                            .ok_or_else(|| {
+                                AppError::Config(
+                                    "Speech recognition response has no text field".to_string(),
+                                )
+                            })?
+                            .trim()
+                            .to_string();
 
                         tracing::info!(
                             "{} transcription: {} chars",
@@ -253,6 +289,103 @@ impl SttProvider for WhisperCompatProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn transcribe_http_reply(body: &'static str) -> Result<Option<String>, AppError> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/transcriptions", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut chunk = [0_u8; 4096];
+            loop {
+                let count = stream.read(&mut chunk).await.unwrap();
+                assert_ne!(count, 0);
+                request.extend_from_slice(&chunk[..count]);
+                if let Some(head_end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&request[..head_end]);
+                    let length = head
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().unwrap())
+                        })
+                        .unwrap();
+                    if request.len() >= head_end + 4 + length {
+                        break;
+                    }
+                }
+            }
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(), body
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+            stream.shutdown().await.unwrap();
+        });
+        let mut provider = WhisperCompatProvider::with_client(
+            WhisperCompatConfig {
+                provider_name: "test-whisper".to_string(),
+                endpoint,
+                model: "test-model".to_string(),
+                extra_fields: vec![],
+                api_key_required: false,
+            },
+            reqwest::Client::builder().no_proxy().build().unwrap(),
+        );
+        provider
+            .connect(&SttConfig {
+                api_key: String::new(),
+                language: None,
+                smart_format: true,
+                sample_rate: 16000,
+                resource_id: None,
+                operation_id: None,
+                managed_audio: None,
+                provider_region: None,
+            })
+            .await
+            .unwrap();
+        provider.send_audio(&[0, 0]).await.unwrap();
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), provider.disconnect())
+            .await
+            .unwrap();
+        server.await.unwrap();
+        result
+    }
+
+    #[tokio::test]
+    async fn http_success_with_error_payload_is_not_silently_treated_as_no_speech() {
+        assert!(
+            transcribe_http_reply(r#"{"error":"voice input could not be processed"}"#)
+                .await
+                .is_err()
+        );
+        assert!(
+            transcribe_http_reply(r#"{"error":{"message":"failed"},"text":""}"#)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn http_success_without_transcript_field_is_an_error() {
+        assert!(transcribe_http_reply(r#"{"status":"failed"}"#)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn http_success_preserves_transcript_and_legitimate_empty_speech() {
+        assert_eq!(
+            transcribe_http_reply(r#"{"text":" 테스트 "}"#)
+                .await
+                .unwrap(),
+            Some("테스트".to_string())
+        );
+        assert_eq!(transcribe_http_reply(r#"{"text":""}"#).await.unwrap(), None);
+    }
 
     #[tokio::test]
     async fn connect_allows_empty_api_key_when_not_required() {

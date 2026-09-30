@@ -1,82 +1,84 @@
 @import 'tailwindcss';
 
 @theme {
-  /* Clean neutral palette */
-  --color-bg-primary: #f5f5f5;
-  --color-bg-secondary: #ebebeb;
-  --color-bg-tertiary: #e0e0e0;
-  --color-bg-elevated: #fafafa;
+  /* Terminal green — canvas is near-black with a faint green tint */
+  --color-bg-primary: #050806;
+  --color-bg-secondary: #0b130d;
+  --color-bg-tertiary: #101c13;
+  --color-bg-elevated: #0e1810;
 
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #666666;
-  --color-text-tertiary: #999999;
+  --color-text-primary: #e6f2e7;
+  --color-text-secondary: #93a89a;
+  --color-text-tertiary: #5e7264;
 
-  --color-accent: #2abba7;
-  --color-accent-hover: #22a08e;
-  --color-accent-light: #e6f7f5;
+  --color-accent: #00e676;
+  --color-accent-hover: #00ff8c;
+  --color-accent-light: #0e2a18;
 
-  --color-success: #34c759;
-  --color-warning: #ff9500;
-  --color-error: #ff3b30;
+  --color-success: #00e676;
+  --color-warning: #ffc400;
+  --color-error: #ff4d4d;
 
-  --color-border: rgba(0, 0, 0, 0.08);
-  --color-border-focus: #2abba7;
+  --color-border: rgba(0, 230, 118, 0.14);
+  --color-border-focus: #00e676;
 
-  /* Jelly palette tokens */
-  --color-jelly-primary: rgba(42, 187, 167, 0.2);
-  --color-jelly-glow: rgba(42, 187, 167, 0.3);
+  --color-jelly-primary: rgba(0, 230, 118, 0.12);
+  --color-jelly-glow: rgba(0, 230, 118, 0.24);
 
-  /* Font */
-  --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    'Open Sans', 'Helvetica Neue', sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  --font-sans: Pretendard, Pretendard Variable, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', Consolas, ui-monospace, monospace;
 
-  /* Font sizes */
   --text-caption: 11px;
   --text-footnote: 13px;
   --text-body: 15px;
   --text-headline: 17px;
   --text-title: 22px;
 
-  /* Border radius */
   --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --radius-full: 9999px;
 
-  /* Shadows - neutral */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06);
-  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+  --shadow-float: 0 24px 60px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 0 1px rgba(0, 230, 118, 0.28), 0 0 28px rgba(0, 230, 118, 0.12);
 
-  /* Easing */
   --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 /* Base styles */
 html {
-  color-scheme: light;
-}
-
-html.dark {
   color-scheme: dark;
 }
 
-html,
-body,
-#root {
+html.dark {
+  --color-bg-primary: #050806;
+  --color-bg-secondary: #0b130d;
+  --color-bg-tertiary: #101c13;
+  --color-bg-elevated: #0e1810;
+  --color-text-primary: #e6f2e7;
+  --color-text-secondary: #93a89a;
+  --color-text-tertiary: #5e7264;
+  --color-accent: #00e676;
+  --color-accent-hover: #00ff8c;
+  --color-accent-light: #0e2a18;
+  --color-border: rgba(0, 230, 118, 0.14);
+  --color-border-focus: #00e676;
+  --color-jelly-primary: rgba(0, 230, 118, 0.12);
+  --color-jelly-glow: rgba(0, 230, 118, 0.24);
+}
+html, body, #root {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
   font-family: var(--font-sans);
-  font-weight: 450;
-  letter-spacing: -0.01em;
-  background: transparent;
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -84,543 +86,9 @@ body,
   user-select: none;
 }
 
-/* ─── Dark Mode ─── */
-.dark {
-  --color-bg-primary: #1a1a1a;
-  --color-bg-secondary: #242424;
-  --color-bg-tertiary: #2e2e2e;
-  --color-bg-elevated: #2a2a2a;
-
-  --color-text-primary: #f0f0f0;
-  --color-text-secondary: #a0a0a0;
-  --color-text-tertiary: #707070;
-
-  --color-accent-light: #1a3d37;
-
-  --color-border: rgba(255, 255, 255, 0.08);
-
-  --color-jelly-primary: rgba(42, 187, 167, 0.25);
-  --color-jelly-glow: rgba(42, 187, 167, 0.35);
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2);
-  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.35), 0 8px 16px rgba(0, 0, 0, 0.25);
-}
-
 /* Drag region */
 [data-tauri-drag-region] {
   cursor: move;
-}
-
-/* ─── Dark Jelly Overrides ─── */
-.dark .jelly-surface {
-  background: linear-gradient(145deg, #2a2a2a 0%, #222222 50%, #1c1c1c 100%);
-  box-shadow:
-    inset 0 2px 8px rgba(255, 255, 255, 0.04),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.3);
-}
-
-.dark .jelly-card {
-  background: linear-gradient(155deg, #2e2e2e 0%, #272727 50%, #212121 100%);
-  box-shadow:
-    inset 0 1.5px 4px rgba(255, 255, 255, 0.04),
-    0 4px 16px rgba(0, 0, 0, 0.3);
-}
-.dark .jelly-card::before {
-  background: radial-gradient(
-    ellipse at 30% 20%,
-    rgba(255, 255, 255, 0.04) 0%,
-    rgba(255, 255, 255, 0.01) 40%,
-    transparent 70%
-  );
-}
-.dark .jelly-card:hover {
-  box-shadow:
-    inset 0 1.5px 4px rgba(255, 255, 255, 0.06),
-    0 6px 24px rgba(0, 0, 0, 0.35);
-}
-
-.dark .jelly-btn {
-  background: linear-gradient(155deg, #333333 0%, #2a2a2a 50%, #222222 100%);
-  box-shadow:
-    inset 0 1.5px 3px rgba(255, 255, 255, 0.05),
-    0 3px 10px rgba(0, 0, 0, 0.25);
-}
-.dark .jelly-btn::before {
-  background: radial-gradient(
-    ellipse at 30% 20%,
-    rgba(255, 255, 255, 0.04) 0%,
-    rgba(255, 255, 255, 0.01) 40%,
-    transparent 70%
-  );
-}
-.dark .jelly-btn:hover {
-  box-shadow:
-    inset 0 1.5px 3px rgba(255, 255, 255, 0.07),
-    0 6px 18px rgba(0, 0, 0, 0.3);
-}
-
-.dark .jelly-btn-accent {
-  box-shadow:
-    inset 0 2px 3px rgba(255, 255, 255, 0.15),
-    0 3px 12px rgba(0, 0, 0, 0.3);
-}
-.dark .jelly-btn-accent:hover {
-  box-shadow:
-    inset 0 2px 3px rgba(255, 255, 255, 0.15),
-    0 6px 20px rgba(0, 0, 0, 0.4);
-}
-
-.dark .jelly-surface-flat {
-  background: linear-gradient(180deg, #262626 0%, #202020 50%, #1c1c1c 100%);
-  box-shadow:
-    inset 2px 0 8px rgba(255, 255, 255, 0.03),
-    inset -2px 0 8px rgba(0, 0, 0, 0.2);
-}
-
-.dark .jelly-capsule {
-  background: linear-gradient(160deg, #2e2e2e 0%, #262626 50%, #1e1e1e 100%);
-  box-shadow:
-    inset 0 2px 6px rgba(255, 255, 255, 0.04),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-    0 4px 16px rgba(0, 0, 0, 0.3);
-}
-.dark .jelly-capsule::before {
-  background: radial-gradient(
-    ellipse at 35% 25%,
-    rgba(255, 255, 255, 0.04) 0%,
-    rgba(255, 255, 255, 0.01) 40%,
-    transparent 70%
-  );
-}
-.dark .jelly-capsule::after {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.2), transparent);
-}
-
-.dark .jelly-capsule-error {
-  background: linear-gradient(160deg, #4a2020 0%, #3a1818 50%, #2e1212 100%);
-  box-shadow:
-    inset 0 2px 6px rgba(255, 255, 255, 0.04),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-    0 4px 16px rgba(0, 0, 0, 0.3);
-}
-.dark .jelly-capsule-error::before {
-  background: radial-gradient(
-    ellipse at 40% 30%,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.01) 40%,
-    transparent 70%
-  );
-}
-
-.dark .capsule-shimmer::after {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.06) 40%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0.06) 60%,
-    transparent 100%
-  );
-}
-
-.dark .capsule-progress-bar {
-  background: rgba(255, 255, 255, 0.04);
-}
-.dark .capsule-progress-bar::after {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.4) 50%,
-    transparent 100%
-  );
-}
-
-/* ─── Jelly Surface — rich gel with strong inner glow ─── */
-.jelly-surface {
-  position: relative;
-  background: linear-gradient(145deg, #f6f6f6 0%, #eeeeee 50%, #e6e6e6 100%);
-  box-shadow:
-    inset 0 2px 8px rgba(255, 255, 255, 0.9),
-    inset 0 -2px 8px rgba(0, 0, 0, 0.06),
-    0 4px 20px rgba(0, 0, 0, 0.08),
-    0 10px 40px rgba(0, 0, 0, 0.04);
-  border: none;
-  border-radius: 22px;
-  transition:
-    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.3s ease;
-  overflow: hidden;
-}
-
-/* ─── Jelly Card — 3D gel panel with specular highlight ─── */
-.jelly-card {
-  position: relative;
-  background: linear-gradient(155deg, #ededed 0%, #e4e4e4 50%, #dadada 100%);
-  border: none;
-  border-radius: 20px;
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.07),
-    0 10px 40px rgba(0, 0, 0, 0.03),
-    inset 0 2px 6px rgba(255, 255, 255, 0.8),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-  transition:
-    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.3s ease;
-}
-/* Card specular highlight band */
-.jelly-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 40%;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0.1) 60%,
-    transparent 100%
-  );
-  border-radius: 20px 20px 0 0;
-  pointer-events: none;
-  z-index: 0;
-}
-.jelly-card:hover {
-  transform: scale(1.02) translateY(-2px);
-  box-shadow:
-    0 8px 28px rgba(0, 0, 0, 0.1),
-    0 16px 50px rgba(0, 0, 0, 0.05),
-    inset 0 2px 6px rgba(255, 255, 255, 0.8),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.05);
-}
-
-/* ─── Jelly Button — tactile 3D gel button ─── */
-.jelly-btn {
-  position: relative;
-  background: linear-gradient(155deg, #ececec 0%, #e2e2e2 50%, #d8d8d8 100%);
-  box-shadow:
-    0 3px 12px rgba(0, 0, 0, 0.07),
-    0 6px 24px rgba(0, 0, 0, 0.03),
-    inset 0 2px 4px rgba(255, 255, 255, 0.8),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.05);
-  border: none;
-  border-radius: 14px;
-  overflow: hidden;
-  transition:
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.25s ease;
-}
-.jelly-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.45) 0%, transparent 100%);
-  border-radius: 14px 14px 0 0;
-  pointer-events: none;
-}
-.jelly-btn:hover {
-  transform: scale(1.04);
-  box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.1),
-    0 10px 36px rgba(0, 0, 0, 0.04),
-    inset 0 2px 4px rgba(255, 255, 255, 0.8),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.06);
-}
-.jelly-btn:active {
-  transform: scaleX(1.06) scaleY(0.94);
-}
-
-/* ─── Jelly Nav Active — accent gel indicator ─── */
-.jelly-nav-active {
-  background: linear-gradient(145deg, #2abba7 0%, #22a08e 100%);
-  box-shadow:
-    inset 0 1px 4px rgba(255, 255, 255, 0.3),
-    inset 0 -1px 4px rgba(0, 0, 0, 0.15),
-    0 2px 10px rgba(42, 187, 167, 0.3);
-  border-radius: 12px;
-  color: white !important;
-}
-
-/* ─── Jelly Capsule — minimal white/grey gel orb ─── */
-.jelly-capsule {
-  position: relative;
-  background: linear-gradient(160deg, #fafafa 0%, #f0f0f0 50%, #e8e8e8 100%);
-  border-radius: 9999px;
-  border: none;
-  box-shadow:
-    inset 0 1px 4px rgba(255, 255, 255, 0.8),
-    inset 0 -1px 3px rgba(0, 0, 0, 0.05),
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    0 4px 16px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
-}
-/* Capsule specular highlight — subtle top-left reflection */
-.jelly-capsule::before {
-  content: '';
-  position: absolute;
-  top: 8%;
-  left: 12%;
-  width: 55%;
-  height: 40%;
-  background: radial-gradient(
-    ellipse at 40% 30%,
-    rgba(255, 255, 255, 0.15) 0%,
-    rgba(255, 255, 255, 0.05) 40%,
-    transparent 70%
-  );
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 1;
-}
-/* Capsule bottom depth gradient */
-.jelly-capsule::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.08), transparent);
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ─── Jelly Capsule — recording active (dark grey/black gel) ─── */
-.jelly-capsule-active {
-  position: relative;
-  background: linear-gradient(160deg, #3a3a3a 0%, #2a2a2a 50%, #1a1a1a 100%);
-  border-radius: 9999px;
-  border: none;
-  box-shadow:
-    inset 0 1px 4px rgba(255, 255, 255, 0.12),
-    inset 0 -1px 3px rgba(0, 0, 0, 0.2),
-    0 2px 8px rgba(0, 0, 0, 0.15),
-    0 4px 16px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-}
-.jelly-capsule-active::before {
-  content: '';
-  position: absolute;
-  top: 8%;
-  left: 12%;
-  width: 55%;
-  height: 40%;
-  background: radial-gradient(
-    ellipse at 40% 30%,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.03) 40%,
-    transparent 70%
-  );
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 1;
-}
-.jelly-capsule-active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.15), transparent);
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ─── Jelly Capsule — error state (mid-grey gel) ─── */
-.jelly-capsule-error {
-  position: relative;
-  background: linear-gradient(160deg, #666 0%, #555 50%, #444 100%);
-  border-radius: 9999px;
-  border: none;
-  box-shadow:
-    inset 0 1px 4px rgba(255, 255, 255, 0.1),
-    inset 0 -1px 3px rgba(0, 0, 0, 0.15),
-    0 2px 8px rgba(0, 0, 0, 0.12),
-    0 4px 16px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-}
-.jelly-capsule-error::before {
-  content: '';
-  position: absolute;
-  top: 8%;
-  left: 12%;
-  width: 55%;
-  height: 40%;
-  background: radial-gradient(
-    ellipse at 40% 30%,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 40%,
-    transparent 70%
-  );
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 1;
-}
-.jelly-capsule-error::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.12), transparent);
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ─── Jelly Surface Flat — no border-radius, for sidebars ─── */
-.jelly-surface-flat {
-  background: linear-gradient(180deg, #f0f0f0 0%, #e8e8e8 50%, #e0e0e0 100%);
-  box-shadow:
-    inset 2px 0 8px rgba(255, 255, 255, 0.5),
-    inset -2px 0 8px rgba(0, 0, 0, 0.04);
-  border: none;
-  transition: box-shadow 0.3s ease;
-}
-
-/* ─── Jelly Button Accent — for primary CTA buttons ─── */
-.jelly-btn-accent {
-  box-shadow:
-    inset 0 2px 3px rgba(255, 255, 255, 0.3),
-    0 3px 12px rgba(0, 0, 0, 0.12);
-  border: none;
-  border-radius: 9999px;
-  transition:
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.25s ease;
-}
-.jelly-btn-accent:hover {
-  transform: scale(1.04);
-  box-shadow:
-    inset 0 2px 3px rgba(255, 255, 255, 0.3),
-    0 6px 20px rgba(0, 0, 0, 0.18);
-}
-.jelly-btn-accent:active {
-  transform: scaleX(1.06) scaleY(0.94);
-}
-
-/* ─── Shimmer sweep — left-to-right loading bar ─── */
-@keyframes shimmer-sweep {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-.capsule-shimmer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 2;
-}
-.capsule-shimmer::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.12) 40%,
-    rgba(255, 255, 255, 0.2) 50%,
-    rgba(255, 255, 255, 0.12) 60%,
-    transparent 100%
-  );
-  animation: shimmer-sweep 1.5s ease-in-out infinite;
-}
-
-/* ─── Polishing progress bar — bottom sweep ─── */
-@keyframes progress-sweep {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(200%);
-  }
-}
-.capsule-progress-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  overflow: hidden;
-  border-radius: 0 0 9999px 9999px;
-  pointer-events: none;
-  z-index: 3;
-  background: rgba(255, 255, 255, 0.08);
-}
-.capsule-progress-bar::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.7) 50%,
-    transparent 100%
-  );
-  animation: progress-sweep 1.2s ease-in-out infinite;
-}
-
-/* ─── Jelly Keyframes ─── */
-@keyframes jelly-wobble {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  25% {
-    transform: scaleX(1.05) scaleY(0.95);
-  }
-  50% {
-    transform: scaleX(0.97) scaleY(1.03);
-  }
-  75% {
-    transform: scaleX(1.02) scaleY(0.98);
-  }
-}
-
-@keyframes jelly-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.04) scaleX(1.02);
-  }
-}
-
-.context-app-count--compact {
-  display: none;
-}
-
-@media (max-width: 760px) {
-  .context-app--compact-duplicate,
-  .context-app-count--full {
-    display: none;
-  }
-
-  .context-app-count--compact {
-    display: inline;
-  }
 }
 
 /* ─── Reduced Motion ─── */
@@ -654,4 +122,233 @@ body,
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-secondary);
+}
+
+/* ─── Terminal canvas: near-black with the green cell grid ─── */
+/* The capsule window floats over other apps, so it must stay transparent and
+   never paint the canvas. Tauri tags the root with the window label. */
+html,
+#root {
+  background: transparent;
+}
+html.app-canvas,
+html.app-canvas body {
+  background-color: var(--color-bg-primary);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiI+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMzIiIHk9IjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSI5NiIgeT0iMCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTI4IiB5PSIwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjE5MiIgeT0iMCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMjI0IiB5PSIwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMzIiIHk9IjMyIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwYTE0MTAiLz48cmVjdCB4PSI2NCIgeT0iMzIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9Ijk2IiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMTI4IiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTYwIiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGYyNDE3Ii8+PHJlY3QgeD0iMTkyIiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMjI0IiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBmMjQxNyIvPjxyZWN0IHg9IjMyIiB5PSI2NCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iNjQiIHk9IjY0IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSI5NiIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9IjE2MCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjE5MiIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9IjAiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIzMiIgeT0iOTYiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSI5NiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iOTYiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSIxMjgiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxOTIiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSIyMjQiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjMyIiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9Ijk2IiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMTI4IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjEyOCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTkyIiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMTI4IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjMyIiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBmMjQxNyIvPjxyZWN0IHg9IjY0IiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9Ijk2IiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMTYwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjE2MCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMTkyIiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMTYwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9IjMyIiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9Ijk2IiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMTkyIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSIxNjAiIHk9IjE5MiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTkyIiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMTkyIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjMyIiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9Ijk2IiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMjI0IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjIyNCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMTkyIiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMjI0IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48L3N2Zz4=");
+  background-size: 256px 256px;
+  background-attachment: fixed;
+}
+html.app-canvas.dark,
+html.app-canvas.dark body,
+html.app-canvas.dark #root {
+  background-color: var(--color-bg-primary);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiI+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMzIiIHk9IjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSI5NiIgeT0iMCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTI4IiB5PSIwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjE5MiIgeT0iMCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMjI0IiB5PSIwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMzIiIHk9IjMyIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwYTE0MTAiLz48cmVjdCB4PSI2NCIgeT0iMzIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9Ijk2IiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMTI4IiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTYwIiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGYyNDE3Ii8+PHJlY3QgeD0iMTkyIiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMjI0IiB5PSIzMiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBmMjQxNyIvPjxyZWN0IHg9IjMyIiB5PSI2NCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iNjQiIHk9IjY0IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSI5NiIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9IjE2MCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjE5MiIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iNjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9IjAiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIzMiIgeT0iOTYiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSI5NiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iOTYiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSIxMjgiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxOTIiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSIyMjQiIHk9Ijk2IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjMyIiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9Ijk2IiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMTI4IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjEyOCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTkyIiB5PSIxMjgiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMTI4IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjMyIiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBmMjQxNyIvPjxyZWN0IHg9IjY0IiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9Ijk2IiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMTYwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjE2MCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMTkyIiB5PSIxNjAiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMTYwIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9IjMyIiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9Ijk2IiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMTkyIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48cmVjdCB4PSIxNjAiIHk9IjE5MiIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMDcwZDA5Ii8+PHJlY3QgeD0iMTkyIiB5PSIxOTIiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMTkyIiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIwIiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjMyIiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjY0IiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzBhMTQxMCIvPjxyZWN0IHg9Ijk2IiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjEyOCIgeT0iMjI0IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwNzBkMDkiLz48cmVjdCB4PSIxNjAiIHk9IjIyNCIgd2lkdGg9IjI5IiBoZWlnaHQ9IjI5IiBmaWxsPSIjMGExNDEwIi8+PHJlY3QgeD0iMTkyIiB5PSIyMjQiIHdpZHRoPSIyOSIgaGVpZ2h0PSIyOSIgZmlsbD0iIzA3MGQwOSIvPjxyZWN0IHg9IjIyNCIgeT0iMjI0IiB3aWR0aD0iMjkiIGhlaWdodD0iMjkiIGZpbGw9IiMwZjI0MTciLz48L3N2Zz4=");
+}
+
+/* ─── Panels: dark glass with a neon top edge ─── */
+.jelly-card,
+.jelly-surface,
+.jelly-surface-flat {
+  position: relative;
+  background: rgba(13, 21, 16, 0.72);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.jelly-card::before,
+.jelly-surface::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 1;
+}
+.jelly-surface::before,
+.jelly-surface-flat::before {
+  display: none;
+}
+.jelly-card:hover {
+  transform: none;
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
+.jelly-btn,
+.jelly-btn-accent {
+  background: rgba(0, 230, 118, 0.06);
+  border: 1px solid rgba(0, 230, 118, 0.28);
+  color: var(--color-accent);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  font-weight: 600;
+}
+.jelly-btn::before,
+.jelly-btn-accent::before {
+  display: none;
+}
+.jelly-btn:hover,
+.jelly-btn-accent:hover {
+  background: rgba(0, 230, 118, 0.12);
+  border-color: rgba(0, 230, 118, 0.5);
+  box-shadow: var(--shadow-glow);
+  transform: none;
+}
+.jelly-btn-accent,
+.jelly-btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #04140a;
+  font-weight: 700;
+}
+.jelly-btn-accent:hover,
+.jelly-btn-primary:hover {
+  background: var(--color-accent-hover);
+  color: #04140a;
+}
+.jelly-nav-active {
+  background: rgba(0, 230, 118, 0.1);
+  color: var(--color-accent) !important;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.jelly-input,
+input,
+select,
+textarea {
+  background: rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-sans) !important;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 1px rgba(0, 230, 118, 0.35), 0 0 20px rgba(0, 230, 118, 0.1) !important;
+  outline: none !important;
+}
+/* The capsule carries white text and a green glyph, so it sits on a deep green
+   body rather than the bright accent, which washed the text out. No black rim. */
+.jelly-capsule {
+  background: linear-gradient(180deg, #09623a 0%, #064d2f 100%);
+  border: none;
+  outline: none;
+  box-shadow: none;
+  border-radius: 9999px;
+}
+.jelly-capsule-active {
+  background: linear-gradient(180deg, #085c35 0%, #06492b 100%);
+  border: none;
+  outline: none;
+  box-shadow: none;
+  border-radius: 9999px;
+}
+.jelly-capsule-error {
+  background: var(--color-error);
+  border: none;
+  outline: none;
+  box-shadow: none;
+  border-radius: 9999px;
+}
+.capsule-content {
+  mix-blend-mode: screen;
+}
+.jelly-capsule::before,
+.jelly-capsule::after,
+.jelly-card::after,
+.jelly-btn::after {
+  display: none;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 230, 118, 0.22);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 230, 118, 0.45);
+}
+
+/* ─── Terminal typography helpers ─── */
+.term-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+.term-eyebrow::before {
+  content: '';
+  width: 26px;
+  height: 1px;
+  background: var(--color-accent);
+  flex: none;
+}
+.term-display {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: var(--color-text-primary);
+}
+.term-figure {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.term-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 230, 118, 0.32);
+  background: rgba(0, 230, 118, 0.05);
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.term-chip-muted {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-secondary);
+}
+.term-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px rgba(0, 230, 118, 0.9);
+  flex: none;
+}
+.term-rule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, var(--color-accent), transparent);
+}
+
+/* Pretendard Black for display type and the sidebar wordmark. */
+.term-display,
+.font-black,
+[data-display] {
+  font-family: var(--font-sans);
+  font-weight: 900;
+  letter-spacing: -0.03em;
 }

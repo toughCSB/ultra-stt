@@ -64,6 +64,14 @@ describe('Capsule flow states', () => {
     })
   })
 
+  it('renders one centered original brand mark in the idle shell', () => {
+    const { container } = render(<Capsule />)
+    const shell = container.querySelector('.jelly-capsule')
+
+    expect(shell?.querySelectorAll('img')).toHaveLength(1)
+    expect(shell?.querySelectorAll('svg')).toHaveLength(0)
+  })
+
   it('renders preparing state', () => {
     useAppStore.setState({ pipelineState: 'preparing' })
 

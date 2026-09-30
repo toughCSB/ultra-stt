@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { spring } from '../../lib/animations'
-import { CapsuleLogo } from './CapsuleLogo'
+import { CapsuleBrand } from './CapsuleWorkIndicator'
 
 export function CapsuleIdle() {
   const reduced = useReducedMotion()
@@ -22,7 +22,7 @@ export function CapsuleIdle() {
         }
         transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
       >
-        <CapsuleLogo size={18} className="drop-shadow-sm" />
+        <CapsuleBrand />
       </motion.div>
     </motion.div>
   )

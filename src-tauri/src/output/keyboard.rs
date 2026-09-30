@@ -205,6 +205,9 @@ impl TextOutput for KeyboardOutput {
 }
 
 fn type_text_sync(text: &str) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    super::ensure_accessibility_trusted()?;
+
     super::windows_modifier_guard::wait_for_modifier_release()?;
 
     #[cfg(target_os = "linux")]

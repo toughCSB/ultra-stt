@@ -1,6 +1,9 @@
-use std::ffi::c_void;
+use std::ffi::{c_void, CStr};
 use std::process::Command;
 
+use objc2::msg_send;
+use objc2::rc::autoreleasepool;
+use objc2::runtime::{AnyClass, AnyObject, Bool};
 use url::Url;
 
 use super::ContextSignalSource;
@@ -21,39 +24,33 @@ pub(crate) fn restore_target_application(target: &TargetAppGuard) -> bool {
     let Some(process_id) = target.process_id else {
         return false;
     };
-    let script = format!(
-        "tell application \"System Events\" to set frontmost of first application process whose unix id is {process_id} to true"
-    );
-    Command::new("/usr/bin/osascript")
-        .args(["-e", &script])
-        .status()
-        .is_ok_and(|status| status.success())
+    let Ok(process_id) = i32::try_from(process_id) else {
+        return false;
+    };
+    let Some(class) = AnyClass::get("NSRunningApplication") else {
+        return false;
+    };
+    autoreleasepool(|_| unsafe {
+        let application: *mut AnyObject =
+            msg_send![class, runningApplicationWithProcessIdentifier: process_id];
+        if application.is_null() {
+            return false;
+        }
+        if let Some(expected_identity) = target.native_identity.as_deref() {
+            let bundle: *mut AnyObject = msg_send![application, bundleIdentifier];
+            if ns_string(bundle).as_deref() != Some(expected_identity) {
+                return false;
+            }
+        }
+        let activated: Bool = msg_send![application, activateWithOptions: 1usize << 1];
+        activated.as_bool()
+    })
 }
 
 impl ContextSignalSource for MacOsContextSource {
     fn collect(&self) -> Option<ContextSignals> {
-        let output = Command::new("/usr/bin/osascript")
-            .args(["-e", FRONT_APP_SCRIPT])
-            .output()
-            .ok()?;
-        if !output.status.success() {
-            return None;
-        }
-
-        let value = String::from_utf8(output.stdout).ok()?;
-        let mut fields = value.trim_end().split('\u{1f}');
-        let app_name = fields.next()?.trim().to_string();
-        let process_id = fields.next().and_then(|value| value.trim().parse().ok());
-        let native_identity = fields
-            .next()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
-        let window_title = fields
-            .next()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
+        let (app_name, process_id, native_identity) = frontmost_app_identity()?;
+        let window_title = focused_window_title(process_id);
 
         let browser = supported_browser(native_identity.as_deref(), &app_name);
         let (browser_host, browser_access_status) = match browser {
@@ -74,7 +71,7 @@ impl ContextSignalSource for MacOsContextSource {
         };
 
         Some(ContextSignals {
-            process_id,
+            process_id: Some(process_id),
             native_identity,
             process_alias: Some(app_name),
             window_title,
@@ -84,26 +81,134 @@ impl ContextSignalSource for MacOsContextSource {
             browser_target: browser.map(|browser| browser.target),
         })
     }
+
+    fn current_target_guard(&self) -> Option<TargetAppGuard> {
+        let (_, process_id, native_identity) = frontmost_app_identity()?;
+        Some(TargetAppGuard {
+            process_id: Some(process_id),
+            native_identity,
+        })
+    }
 }
 
-const FRONT_APP_SCRIPT: &str = r#"
-tell application "System Events"
-    set frontProcess to first application process whose frontmost is true
-    set appName to name of frontProcess
-    set appPid to unix id of frontProcess
-    try
-        set bundleId to bundle identifier of frontProcess
-    on error
-        set bundleId to ""
-    end try
-    try
-        set windowName to name of front window of frontProcess
-    on error
-        set windowName to ""
-    end try
-    return appName & ASCII character 31 & (appPid as text) & ASCII character 31 & bundleId & ASCII character 31 & windowName
-end tell
-"#;
+fn frontmost_app_identity() -> Option<(String, u32, Option<String>)> {
+    let class = AnyClass::get("NSWorkspace")?;
+    autoreleasepool(|_| unsafe {
+        let workspace: *mut AnyObject = msg_send![class, sharedWorkspace];
+        if workspace.is_null() {
+            return None;
+        }
+        let application: *mut AnyObject = msg_send![workspace, frontmostApplication];
+        if application.is_null() {
+            return None;
+        }
+        let process_id: i32 = msg_send![application, processIdentifier];
+        let process_id = u32::try_from(process_id).ok().filter(|id| *id != 0)?;
+        let bundle: *mut AnyObject = msg_send![application, bundleIdentifier];
+        let native_identity = ns_string(bundle);
+        let name: *mut AnyObject = msg_send![application, localizedName];
+        let app_name = ns_string(name).or_else(|| native_identity.clone())?;
+        Some((app_name, process_id, native_identity))
+    })
+}
+
+unsafe fn ns_string(value: *mut AnyObject) -> Option<String> {
+    if value.is_null() {
+        return None;
+    }
+    let bytes: *const std::ffi::c_char = msg_send![value, UTF8String];
+    if bytes.is_null() {
+        return None;
+    }
+    let text = CStr::from_ptr(bytes).to_string_lossy().into_owned();
+    (!text.is_empty()).then_some(text)
+}
+
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXUIElementCreateApplication(process_id: i32) -> *const c_void;
+    fn AXUIElementCopyAttributeValue(
+        element: *const c_void,
+        attribute: *const c_void,
+        value: *mut *const c_void,
+    ) -> i32;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+extern "C" {
+    fn CFStringCreateWithCString(
+        allocator: *const c_void,
+        text: *const i8,
+        encoding: u32,
+    ) -> *const c_void;
+    fn CFRelease(value: *const c_void);
+    fn CFGetTypeID(value: *const c_void) -> usize;
+    fn CFStringGetTypeID() -> usize;
+    fn CFStringGetLength(value: *const c_void) -> isize;
+    fn CFStringGetCString(value: *const c_void, buffer: *mut i8, size: isize, encoding: u32) -> u8;
+}
+
+unsafe fn copy_ax_attribute(element: *const c_void, name: &[u8]) -> Option<*const c_void> {
+    let attribute = CFStringCreateWithCString(
+        std::ptr::null(),
+        name.as_ptr().cast(),
+        0x08000100,
+    );
+    if attribute.is_null() {
+        return None;
+    }
+    let mut value = std::ptr::null();
+    let status = AXUIElementCopyAttributeValue(element, attribute, &mut value);
+    CFRelease(attribute);
+    if status != 0 || value.is_null() {
+        if !value.is_null() {
+            CFRelease(value);
+        }
+        return None;
+    }
+    Some(value)
+}
+
+fn focused_window_title(process_id: u32) -> Option<String> {
+    if !crate::pipeline::is_accessibility_trusted() {
+        return None;
+    }
+    unsafe {
+        let application = AXUIElementCreateApplication(process_id as i32);
+        if application.is_null() {
+            return None;
+        }
+        let window = copy_ax_attribute(application, b"AXFocusedWindow\0");
+        CFRelease(application);
+        let window = window?;
+        let title = copy_ax_attribute(window, b"AXTitle\0");
+        CFRelease(window);
+        let title = title?;
+        let result = if CFGetTypeID(title) == CFStringGetTypeID() {
+            let length = CFStringGetLength(title);
+            let mut buffer = vec![0i8; (length as usize).saturating_mul(4).saturating_add(1)];
+            let success = CFStringGetCString(
+                title,
+                buffer.as_mut_ptr(),
+                buffer.len() as isize,
+                0x08000100,
+            );
+            if success != 0 {
+                CStr::from_ptr(buffer.as_ptr())
+                    .to_str()
+                    .ok()
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        CFRelease(title);
+        result
+    }
+}
 
 fn supported_browser(identity: Option<&str>, app_name: &str) -> Option<SupportedBrowser> {
     let identity = identity.unwrap_or_default();

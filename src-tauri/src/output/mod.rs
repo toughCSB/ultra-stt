@@ -7,6 +7,17 @@ use crate::error::{AppError, UserError};
 use async_trait::async_trait;
 use serde::Serialize;
 
+#[cfg(target_os = "macos")]
+fn ensure_accessibility_trusted() -> Result<(), AppError> {
+    if crate::pipeline::is_accessibility_trusted() {
+        Ok(())
+    } else {
+        Err(AppError::Output(
+            "macOS Accessibility permission is required for keyboard output".to_string(),
+        ))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OutputMode {
     Keyboard,
@@ -369,12 +380,21 @@ async fn output_with_strategy_using(
             .type_text(text)
             .await
             .map_err(|e| e.to_string())
-            .map(|insert_result| OutputOutcome {
-                insert_result: insert_result_with_optional_warning(
-                    insert_result,
-                    clipboard_warning.as_ref(),
-                ),
-                warning: clipboard_warning,
+            .map(|insert_result| {
+                let warning = clipboard_warning.or_else(|| {
+                    (insert_result.status == InsertStatus::CopiedFallback).then(|| UserError {
+                        code: "output_fallback_clipboard".to_string(),
+                        details: insert_result.message.clone(),
+                        retry_count: 0,
+                    })
+                });
+                OutputOutcome {
+                    insert_result: insert_result_with_optional_warning(
+                        insert_result,
+                        warning.as_ref(),
+                    ),
+                    warning,
+                }
             });
     }
 
@@ -547,6 +567,45 @@ mod tests {
         assert_eq!(
             outcome.insert_result.message.as_deref(),
             Some("Output error: keyboard failed")
+        );
+    }
+
+    #[tokio::test]
+    async fn explicit_clipboard_paste_copy_fallback_reports_warning_and_preserves_status() {
+        let keyboard = FakeOutput::err(OutputMode::Keyboard, "keyboard should not be used");
+        let mut copied_result = InsertResult::copied_fallback(InsertionStrategy::ClipboardPaste, 4);
+        copied_result.message = Some("Output error: paste failed".to_string());
+        let clipboard = FakeOutput::ok(OutputMode::Clipboard, copied_result);
+
+        let outcome =
+            output_with_fallback_using("text", OutputMode::Clipboard, &keyboard, &clipboard, None)
+                .await
+                .unwrap();
+
+        assert_eq!(outcome.insert_result.status, InsertStatus::CopiedFallback);
+        assert_eq!(outcome.insert_result.chars_inserted, 0);
+        assert_eq!(outcome.insert_result.chars_copied, 4);
+        assert_eq!(
+            outcome
+                .warning
+                .as_ref()
+                .map(|warning| warning.code.as_str()),
+            Some("output_fallback_clipboard")
+        );
+        assert_eq!(
+            outcome.insert_result.warning_code.as_deref(),
+            Some("output_fallback_clipboard")
+        );
+        assert_eq!(
+            outcome
+                .warning
+                .as_ref()
+                .and_then(|warning| warning.details.as_deref()),
+            Some("Output error: paste failed")
+        );
+        assert_eq!(
+            outcome.insert_result.message.as_deref(),
+            Some("Output error: paste failed")
         );
     }
 

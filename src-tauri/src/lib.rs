@@ -8,27 +8,55 @@ pub mod hotkey;
 #[cfg(target_os = "linux")]
 mod linux_x11;
 pub mod llm;
+pub mod local_process;
+#[cfg(target_os = "macos")]
+mod macos_capsule;
+#[cfg(target_os = "macos")]
+mod macos_diagnostics;
 pub mod native_hotkey;
 pub mod output;
 pub mod pipeline;
 pub mod platform;
 pub mod recording_deadline;
+pub mod remote;
 pub mod selection;
 pub mod storage;
 pub mod stt;
 pub mod tray;
 pub mod voice_intent;
+#[cfg(any(target_os = "windows", test))]
+mod windows_profile;
+#[cfg(target_os = "windows")]
+mod windows_brand;
 
 pub use hotkey::{default_ask_shortcut, default_shortcut, parse_hotkey};
 pub use tray::{refresh_tray, TrayHandle};
 
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_store::StoreExt;
 use tracing_subscriber::EnvFilter;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+
+static CONFIG_READY: OnceLock<tokio::sync::watch::Sender<bool>> = OnceLock::new();
+
+fn config_ready() -> &'static tokio::sync::watch::Sender<bool> {
+    CONFIG_READY.get_or_init(|| tokio::sync::watch::channel(false).0)
+}
+
+pub(crate) async fn wait_for_config_ready() -> Result<(), String> {
+    let mut ready = config_ready().subscribe();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        ready.wait_for(|value| *value),
+    )
+    .await
+    .map_err(|_| "Application configuration did not become ready".to_string())?
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
 
 /// Default cloud API base URL. Override with the `API_BASE_URL` environment variable.
 pub const DEFAULT_API_BASE_URL: &str = "https://www.opentypeless.com";
@@ -857,6 +885,12 @@ pub fn run() {
         )
         .init();
 
+    #[cfg(target_os = "windows")]
+    if let Err(error) = windows_profile::configure() {
+        tracing::error!("Cannot start personal profile: {error}");
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     log_linux_launch_diagnostics(xinitthreads_status);
 
@@ -892,7 +926,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(action) = parse_cli_action(&args) {
-                dispatch_cli_action(app, action);
+                let app_handle = app.clone();
+                if let Err(error) = app.run_on_main_thread(move || {
+                    dispatch_cli_action(&app_handle, action);
+                }) {
+                    tracing::error!("Could not dispatch CLI action: {error}");
+                }
                 return;
             }
             // Deep-link URL forwarding is handled automatically by the
@@ -918,8 +957,21 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
 
+            #[cfg(target_os = "macos")]
+            macos_capsule::configure(&app_handle);
+
+            #[cfg(target_os = "macos")]
+            tracing::info!(
+                microphone = ?audio::permission::authorization_status(),
+                accessibility = pipeline::is_accessibility_trusted(),
+                "macOS input permissions"
+            );
+
             // Initialize data directory and database
-            let data_dir = app.path().app_data_dir()?;
+            if std::env::var_os("ULTRA_STT_DATA_DIR").is_some_and(|value| !std::path::Path::new(&value).is_absolute()) {
+                return Err(anyhow::anyhow!("ULTRA_STT_DATA_DIR must be absolute").into());
+            }
+            let data_dir = storage::profile_data_dir(app.path().app_data_dir()?);
             std::fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("opentypeless.db");
 
@@ -949,7 +1001,10 @@ pub fn run() {
             // Load initial config to get hotkey
             let mut initial_config =
                 tauri::async_runtime::block_on(config_manager.load()).unwrap_or_default();
-            sync_auto_start_preference(&app_handle, &config_manager, &mut initial_config);
+            // A project-local profile must not rewrite machine-wide startup registration.
+            if std::env::var_os("ULTRA_STT_DATA_DIR").is_none() {
+                sync_auto_start_preference(&app_handle, &config_manager, &mut initial_config);
+            }
             app.manage(config_manager);
             app.manage(history_store);
             app.manage(dictionary_store);
@@ -994,34 +1049,38 @@ pub fn run() {
             }
             spawn_hotkey_supervisor(app_handle.clone());
 
+            // Remote input: a loopback WebSocket that only accepts this
+            // Tailscale owner from the same tailnet. Failure is not fatal; a PC
+            // without Tailscale simply has no remote listener.
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = remote::serve().await {
+                    tracing::info!("Remote input listener unavailable: {error}");
+                }
+            });
+
             // System tray
             let tray_menu =
                 tray::build_tray_menu(&app_handle, false, true, initial_config.capsule_auto_hide)
                     .map_err(|e| anyhow::anyhow!("Failed to build tray menu: {}", e))?;
 
+            const TRAY_ICON_SIZE: u32 = 64;
+            let tray_icon = tauri::image::Image::new_owned(
+                include_bytes!("../icons/tray-icon.rgba").to_vec(),
+                TRAY_ICON_SIZE,
+                TRAY_ICON_SIZE,
+            );
             let tray = TrayIconBuilder::new()
-                .icon(
-                    app.default_window_icon()
-                        .expect("default window icon missing")
-                        .clone(),
-                )
+                .icon(tray_icon)
                 .menu(&tray_menu)
-                .tooltip("OpenTypeless")
+                .show_menu_on_left_click(false)
+                .tooltip("Ultra STT")
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "quit" => {
+                        tauri::async_runtime::block_on(stt::ultra_local::shutdown());
                         app.exit(0);
                     }
                     "show_hide" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let visible = window.is_visible().unwrap_or(false);
-                            if visible {
-                                let _ = window.hide();
-                            } else {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                            refresh_tray(app);
-                        }
+                        tray::toggle_main_window(app);
                     }
                     "record" => {
                         let handle = app.clone();
@@ -1094,24 +1153,8 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    let should_show = matches!(
-                        event,
-                        TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
-                            ..
-                        } | TrayIconEvent::DoubleClick {
-                            button: MouseButton::Left,
-                            ..
-                        }
-                    );
-                    if should_show {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            refresh_tray(app);
-                        }
+                    if tray::should_toggle_on_tray_event(&event) {
+                        tray::toggle_main_window(tray.app_handle());
                     }
                 })
                 .build(app)?;
@@ -1122,6 +1165,11 @@ pub fn run() {
 
             // Close-to-tray: intercept window close
             if let Some(main_window) = app.get_webview_window("main") {
+                #[cfg(target_os = "windows")]
+                {
+                    if let Some(icon) = app.default_window_icon() { main_window.set_icon(icon.clone())?; }
+                    windows_brand::set_taskbar_icon(&main_window, windows_brand::TASKBAR_APP_ID)?;
+                }
                 let handle = app.handle().clone();
                 main_window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -1146,7 +1194,7 @@ pub fn run() {
                                             width: size.width,
                                             height: size.height,
                                         };
-                                        if let Ok(store) = handle.store("settings.json") {
+                                        if let Ok(store) = handle.store(storage::profile_store_path("settings.json")) {
                                             if let Ok(val) = serde_json::to_value(&ws) {
                                                 store.set("window_state", val);
                                                 let _ = store.save();
@@ -1167,7 +1215,7 @@ pub fn run() {
             }
 
             // Restore window state from previous session
-            if let Ok(store) = app.handle().store("settings.json") {
+            if let Ok(store) = app.handle().store(storage::profile_store_path("settings.json")) {
                 if let Some(val) = store.get("window_state") {
                     if let Ok(ws) = serde_json::from_value::<WindowState>(val.clone()) {
                         // Validate: skip if coordinates are off-screen (e.g. -32000 from minimized state)
@@ -1193,7 +1241,17 @@ pub fn run() {
                 }
             }
 
+            config_ready().send_replace(true);
             tracing::info!("OpenTypeless started");
+
+            #[cfg(target_os = "macos")]
+            if std::env::var("ULTRA_STT_DIAGNOSTICS").as_deref() == Ok("1") {
+                let diagnostic_handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    macos_diagnostics::capture_capsule(&diagnostic_handle);
+                });
+            }
 
             // P1-2: Pre-warm HTTP connection pool in background
             let warm_handle = app_handle.clone();
@@ -1234,6 +1292,8 @@ pub fn run() {
             commands::misc::request_accessibility_permission,
             commands::misc::request_browser_access,
             commands::config::get_config,
+            commands::config::load_onboarding_completed,
+            commands::config::save_onboarding_completed,
             commands::config::update_config,
             commands::credentials::get_credential_status,
             commands::credentials::read_credential,

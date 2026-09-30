@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LlmSetupStep } from '../LlmSetupStep'
 import * as tauri from '../../../lib/tauri'
@@ -63,7 +63,7 @@ describe('LlmSetupStep', () => {
     expect(providerSelect.querySelector('option[value="cloud"]')).toBeNull()
   })
 
-  it('moves a saved Cloud config to a valid BYOK provider instead of showing a dead selection', async () => {
+  it('moves a saved Cloud config to a valid BYOK provider instead of showing a dead selection', () => {
     mockStore.config = {
       llm_provider: 'cloud',
       llm_api_key: '',
@@ -74,12 +74,10 @@ describe('LlmSetupStep', () => {
     render(<LlmSetupStep />)
 
     expect(screen.getAllByRole('combobox')[0]).toHaveValue('zhipu')
-    await waitFor(() => {
-      expect(mockStore.updateConfig).toHaveBeenCalledWith({
-        llm_provider: 'zhipu',
-        llm_base_url: 'https://open.bigmodel.cn/api/paas/v4',
-        llm_model: 'glm-4-flash',
-      })
+    expect(mockStore.updateConfig).toHaveBeenCalledWith({
+      llm_provider: 'zhipu',
+      llm_base_url: 'https://open.bigmodel.cn/api/paas/v4',
+      llm_model: 'glm-4-flash',
     })
   })
 
@@ -89,15 +87,14 @@ describe('LlmSetupStep', () => {
     const button = screen.getByRole('button', { name: 'Test' })
     expect(screen.queryByPlaceholderText('API key')).not.toBeInTheDocument()
     expect(button).not.toBeDisabled()
-    fireEvent.click(button)
-
-    await waitFor(() =>
-      expect(tauri.testLlmConnection).toHaveBeenCalledWith(
-        '',
-        'ollama',
-        'http://localhost:11434/v1',
-        'llama3.2',
-      ),
+    await act(async () => {
+      fireEvent.click(button)
+    })
+    expect(tauri.testLlmConnection).toHaveBeenCalledWith(
+      '',
+      'ollama',
+      'http://localhost:11434/v1',
+      'llama3.2',
     )
   })
 
@@ -112,5 +109,25 @@ describe('LlmSetupStep', () => {
     render(<LlmSetupStep />)
 
     expect(screen.getByTitle('Fetch models')).toBeDisabled()
+  })
+
+  it('preserves a subscription provider and checks login without key or URL', async () => {
+    mockStore.config = {
+      llm_provider: 'codex-cli',
+      llm_api_key: 'stale-key',
+      llm_base_url: 'https://old-provider.example/v1',
+      llm_model: 'gpt-6-luna',
+    }
+    const { container } = render(<LlmSetupStep />)
+    expect(screen.getByRole('combobox', { name: 'Service' })).toHaveValue('codex-cli')
+    expect(container.querySelector('input[type="password"]')).toBeNull()
+    expect(screen.queryByTitle('Fetch models')).not.toBeInTheDocument()
+    expect(mockStore.updateConfig).not.toHaveBeenCalled()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'ultra.checkLogin' }))
+    })
+    expect(tauri.testLlmConnection).toHaveBeenCalledWith('', 'codex-cli', '', 'gpt-6-luna')
+    expect(tauri.fetchLlmModels).not.toHaveBeenCalled()
+    expect(mockStore.setLlmTestStatus).toHaveBeenLastCalledWith('success')
   })
 })

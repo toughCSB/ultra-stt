@@ -448,6 +448,24 @@ impl AppConfig {
         }
     }
 
+    pub fn new_ultra_local_profile() -> Self {
+        let mut config = Self::new_install_default();
+        config.stt_provider = "custom-whisper".into();
+        config.stt_custom_preset = "ultra-local".into();
+        config.stt_custom_base_url = crate::stt::ultra_local::BASE.into();
+        config.stt_custom_model = crate::stt::ultra_local::MODEL.into();
+        config.stt_language = "ko".into();
+        config.ui_language = "ko".into();
+        config.llm_provider = "codex-cli".into();
+        config.llm_model = "gpt-6-luna".into();
+        config.llm_base_url.clear();
+        config.auto_start = false;
+        config.hotkey = "Ctrl+Alt+R".into();
+        config.hotkey_mode = "toggle".into();
+        config.hotkeys = HotkeyConfig::from_legacy(&config.hotkey, &config.ask_hotkey, &config.hotkey_mode);
+        config
+    }
+
     fn migrate_legacy_platform_hotkeys(&mut self) {
         #[cfg(target_os = "macos")]
         if self.hotkey == "Alt+/" {
@@ -1138,6 +1156,23 @@ fn sanitize_family_scene_assignments(
     });
 }
 
+/// An absolute override keeps the personal profile's stores beside its database.
+/// Without it the existing plugin-relative path remains unchanged.
+pub fn profile_store_path(name: &str) -> PathBuf {
+    std::env::var_os("ULTRA_STT_DATA_DIR")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .map(|path| path.join(name))
+        .unwrap_or_else(|| PathBuf::from(name))
+}
+
+pub fn profile_data_dir(default: PathBuf) -> PathBuf {
+    std::env::var_os("ULTRA_STT_DATA_DIR")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .unwrap_or(default)
+}
+
 // ─── ConfigManager (tauri-plugin-store backed) ───
 
 pub struct ConfigManager {
@@ -1158,11 +1193,13 @@ impl ConfigManager {
             return Ok(config);
         }
 
-        let mut config = match self.app_handle.store("settings.json") {
+        let mut config = match self.app_handle.store(profile_store_path("settings.json")) {
             Ok(store) => match store.get("app_config") {
                 Some(val) => AppConfig::from_stored_value(val.clone())
                     .unwrap_or_else(|_| AppConfig::new_install_default()),
-                None => AppConfig::new_install_default(),
+                None => if std::env::var_os("ULTRA_STT_DATA_DIR").is_some() {
+                    AppConfig::new_ultra_local_profile()
+                } else { AppConfig::new_install_default() },
             },
             Err(_) => AppConfig::new_install_default(),
         };
@@ -1176,12 +1213,22 @@ impl ConfigManager {
     pub async fn save(&self, config: &AppConfig) -> Result<()> {
         let mut config = config.clone();
         config.normalize_values();
-        let report = migrate_legacy_config_secrets(&mut config, &SystemCredentialVault)?;
-        if !report.migrated.is_empty() {
-            tracing::info!(
-                migrated_credentials = report.migrated.len(),
-                "Migrated legacy config credentials before saving settings"
-            );
+        // A vault failure must not block saving. On macOS the keychain is not
+        // always writable, and propagating the error here meant no setting could
+        // ever be saved, including the hotkey the user was trying to change.
+        match migrate_legacy_config_secrets(&mut config, &SystemCredentialVault) {
+            Ok(report) if !report.migrated.is_empty() => {
+                tracing::info!(
+                    migrated_credentials = report.migrated.len(),
+                    "Migrated legacy config credentials before saving settings"
+                );
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::warn!(
+                    "Failed to migrate legacy config credentials while saving; keeping plaintext settings: {error}"
+                );
+            }
         }
         *self.cache.lock().unwrap_or_else(|e| e.into_inner()) = Some(config.clone());
 
@@ -1213,7 +1260,7 @@ impl ConfigManager {
     fn persist_config(&self, config: &AppConfig) -> Result<()> {
         let store = self
             .app_handle
-            .store("settings.json")
+            .store(profile_store_path("settings.json"))
             .map_err(|e| anyhow::anyhow!("Failed to open store: {}", e))?;
         let val = serde_json::to_value(config)?;
         store.set("app_config", val);
@@ -3009,6 +3056,22 @@ mod tests {
 
         assert_eq!(config.polish_custom_prompt, "use formal tone");
         assert_eq!(config.polish_chinese_script, "preserve");
+    }
+
+    #[test]
+    fn ultra_profile_is_only_a_new_install_default() {
+        let local = AppConfig::new_ultra_local_profile();
+        assert_eq!(local.stt_custom_preset, "ultra-local");
+        assert_eq!(local.stt_custom_base_url, crate::stt::ultra_local::BASE);
+        assert_eq!(local.stt_language, "ko");
+        assert_eq!(local.llm_provider, "codex-cli");
+        assert_eq!(local.llm_model, "gpt-6-luna");
+        assert_eq!(local.hotkey, "Ctrl+Alt+R");
+        assert_eq!(local.hotkey_mode, "toggle");
+        assert!(!local.auto_start);
+        let saved = AppConfig::from_stored_value(serde_json::to_value(AppConfig::default()).unwrap()).unwrap();
+        assert_eq!(saved.stt_provider, "glm-asr");
+        assert_eq!(saved.llm_provider, "openrouter");
     }
 
     #[test]

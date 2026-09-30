@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { motion, useReducedMotion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { abortRecording } from '../../lib/tauri'
+import { CapsuleBrand } from './CapsuleWorkIndicator'
 import { Waveform } from './Waveform'
 import { DurationTimer } from './DurationTimer'
 import { TranslateTargetChip } from './TranslateTargetChip'
@@ -25,6 +26,7 @@ export function CapsuleRecording() {
 
   return (
     <motion.div className="relative z-10 flex items-center gap-2 h-9 px-3">
+      <CapsuleBrand />
       {/* White pulse dot — gentle opacity loop */}
       <motion.div
         className="w-2 h-2 rounded-full bg-white/80 flex-shrink-0"

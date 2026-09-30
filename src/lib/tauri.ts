@@ -622,13 +622,10 @@ export async function waitForAccessibilityPermission({
   }
 }
 
-// Onboarding persistence via tauri-plugin-store
+// Native commands use the same profile settings store as getConfig/updateConfig.
 export async function loadOnboardingCompleted(): Promise<boolean> {
   try {
-    const { load } = await import('@tauri-apps/plugin-store')
-    const store = await load('settings.json')
-    const val = await store.get<boolean>('onboarding_completed')
-    return val === true
+    return await invoke<boolean>('load_onboarding_completed')
   } catch {
     return false
   }
@@ -636,9 +633,7 @@ export async function loadOnboardingCompleted(): Promise<boolean> {
 
 export async function saveOnboardingCompleted(): Promise<void> {
   try {
-    const { load } = await import('@tauri-apps/plugin-store')
-    const store = await load('settings.json')
-    await store.set('onboarding_completed', true)
+    await invoke('save_onboarding_completed')
   } catch (e) {
     console.error('Failed to persist onboarding state:', e)
   }

@@ -1,7 +1,12 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAppStore, type AppConfig } from '../../stores/appStore'
-import { CUSTOM_WHISPER_PROVIDER, ONBOARDING_STT_PROVIDERS } from '../../lib/constants'
+import { useAppStore } from '../../stores/appStore'
+import {
+  CUSTOM_WHISPER_PROVIDER,
+  ONBOARDING_STT_PROVIDERS,
+  ULTRA_LOCAL_STT_DEFAULTS,
+  ULTRA_LOCAL_STT_PRESET,
+} from '../../lib/constants'
 import { testSttConnection } from '../../lib/tauri'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 
@@ -11,19 +16,22 @@ export function SttSetupStep() {
   const updateConfig = useAppStore((s) => s.updateConfig)
   const sttTestStatus = useAppStore((s) => s.sttTestStatus)
   const setSttTestStatus = useAppStore((s) => s.setSttTestStatus)
-  const fallbackProvider = ONBOARDING_STT_PROVIDERS[0]?.value ?? 'deepgram'
+  const fallbackProvider = 'deepgram'
   const isCustomWhisper = config.stt_provider === CUSTOM_WHISPER_PROVIDER
-  const selectedProvider = isCustomWhisper
-    ? CUSTOM_WHISPER_PROVIDER
-    : ONBOARDING_STT_PROVIDERS.some((p) => p.value === config.stt_provider)
-      ? config.stt_provider
-      : fallbackProvider
+  const isUltraLocal = isCustomWhisper && config.stt_custom_preset === ULTRA_LOCAL_STT_PRESET
+  const selectedProvider = isUltraLocal
+    ? ULTRA_LOCAL_STT_PRESET
+    : isCustomWhisper
+      ? CUSTOM_WHISPER_PROVIDER
+      : ONBOARDING_STT_PROVIDERS.some((p) => p.value === config.stt_provider)
+        ? config.stt_provider
+        : fallbackProvider
 
   useEffect(() => {
-    if (isCustomWhisper) return
+    if (isCustomWhisper || selectedProvider === ULTRA_LOCAL_STT_PRESET) return
     if (selectedProvider === config.stt_provider) return
 
-    updateConfig({ stt_provider: selectedProvider as AppConfig['stt_provider'] })
+    updateConfig({ stt_provider: selectedProvider })
     setSttTestStatus('idle')
   }, [config.stt_provider, isCustomWhisper, selectedProvider, setSttTestStatus, updateConfig])
 
@@ -32,7 +40,7 @@ export function SttSetupStep() {
     try {
       const ok = isCustomWhisper
         ? await testSttConnection(
-            config.stt_custom_api_key,
+            isUltraLocal ? '' : config.stt_custom_api_key,
             CUSTOM_WHISPER_PROVIDER,
             config.stt_custom_base_url,
             config.stt_custom_model,
@@ -46,11 +54,43 @@ export function SttSetupStep() {
 
   return (
     <div className="space-y-5">
-      {isCustomWhisper ? (
-        <Field label={t('onboarding.stt.serviceLabel')}>
+      <Field label={t('onboarding.stt.serviceLabel')}>
+        <select
+          aria-label={t('onboarding.stt.serviceLabel')}
+          value={selectedProvider}
+          onChange={(event) => {
+            const selected = ONBOARDING_STT_PROVIDERS.find(
+              (provider) => provider.value === event.target.value,
+            )
+            if (!selected) return
+            if (selected.value === ULTRA_LOCAL_STT_PRESET) {
+              updateConfig({
+                stt_provider: CUSTOM_WHISPER_PROVIDER,
+                stt_custom_preset: ULTRA_LOCAL_STT_PRESET,
+                stt_custom_base_url: ULTRA_LOCAL_STT_DEFAULTS.baseUrl,
+                stt_custom_model: ULTRA_LOCAL_STT_DEFAULTS.model,
+                stt_custom_api_key: '',
+              })
+            } else {
+              updateConfig({ stt_provider: selected.value })
+            }
+            setSttTestStatus('idle')
+          }}
+          className="w-full px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
+        >
+          {isCustomWhisper && !isUltraLocal && (
+            <option value={CUSTOM_WHISPER_PROVIDER}>{t('providers.stt.customWhisper')}</option>
+          )}
+          {ONBOARDING_STT_PROVIDERS.map((provider) => (
+            <option key={provider.value} value={provider.value}>
+              {t(provider.labelKey)}
+            </option>
+          ))}
+        </select>
+        {isCustomWhisper && (
           <div className="rounded-[10px] border border-border bg-bg-secondary px-3 py-2.5">
             <p className="text-[13px] font-medium text-text-primary">
-              {t('onboarding.stt.customWhisperConfigured')}
+              {t(isUltraLocal ? 'ultra.localSpeech' : 'onboarding.stt.customWhisperConfigured')}
             </p>
             <p className="mt-1 truncate text-[11px] text-text-tertiary">
               {config.stt_custom_base_url}
@@ -59,42 +99,32 @@ export function SttSetupStep() {
               {config.stt_custom_model}
             </p>
           </div>
-        </Field>
-      ) : (
-        <Field label={t('onboarding.stt.serviceLabel')}>
-          <select
-            value={selectedProvider}
-            onChange={(e) => {
-              updateConfig({ stt_provider: e.target.value as AppConfig['stt_provider'] })
-              setSttTestStatus('idle')
-            }}
-            className="w-full px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
-          >
-            {ONBOARDING_STT_PROVIDERS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {t(p.labelKey)}
-              </option>
-            ))}
-          </select>
-        </Field>
+        )}
+      </Field>
+      {isUltraLocal && (
+        <p className="text-[12px] text-text-secondary leading-relaxed break-keep">
+          {t('ultra.localSpeechHint')}
+        </p>
       )}
 
-      <Field label={t('onboarding.stt.apiKeyLabel')}>
+      <Field label={t(isUltraLocal ? 'ultra.localSpeech' : 'onboarding.stt.apiKeyLabel')}>
         <div className="flex gap-2">
-          <input
-            type="password"
-            value={isCustomWhisper ? config.stt_custom_api_key : config.stt_api_key}
-            onChange={(e) => {
-              updateConfig(
-                isCustomWhisper
-                  ? { stt_custom_api_key: e.target.value }
-                  : { stt_api_key: e.target.value },
-              )
-              setSttTestStatus('idle')
-            }}
-            placeholder={t('onboarding.stt.apiKeyPlaceholder')}
-            className="flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
-          />
+          {!isUltraLocal && (
+            <input
+              type="password"
+              value={isCustomWhisper ? config.stt_custom_api_key : config.stt_api_key}
+              onChange={(e) => {
+                updateConfig(
+                  isCustomWhisper
+                    ? { stt_custom_api_key: e.target.value }
+                    : { stt_api_key: e.target.value },
+                )
+                setSttTestStatus('idle')
+              }}
+              placeholder={t('onboarding.stt.apiKeyPlaceholder')}
+              className="flex-1 px-3 py-2.5 bg-bg-secondary border border-border rounded-[10px] text-[13px] text-text-primary outline-none focus:border-border-focus transition-colors"
+            />
+          )}
           <button
             onClick={handleTest}
             disabled={

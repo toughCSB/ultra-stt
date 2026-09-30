@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Settings, History, LogOut, CircleUser, Crown, AppWindow, Eye, EyeOff } from 'lucide-react'
+import { Settings, History, LogOut, CircleUser, AppWindow, Eye, EyeOff } from 'lucide-react'
 import { setCapsuleAutoHide } from '../../lib/tauri'
 import { useAppStore } from '../../stores/appStore'
 
@@ -65,14 +65,6 @@ export function CapsuleContextMenu({ onClose }: Props) {
       label: t('capsule.menu.account'),
       onClick: () => {
         openMainWindow('#/account')
-        onClose()
-      },
-    },
-    {
-      icon: Crown,
-      label: t('capsule.menu.upgrade'),
-      onClick: () => {
-        openMainWindow('#/upgrade')
         onClose()
       },
     },

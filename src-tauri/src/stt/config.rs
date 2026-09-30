@@ -10,6 +10,8 @@ use super::whisper_compat::WhisperCompatConfig;
 pub const APPLE_SPEECH_PROVIDER: &str = "apple-speech";
 pub const CUSTOM_WHISPER_PROVIDER: &str = "custom-whisper";
 pub const CUSTOM_WHISPER_PRESET_SPEACHES: &str = "speaches";
+pub const ULTRA_REMOTE_STT_PRESET: &str = "ultra-remote";
+
 pub const CUSTOM_WHISPER_PRESET_CUSTOM: &str = "custom";
 pub const DEFAULT_CUSTOM_WHISPER_BASE_URL: &str = "http://localhost:8000/v1";
 pub const DEFAULT_CUSTOM_WHISPER_MODEL: &str = "Systran/faster-whisper-large-v3";
@@ -96,6 +98,15 @@ pub fn build_custom_whisper_config(
     })
 }
 
+pub fn build_custom_whisper_for_app(config: &crate::storage::AppConfig) -> Result<WhisperCompatConfig, String> {
+    if config.stt_custom_preset == "ultra-local"
+        && (config.stt_custom_base_url != super::ultra_local::BASE
+            || config.stt_custom_model != super::ultra_local::MODEL) {
+        return Err("Managed local preset requires the exact loopback URL and full large-v3 model".into());
+    }
+    build_custom_whisper_config(&config.stt_custom_base_url, &config.stt_custom_model)
+}
+
 pub fn build_known_whisper_config(provider: &str) -> Option<WhisperCompatConfig> {
     let cfg = get_whisper_config(provider)?;
     Some(WhisperCompatConfig {
@@ -121,6 +132,17 @@ pub fn stt_provider_requires_api_key(provider: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn managed_preset_rejects_altered_endpoint_and_model() {
+        let mut app = crate::storage::AppConfig::new_ultra_local_profile();
+        assert!(build_custom_whisper_for_app(&app).is_ok());
+        app.stt_custom_base_url = "https://example.test/v1".into();
+        assert!(build_custom_whisper_for_app(&app).is_err());
+        app.stt_custom_base_url = crate::stt::ultra_local::BASE.into();
+        app.stt_custom_model = "whisper-1".into();
+        assert!(build_custom_whisper_for_app(&app).is_err());
+    }
 
     #[test]
     fn test_glm_asr_config() {

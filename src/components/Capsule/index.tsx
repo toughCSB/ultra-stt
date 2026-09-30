@@ -140,11 +140,11 @@ export function Capsule() {
       <motion.div
         layout
         transition={{ layout: { duration: 0.2, ease: [0.2, 0, 0, 1] } }}
-        className={`absolute left-3 rounded-full pointer-events-auto shrink-0 ${
+        className={`absolute left-3 rounded-full overflow-hidden pointer-events-auto shrink-0 ${
           capsuleState === 'error'
             ? 'jelly-capsule-error'
             : capsuleState === 'idle'
-              ? 'jelly-capsule text-neutral-700'
+              ? 'jelly-capsule text-[#8dffc9]'
               : 'jelly-capsule-active text-white'
         }`}
         style={capsuleShellSize}
@@ -155,7 +155,7 @@ export function Capsule() {
         <AnimatePresence mode="sync" initial={false}>
           <motion.div
             key={capsuleState}
-            className="absolute inset-0"
+            className="absolute inset-0 capsule-content"
             initial={{ opacity: 0, filter: 'blur(2px)' }}
             animate={{ opacity: 1, filter: 'blur(0px)' }}
             exit={{ opacity: 0, filter: 'blur(2px)' }}

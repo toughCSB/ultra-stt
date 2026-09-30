@@ -463,7 +463,7 @@ pub struct UserAppMappingStore {
 impl UserAppMappingStore {
     pub fn new(app_handle: tauri::AppHandle, registry: AppRegistry) -> Self {
         let mappings = app_handle
-            .store(MAPPING_STORE_FILE)
+            .store(crate::storage::profile_store_path(MAPPING_STORE_FILE))
             .ok()
             .and_then(|store| store.get(MAPPING_STORE_KEY))
             .and_then(|value| serde_json::from_value::<StoredMappingState>(value.clone()).ok())
@@ -589,7 +589,7 @@ impl UserAppMappingStore {
             return Ok(());
         };
         let store = app_handle
-            .store(MAPPING_STORE_FILE)
+            .store(crate::storage::profile_store_path(MAPPING_STORE_FILE))
             .map_err(|_| "custom_app_mapping_store_unavailable".to_string())?;
         let value = serde_json::to_value(StoredMappingState {
             version: MAPPING_STORE_VERSION,

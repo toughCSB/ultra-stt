@@ -4,6 +4,36 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+pub fn should_toggle_on_tray_event(event: &tauri::tray::TrayIconEvent) -> bool {
+    matches!(event, tauri::tray::TrayIconEvent::Click {
+        button: tauri::tray::MouseButton::Left,
+        button_state: tauri::tray::MouseButtonState::Up,
+        ..
+    })
+}
+
+fn should_hide_main_window(visible: bool, minimized: bool) -> bool {
+    visible && !minimized
+}
+
+pub fn toggle_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let hide = should_hide_main_window(
+            window.is_visible().unwrap_or(false), window.is_minimized().unwrap_or(false),
+        );
+        let result = if hide {
+            window.hide()
+        } else {
+            window.unminimize().and_then(|_| window.show()).and_then(|_| window.set_focus())
+        };
+        match result {
+            Ok(()) => tracing::info!(target_visible = !hide, "Tray window toggle requested"),
+            Err(error) => tracing::warn!("Tray window toggle failed: {error}"),
+        }
+        refresh_tray(app);
+    }
+}
+
 /// Managed tray icon handle for dynamic menu/tooltip updates.
 pub struct TrayHandle {
     pub tray: Mutex<tauri::tray::TrayIcon>,
@@ -35,7 +65,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "设置",
             history: "历史记录",
             account: "账户",
-            about: "关于 OpenTypeless",
+            about: "关于 Ultra STT",
             quit: "退出",
         },
         "ja" => TrayLabels {
@@ -48,7 +78,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "設定",
             history: "履歴",
             account: "アカウント",
-            about: "OpenTypeless について",
+            about: "Ultra STT について",
             quit: "終了",
         },
         "ko" => TrayLabels {
@@ -61,7 +91,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "설정",
             history: "기록",
             account: "계정",
-            about: "OpenTypeless 정보",
+            about: "Ultra STT 정보",
             quit: "종료",
         },
         "fr" => TrayLabels {
@@ -74,7 +104,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "Paramètres",
             history: "Historique",
             account: "Compte",
-            about: "À propos d'OpenTypeless",
+            about: "À propos d'Ultra STT",
             quit: "Quitter",
         },
         "de" => TrayLabels {
@@ -87,7 +117,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "Einstellungen",
             history: "Verlauf",
             account: "Konto",
-            about: "Über OpenTypeless",
+            about: "Über Ultra STT",
             quit: "Beenden",
         },
         "es" => TrayLabels {
@@ -100,7 +130,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "Configuración",
             history: "Historial",
             account: "Cuenta",
-            about: "Acerca de OpenTypeless",
+            about: "Acerca de Ultra STT",
             quit: "Salir",
         },
         "pt" => TrayLabels {
@@ -113,7 +143,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "Configurações",
             history: "Histórico",
             account: "Conta",
-            about: "Sobre o OpenTypeless",
+            about: "Sobre o Ultra STT",
             quit: "Sair",
         },
         "ru" => TrayLabels {
@@ -126,7 +156,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "Настройки",
             history: "История",
             account: "Аккаунт",
-            about: "О программе OpenTypeless",
+            about: "О программе Ultra STT",
             quit: "Выход",
         },
         "it" => TrayLabels {
@@ -139,7 +169,7 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "Impostazioni",
             history: "Cronologia",
             account: "Account",
-            about: "Informazioni su OpenTypeless",
+            about: "Informazioni su Ultra STT",
             quit: "Esci",
         },
         _ => TrayLabels {
@@ -152,14 +182,14 @@ fn get_tray_labels(lang: &str) -> TrayLabels {
             settings: "Settings",
             history: "History",
             account: "Account",
-            about: "About OpenTypeless",
+            about: "About Ultra STT",
             quit: "Quit",
         },
     }
 }
 
 fn app_config_value(app: &tauri::AppHandle) -> Option<serde_json::Value> {
-    app.store("settings.json")
+    app.store(storage::profile_store_path("settings.json"))
         .ok()
         .and_then(|store| store.get("app_config"))
 }
@@ -286,6 +316,42 @@ pub fn refresh_tray(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tray_click_hides_visible_window_and_restores_hidden_or_minimized_window() {
+        assert!(should_hide_main_window(true, false));
+        assert!(!should_hide_main_window(false, false));
+        assert!(!should_hide_main_window(true, true));
+        assert!(!should_hide_main_window(false, true));
+    }
+
+    #[test]
+    fn tray_only_toggles_once_per_left_release_and_ignores_double_click_notification() {
+        use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+        let rect = tauri::Rect { position: tauri::PhysicalPosition::new(0, 0).into(), size: tauri::PhysicalSize::new(24, 24).into() };
+        for (button, state, expected) in [
+            (MouseButton::Left, MouseButtonState::Up, true),
+            (MouseButton::Left, MouseButtonState::Down, false),
+            (MouseButton::Right, MouseButtonState::Up, false),
+            (MouseButton::Middle, MouseButtonState::Up, false),
+        ] {
+            let event = TrayIconEvent::Click { id: "test".into(), position: tauri::PhysicalPosition::new(0.0, 0.0), rect, button, button_state: state };
+            assert_eq!(should_toggle_on_tray_event(&event), expected);
+        }
+        let double = TrayIconEvent::DoubleClick { id: "test".into(), position: tauri::PhysicalPosition::new(0.0, 0.0), rect, button: MouseButton::Left };
+        assert!(!should_toggle_on_tray_event(&double));
+    }
+
+    #[test]
+    fn tray_icon_is_an_opaque_black_tile_with_brand_green_microphone() {
+        let pixels = include_bytes!("../icons/tray-icon.rgba");
+        assert_eq!(pixels.len(), 64 * 64 * 4);
+        assert!(pixels.chunks_exact(4).all(|pixel| pixel[3] == 255));
+        for offset in [0, 63 * 4, 63 * 64 * 4, (64 * 64 - 1) * 4] {
+            assert!(pixels[offset..offset + 3].iter().all(|channel| *channel <= 5));
+        }
+        assert!(pixels.chunks_exact(4).filter(|pixel| pixel[1] > 130 && pixel[1] > pixel[0].saturating_add(40)).count() > 600);
+    }
 
     #[test]
     fn tray_labels_include_capsule_visibility_controls() {

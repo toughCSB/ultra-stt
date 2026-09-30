@@ -1,0 +1,9 @@
+{
+  "include": ["server.py", "test_server.py"],
+  "typeCheckingMode": "standard",
+  "venvPath": "../..",
+  "venv": ".venv",
+  "stubPath": "typings",
+  "extraPaths": [".."],
+  "pythonVersion": "3.11"
+}

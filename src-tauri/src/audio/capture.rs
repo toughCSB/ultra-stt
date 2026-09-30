@@ -306,6 +306,10 @@ fn run_capture(
     state: Arc<Mutex<CaptureState>>,
     startup_notifier: &mut CaptureStartupNotifier,
 ) -> Result<()> {
+    super::permission::ensure_authorized()?;
+    if !matches!(stop_rx.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty)) {
+        anyhow::bail!("Audio capture was cancelled before the microphone became ready");
+    }
     let host = cpal::default_host();
     let device = host
         .default_input_device()

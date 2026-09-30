@@ -3,6 +3,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use tauri::Manager;
+#[cfg(target_os = "windows")]
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 use tokio::sync::{mpsc, Notify};
 
 use crate::app_detector;
@@ -504,34 +506,17 @@ impl StreamingInsertWorker {
     }
 }
 
-fn spawn_streaming_insert_worker(
-    app_handle: tauri::AppHandle,
-    abort_flag: Arc<AtomicBool>,
-    context_detector: app_detector::ContextDetectorHandle,
-    strategy: output::InsertionStrategy,
-    windows_sendinput_options: output::windows_sendinput::WindowsSendInputOptions,
-    expected_target_guard: TargetAppGuard,
-    expected_target_label: String,
-) -> StreamingInsertWorker {
+fn spawn_streaming_insert_worker(context: StreamingInsertWorkerContext) -> StreamingInsertWorker {
     let (sender, receiver) = mpsc::unbounded_channel();
-    let handle = tokio::spawn(run_streaming_insert_worker(
-        StreamingInsertWorkerContext {
-            app_handle,
-            abort_flag,
-            context_detector,
-            strategy,
-            windows_sendinput_options,
-            expected_target_guard,
-            expected_target_label,
-        },
-        receiver,
-    ));
+    let handle = tokio::spawn(run_streaming_insert_worker(context, receiver));
     StreamingInsertWorker { sender, handle }
 }
 
 struct StreamingInsertWorkerContext {
     app_handle: tauri::AppHandle,
     abort_flag: Arc<AtomicBool>,
+    generation: Arc<AtomicU64>,
+    expected_generation: u64,
     context_detector: app_detector::ContextDetectorHandle,
     strategy: output::InsertionStrategy,
     windows_sendinput_options: output::windows_sendinput::WindowsSendInputOptions,
@@ -546,6 +531,8 @@ async fn run_streaming_insert_worker(
     let StreamingInsertWorkerContext {
         app_handle,
         abort_flag,
+        generation,
+        expected_generation,
         context_detector,
         strategy,
         windows_sendinput_options,
@@ -555,7 +542,8 @@ async fn run_streaming_insert_worker(
     let mut report = StreamingInsertReport::new(strategy);
 
     while let Some(chunk) = receiver.recv().await {
-        if abort_flag.load(Ordering::SeqCst) {
+        if abort_flag.load(Ordering::SeqCst)
+            || (expected_generation != 0 && generation.load(Ordering::SeqCst) != expected_generation) {
             break;
         }
         if chunk.is_empty() {
@@ -699,6 +687,10 @@ pub struct PipelineHandle {
     app_handle: tauri::AppHandle,
     context_detector: app_detector::ContextDetectorHandle,
     state: Arc<AtomicU8>,
+    #[cfg(target_os = "windows")]
+    escape_registered: Arc<AtomicBool>,
+    #[cfg(target_os = "windows")]
+    escape_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<AudioCaptureHandle>>>,
     audio_volume: Arc<Mutex<f32>>,
     accumulated_text: Arc<Mutex<String>>,
@@ -707,6 +699,8 @@ pub struct PipelineHandle {
     active_stt_session_id: Arc<AtomicU64>,
     active_deadline_session_id: Arc<AtomicU64>,
     abort_flag: Arc<AtomicBool>,
+    session_generation: Arc<AtomicU64>,
+    session_changed: tokio::sync::watch::Sender<u64>,
     preloaded_config: Arc<Mutex<Option<storage::AppConfig>>>,
     preloaded_app_ctx: Arc<Mutex<Option<RecordingContext>>>,
     preloaded_dictionary: Arc<Mutex<Option<Vec<String>>>>,
@@ -736,6 +730,7 @@ struct PolishTextInput<'a> {
     operation_id: Option<String>,
     voice_intent: crate::voice_intent::VoiceIntent,
     popup_fallback_enabled: bool,
+    session_generation: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -955,6 +950,13 @@ impl PolishTextOutcome {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn consume_escape_event(pending: &AtomicBool, shortcut: &Shortcut) -> bool {
+    shortcut.key == Code::Escape
+        && shortcut.mods.is_empty()
+        && pending.swap(false, Ordering::SeqCst)
+}
+
 impl PipelineHandle {
     pub fn new(
         app_handle: tauri::AppHandle,
@@ -965,6 +967,10 @@ impl PipelineHandle {
             app_handle,
             context_detector,
             state: Arc::new(AtomicU8::new(PipelineState::Idle.as_u8())),
+            #[cfg(target_os = "windows")]
+            escape_registered: Arc::new(AtomicBool::new(false)),
+            #[cfg(target_os = "windows")]
+            escape_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
             audio_volume: Arc::new(Mutex::new(0.0)),
             accumulated_text: Arc::new(Mutex::new(String::new())),
@@ -973,6 +979,8 @@ impl PipelineHandle {
             active_stt_session_id: Arc::new(AtomicU64::new(0)),
             active_deadline_session_id: Arc::new(AtomicU64::new(0)),
             abort_flag: Arc::new(AtomicBool::new(false)),
+            session_generation: Arc::new(AtomicU64::new(0)),
+            session_changed: tokio::sync::watch::channel(0).0,
             preloaded_config: Arc::new(Mutex::new(None)),
             preloaded_app_ctx: Arc::new(Mutex::new(None)),
             preloaded_dictionary: Arc::new(Mutex::new(None)),
@@ -988,7 +996,56 @@ impl PipelineHandle {
     }
 
     fn set_state(&self, new_state: PipelineState) {
-        self.state.store(new_state.as_u8(), Ordering::SeqCst);
+        let previous = PipelineState::from_u8(self.state.swap(new_state.as_u8(), Ordering::SeqCst));
+        #[cfg(target_os = "windows")]
+        {
+            let escape = Shortcut::new(None, Code::Escape);
+            if new_state == PipelineState::Idle {
+                if self.escape_registered.swap(false, Ordering::SeqCst) {
+                    if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
+                        tracing::warn!("Failed to release recording Escape shortcut: {error}");
+                    }
+                }
+            } else if previous == PipelineState::Idle && new_state == PipelineState::Preparing {
+                let registered = self.app_handle.global_shortcut().on_shortcut(
+                    escape,
+                    |app, _, event| {
+                        let pipeline = app.state::<PipelineHandle>();
+                        // The plugin calls its global handler after this per-shortcut handler.
+                        pipeline.escape_event_pending.store(true, Ordering::SeqCst);
+                        if event.state != ShortcutState::Pressed {
+                            return;
+                        }
+                        if pipeline.current_state() == PipelineState::Idle {
+                            return;
+                        }
+                        let generation = pipeline.session_generation.load(Ordering::SeqCst);
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let pipeline = app.state::<PipelineHandle>();
+                            if pipeline.session_generation.load(Ordering::SeqCst) == generation {
+                                pipeline.abort();
+                            }
+                        });
+                    },
+                );
+                match registered {
+                    Ok(()) => {
+                        self.escape_registered.store(true, Ordering::SeqCst);
+                        if self.current_state() == PipelineState::Idle
+                            && self.escape_registered.swap(false, Ordering::SeqCst)
+                        {
+                            if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
+                                tracing::warn!("Failed to release recording Escape shortcut: {error}");
+                            }
+                        }
+                    }
+                    Err(error) => tracing::warn!("Recording Escape shortcut is unavailable: {error}"),
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        let _ = previous;
         if new_state == PipelineState::Idle {
             *self
                 .active_translation_operation
@@ -1004,20 +1061,25 @@ impl PipelineHandle {
         // Update tray tooltip + menu to reflect pipeline state
         if let Some(tray_handle) = self.app_handle.try_state::<crate::TrayHandle>() {
             let tooltip = match new_state {
-                PipelineState::Preparing => "OpenTypeless - Preparing...",
-                PipelineState::Recording => "OpenTypeless - Recording...",
-                PipelineState::Transcribing => "OpenTypeless - Transcribing...",
-                PipelineState::Polishing => "OpenTypeless - Polishing...",
-                PipelineState::Outputting => "OpenTypeless - Outputting...",
-                PipelineState::AskRecording => "OpenTypeless - Ask...",
-                PipelineState::AskThinking => "OpenTypeless - Answering...",
-                PipelineState::Idle => "OpenTypeless",
+                PipelineState::Preparing => "Ultra STT - Preparing...",
+                PipelineState::Recording => "Ultra STT - Recording...",
+                PipelineState::Transcribing => "Ultra STT - Transcribing...",
+                PipelineState::Polishing => "Ultra STT - Polishing...",
+                PipelineState::Outputting => "Ultra STT - Outputting...",
+                PipelineState::AskRecording => "Ultra STT - Ask...",
+                PipelineState::AskThinking => "Ultra STT - Answering...",
+                PipelineState::Idle => "Ultra STT",
             };
             if let Ok(t) = tray_handle.tray.lock() {
                 let _ = t.set_tooltip(Some(tooltip));
             }
         }
         crate::refresh_tray(&self.app_handle);
+    }
+
+    #[cfg(target_os = "windows")]
+    pub(crate) fn take_escape_event_for_global(&self, shortcut: &Shortcut) -> bool {
+        consume_escape_event(&self.escape_event_pending, shortcut)
     }
 
     pub fn current_state(&self) -> PipelineState {
@@ -1053,6 +1115,7 @@ impl PipelineHandle {
 
         // Set abort flag so any running stop() exits early
         self.abort_flag.store(true, Ordering::SeqCst);
+        self.invalidate_session();
         self.active_stt_session_id.fetch_add(1, Ordering::SeqCst);
         self.active_deadline_session_id.store(0, Ordering::SeqCst);
 
@@ -1087,6 +1150,16 @@ impl PipelineHandle {
 
         // Force state to Idle — emits pipeline:state event to sync frontend
         self.set_state(PipelineState::Idle);
+    }
+
+    fn invalidate_session(&self) -> u64 {
+        let generation = self.session_generation.fetch_add(1, Ordering::SeqCst) + 1;
+        self.session_changed.send_replace(generation);
+        generation
+    }
+
+    fn is_current_session(&self, generation: u64) -> bool {
+        self.session_generation.load(Ordering::SeqCst) == generation
     }
 
     fn clear_stt_session(&self, session_id: u64) {
@@ -1138,6 +1211,7 @@ impl PipelineHandle {
         {
             return Ok(());
         }
+        self.invalidate_session();
         self.set_state(PipelineState::Preparing);
 
         // Clear accumulated text
@@ -1191,7 +1265,10 @@ impl PipelineHandle {
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = Some(correction_rules);
 
-        let stt_api_key = if config_data.stt_provider == "cloud" {
+        let stt_api_key = if config_data.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
+            && config_data.stt_custom_preset == "ultra-local" {
+            String::new()
+        } else if config_data.stt_provider == "cloud" {
             self.app_handle
                 .state::<SessionTokenStore>()
                 .0
@@ -1266,10 +1343,7 @@ impl PipelineHandle {
 
         let custom_whisper_config =
             if config_data.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER {
-                match stt::config::build_custom_whisper_config(
-                    &config_data.stt_custom_base_url,
-                    &config_data.stt_custom_model,
-                ) {
+                match stt::config::build_custom_whisper_for_app(&config_data) {
                     Ok(cfg) => Some(cfg),
                     Err(e) => {
                         let _ = self.app_handle.emit("pipeline:error", e);
@@ -1809,6 +1883,8 @@ impl PipelineHandle {
         // (load config, initialize audio and connect STT) before reading shared state.
         // Released before the long stt_done wait so start() isn't blocked 120s.
         let guard = self.pipeline_lock.lock().await;
+        let generation = self.session_generation.load(Ordering::SeqCst);
+        let mut cancelled = self.session_changed.subscribe();
 
         // Atomic CAS: only one caller can transition Recording → Transcribing
         if self
@@ -1836,7 +1912,7 @@ impl PipelineHandle {
         // Update tray for transcribing state
         if let Some(tray_handle) = self.app_handle.try_state::<crate::TrayHandle>() {
             if let Ok(t) = tray_handle.tray.lock() {
-                let _ = t.set_tooltip(Some("OpenTypeless - Transcribing..."));
+                let _ = t.set_tooltip(Some("Ultra STT - Transcribing..."));
             }
         }
         crate::refresh_tray(&self.app_handle);
@@ -1952,7 +2028,11 @@ impl PipelineHandle {
         drop(guard);
 
         // ── Phase 1: Wait for STT ──────────────────────────────────────
-        let raw_text = match self.wait_for_stt(stt_control.clone()).await? {
+        let raw_text = match tokio::select! {
+            biased;
+            _ = cancelled.wait_for(|value| *value != generation) => return Ok(()),
+            result = self.wait_for_stt(stt_control.clone(), generation) => result?,
+        } {
             Some(text) => text,
             None => {
                 if let Some(control) = &stt_control {
@@ -1970,7 +2050,7 @@ impl PipelineHandle {
         );
 
         // Check abort before entering LLM polish and output
-        if self.abort_flag.load(Ordering::SeqCst) {
+        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) {
             tracing::info!("Pipeline aborted before LLM/output");
             if let Some(control) = &stt_control {
                 self.clear_stt_session(control.id);
@@ -1978,9 +2058,24 @@ impl PipelineHandle {
             return Ok(());
         }
 
+        // Synthesised key events are dropped by macOS without the Accessibility
+        // grant, with no error anywhere. Say so plainly instead of failing silently.
+        #[cfg(target_os = "macos")]
+        if !is_accessibility_trusted()
+            && matches!(
+                config.insertion_strategy.as_str(),
+                "auto" | "keyboard" | "windowsSendInput"
+            )
+        {
+            tracing::warn!(
+                "macOS Accessibility permission is not granted; enable Ultra STT in System Settings > Privacy & Security > Accessibility to type into the focused app."
+            );
+        }
         // ── Phase 2: LLM polish + output ───────────────────────────────
-        let polish_outcome = self
-            .polish_text(PolishTextInput {
+        let polish_outcome = tokio::select! {
+            biased;
+            _ = cancelled.wait_for(|value| *value != generation) => return Ok(()),
+            outcome = self.polish_text(PolishTextInput {
                 raw_text: &raw_text,
                 voice_mode,
                 config: &config,
@@ -1992,8 +2087,10 @@ impl PipelineHandle {
                 operation_id,
                 voice_intent,
                 popup_fallback_enabled: true,
-            })
-            .await;
+                session_generation: generation,
+            }) => outcome,
+        };
+        if !self.is_current_session(generation) { return Ok(()); }
         let final_text = polish_outcome.final_text;
         let llm_elapsed = polish_outcome.llm_elapsed;
 
@@ -2016,6 +2113,8 @@ impl PipelineHandle {
             total_elapsed.as_millis() - stt_elapsed.as_millis() - llm_elapsed.as_millis(),
         );
 
+        // A new recording may have superseded this stop during output.
+        if !self.is_current_session(generation) { return Ok(()); }
         // Emit timing to frontend
         let _ = self.app_handle.emit(
             "pipeline:timing",
@@ -2030,6 +2129,7 @@ impl PipelineHandle {
         let _ = self.app_handle.emit("pipeline:context", app_ctx.summary());
 
         // Save to history
+        if !self.is_current_session(generation) { return Ok(()); }
         self.save_history(
             &raw_text,
             &final_text,
@@ -2046,14 +2146,14 @@ impl PipelineHandle {
         if let Some(control) = &stt_control {
             self.clear_stt_session(control.id);
         }
-        self.set_state(PipelineState::Idle);
+        if self.is_current_session(generation) { self.set_state(PipelineState::Idle); }
         Ok(())
     }
 
     /// Wait for the STT task to complete and return the transcribed text.
     /// Returns `Ok(Some(text))` on success, `Ok(None)` if aborted or no speech,
     /// or `Err` on failure.
-    async fn wait_for_stt(&self, stt_control: Option<SttTaskControl>) -> Result<Option<String>> {
+    async fn wait_for_stt(&self, stt_control: Option<SttTaskControl>, generation: u64) -> Result<Option<String>> {
         if let Some(control) = &stt_control {
             tokio::select! {
                 _ = control.done.notified() => {
@@ -2073,14 +2173,14 @@ impl PipelineHandle {
                 return Ok(None);
             }
             if take_matching_stt_error(&self.stt_error, control.id).is_some() {
-                self.set_state(PipelineState::Idle);
+                if self.is_current_session(generation) { self.set_state(PipelineState::Idle); }
                 return Ok(None);
             }
         } else {
             tracing::warn!("No STT session was available to wait for");
         }
 
-        if self.abort_flag.load(Ordering::SeqCst) {
+        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) {
             tracing::info!("Pipeline aborted after STT wait");
             return Ok(None);
         }
@@ -2093,10 +2193,10 @@ impl PipelineHandle {
             .to_string();
 
         if raw_text.is_empty() {
-            let _ = self
-                .app_handle
-                .emit("pipeline:error", no_speech_user_error());
-            self.set_state(PipelineState::Idle);
+            if self.is_current_session(generation) {
+                let _ = self.app_handle.emit("pipeline:error", no_speech_user_error());
+                self.set_state(PipelineState::Idle);
+            }
             return Ok(None);
         }
 
@@ -2118,8 +2218,39 @@ impl PipelineHandle {
             operation_id,
             voice_intent,
             popup_fallback_enabled,
+            session_generation,
         } = input;
-        let provider_plan =
+        if config.stt_provider == crate::stt::config::CUSTOM_WHISPER_PROVIDER
+            && config.stt_custom_preset == crate::stt::config::ULTRA_REMOTE_STT_PRESET
+        {
+            let output_result = self
+                .output_text(
+                    raw_text,
+                    &app_ctx.profile.app_label,
+                    &app_ctx.target_guard,
+                    config,
+                )
+                .await;
+            if let Err(error) = &output_result {
+                tracing::error!("Output failed: {}", error);
+                let _ = self
+                    .app_handle
+                    .emit("pipeline:error", output_user_error(error));
+            }
+            let output_metadata = history_output_metadata_for_output_result(
+                output_result.as_ref(),
+                output::InsertionStrategy::from_config_value(&config.insertion_strategy)
+                    == output::InsertionStrategy::ClipboardCopyOnly,
+            );
+            return PolishTextOutcome {
+                final_text: raw_text.to_string(),
+                llm_elapsed: std::time::Duration::ZERO,
+                history_output_status: output_metadata.status,
+                history_output_error: output_metadata.error,
+                voice_execution: None,
+            };
+        }
+let provider_plan =
             crate::voice_intent::plan_voice_provider_work(voice_mode, raw_text, &voice_intent);
         let Some(provider_text) = provider_plan.provider_input.as_deref() else {
             let message = "Search must bypass the language model and use the safe search executor.";
@@ -2140,6 +2271,8 @@ impl PipelineHandle {
         };
         let llm_api_key = if config.llm_provider == "cloud" {
             session_token
+        } else if config.llm_provider == "codex-cli" {
+            String::new()
         } else {
             match resolve_llm_config_secret(config, &SystemCredentialVault) {
                 Ok(secret) => secret,
@@ -2226,25 +2359,26 @@ impl PipelineHandle {
         };
         let provider = llm::create_provider(&config.llm_provider, Some(self.shared_client.clone()));
 
-        let streaming_strategy = provider_plan
-            .allow_streaming
+        let streaming_strategy = (config.llm_provider != "codex-cli" && provider_plan.allow_streaming)
             .then(|| streaming_insert_strategy_for_runtime(config, selected_text.as_deref()))
             .flatten();
         let mut streaming_worker = streaming_strategy.map(|strategy| {
-            spawn_streaming_insert_worker(
-                self.app_handle.clone(),
-                self.abort_flag.clone(),
-                self.context_detector.clone(),
+            spawn_streaming_insert_worker(StreamingInsertWorkerContext {
+                app_handle: self.app_handle.clone(),
+                abort_flag: self.abort_flag.clone(),
+                generation: self.session_generation.clone(),
+                expected_generation: session_generation,
+                context_detector: self.context_detector.clone(),
                 strategy,
-                output::windows_sendinput::WindowsSendInputOptions {
+                windows_sendinput_options: output::windows_sendinput::WindowsSendInputOptions {
                     newline_mode:
                         output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
                             &config.windows_sendinput_newline_mode,
                         ),
                 },
-                app_ctx.target_guard.clone(),
-                app_ctx.profile.app_label.clone(),
-            )
+                expected_target_guard: app_ctx.target_guard.clone(),
+                expected_target_label: app_ctx.profile.app_label.clone(),
+            })
         });
         let streaming_sender = streaming_worker
             .as_ref()
@@ -2253,7 +2387,9 @@ impl PipelineHandle {
         // The callback remains synchronous for the LLM stream. UI updates happen
         // immediately; optional target-app insertion is drained by a worker.
         let app_handle = self.app_handle.clone();
+        let chunk_generation = self.session_generation.clone();
         let on_chunk: llm::ChunkCallback = Box::new(move |chunk: &str| {
+            if session_generation != 0 && chunk_generation.load(Ordering::SeqCst) != session_generation { return; }
             let _ = app_handle.emit("llm:chunk", chunk);
             if let Some(sender) = streaming_sender.as_ref() {
                 let _ = sender.send(chunk.to_string());
@@ -2287,7 +2423,8 @@ impl PipelineHandle {
             voice_intent: voice_intent.clone(),
         };
 
-        let polish_result = provider.polish(&llm_config, &req, Some(&on_chunk)).await;
+        let polish_result = provider.polish(&llm_config, &req,
+            (config.llm_provider != "codex-cli").then_some(&on_chunk)).await;
         drop(on_chunk);
         let streaming_report = match streaming_worker.take() {
             Some(worker) => worker.finish().await,
@@ -2462,7 +2599,8 @@ impl PipelineHandle {
                 }
 
                 // Check abort after LLM returns — skip output if cancelled during polish.
-                if self.abort_flag.load(Ordering::SeqCst) {
+                if (session_generation != 0 && !self.is_current_session(session_generation))
+                    || self.abort_flag.load(Ordering::SeqCst) {
                     tracing::info!("Pipeline aborted after LLM polish, skipping output");
                     return PolishTextOutcome::normal(raw_text.to_string(), elapsed);
                 }
@@ -2567,7 +2705,8 @@ impl PipelineHandle {
                 }
 
                 // Check abort after LLM error — skip fallback output if cancelled.
-                if self.abort_flag.load(Ordering::SeqCst) {
+                if (session_generation != 0 && !self.is_current_session(session_generation))
+                    || self.abort_flag.load(Ordering::SeqCst) {
                     tracing::info!("Pipeline aborted after LLM error, skipping output");
                     return PolishTextOutcome::normal(String::new(), elapsed);
                 }
@@ -2576,7 +2715,8 @@ impl PipelineHandle {
                 let _ = self
                     .app_handle
                     .emit("pipeline:error", llm_polish_user_error(&e));
-                if selected_text_has_content(selected_text_for_execution.as_deref())
+                if config.llm_provider == "codex-cli"
+                    || selected_text_has_content(selected_text_for_execution.as_deref())
                     || voice_intent_requires_generated_output(voice_intent.kind)
                 {
                     return PolishTextOutcome::with_history_status(
@@ -2639,6 +2779,8 @@ impl PipelineHandle {
             return Err("Another voice operation is already active".to_string());
         }
         self.abort_flag.store(false, Ordering::SeqCst);
+        let generation = self.invalidate_session();
+        let mut cancelled = self.session_changed.subscribe();
 
         let dictionary_store = self.app_handle.state::<storage::DictionaryStore>();
         let dictionary_words = dictionary_store.words().await;
@@ -2664,8 +2806,10 @@ impl PipelineHandle {
             String::new()
         };
 
-        let outcome = self
-            .polish_text(PolishTextInput {
+        let outcome = tokio::select! {
+            biased;
+            _ = cancelled.wait_for(|value| *value != generation) => return Err("Draft cancelled".into()),
+            outcome = self.polish_text(PolishTextInput {
                 raw_text: utterance,
                 voice_mode: crate::voice_intent::VoiceMode::Ask,
                 config,
@@ -2677,8 +2821,10 @@ impl PipelineHandle {
                 operation_id: Some(operation_id.to_string()),
                 voice_intent,
                 popup_fallback_enabled: false,
-            })
-            .await;
+                session_generation: generation,
+            }) => outcome,
+        };
+        if !self.is_current_session(generation) { return Err("Draft cancelled".into()); }
         self.set_state(PipelineState::Idle);
 
         let execution = outcome.voice_execution.ok_or_else(|| {
@@ -2961,6 +3107,10 @@ impl PipelineHandle {
     /// Called after startup and whenever provider connection settings change.
     pub async fn pre_warm(&self) {
         let config = self.load_config().await;
+        let warm_local_stt = cfg!(target_os = "windows")
+            && is_managed_ultra_local_config(&config)
+            && std::env::var_os("ULTRA_STT_ROOT")
+                .is_some_and(|root| std::path::PathBuf::from(root).is_absolute());
 
         let stt_endpoint = match config.stt_provider.as_str() {
             "cloud" => {
@@ -2992,6 +3142,7 @@ impl PipelineHandle {
                 "https://openspeech.bytedance.com/api/v3/sauc/bigmodel_async".to_string(),
                 false,
             )),
+            stt::config::CUSTOM_WHISPER_PROVIDER if warm_local_stt => None,
             stt::config::CUSTOM_WHISPER_PROVIDER => {
                 stt::config::normalize_custom_whisper_endpoint(&config.stt_custom_base_url)
                     .ok()
@@ -3020,7 +3171,11 @@ impl PipelineHandle {
         };
 
         let warm_stt = async {
-            if let Some((endpoint, managed_cloud)) = stt_endpoint {
+            if warm_local_stt {
+                if let Err(error) = stt::ultra_local::warm().await {
+                    tracing::warn!("Local speech service pre-warm failed: {error}");
+                }
+            } else if let Some((endpoint, managed_cloud)) = stt_endpoint {
                 self.pre_warm_endpoint(&endpoint, managed_cloud).await;
             }
         };
@@ -3034,10 +3189,28 @@ impl PipelineHandle {
     }
 }
 
+fn is_managed_ultra_local_config(config: &storage::AppConfig) -> bool {
+    config.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
+        && config.stt_custom_preset == "ultra-local"
+        && config.stt_custom_base_url == stt::ultra_local::BASE
+        && config.stt_custom_model == stt::ultra_local::MODEL
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, AtomicU64};
+
+    #[test]
+    fn local_cuda_pre_warm_requires_exact_managed_config() {
+        let mut config = storage::AppConfig::new_ultra_local_profile();
+        assert!(is_managed_ultra_local_config(&config));
+        config.stt_custom_preset = stt::config::ULTRA_REMOTE_STT_PRESET.to_string();
+        assert!(!is_managed_ultra_local_config(&config));
+        config.stt_custom_preset = "ultra-local".to_string();
+        config.stt_custom_model = "other-model".to_string();
+        assert!(!is_managed_ultra_local_config(&config));
+    }
 
     #[test]
     fn preparing_state_serializes_for_frontend() {
@@ -3049,6 +3222,20 @@ mod tests {
             PipelineState::from_u8(PipelineState::Preparing.as_u8()),
             PipelineState::Preparing
         );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn escape_cancel_event_is_consumed_before_the_global_dictation_handler() {
+        let pending = AtomicBool::new(false);
+        let escape = Shortcut::new(None, Code::Escape);
+        let dictation = Shortcut::new(Some(tauri_plugin_global_shortcut::Modifiers::CONTROL), Code::KeyR);
+
+        assert!(!consume_escape_event(&pending, &escape));
+        pending.store(true, Ordering::SeqCst);
+        assert!(!consume_escape_event(&pending, &dictation));
+        assert!(consume_escape_event(&pending, &escape));
+        assert!(!consume_escape_event(&pending, &escape));
     }
 
     #[test]
@@ -3569,6 +3756,29 @@ mod tests {
             selected.placement,
             crate::voice_intent::VoiceOutputPlacement::PopupAnswer
         );
+    }
+
+    #[tokio::test]
+    async fn a_new_recording_cancels_old_stop_even_after_abort_flag_resets() {
+        let generation = AtomicU64::new(7);
+        let abort_flag = AtomicBool::new(false);
+        let (tx, mut rx) = tokio::sync::watch::channel(7u64);
+        let old_stop = async {
+            rx.wait_for(|current| *current != 7).await.unwrap();
+            assert_eq!(generation.load(Ordering::SeqCst), 9);
+            assert!(!abort_flag.load(Ordering::SeqCst));
+            assert_ne!(generation.load(Ordering::SeqCst), 7);
+        };
+        let switch = async {
+            generation.store(8, Ordering::SeqCst);
+            abort_flag.store(true, Ordering::SeqCst);
+            tx.send_replace(8);
+            generation.store(9, Ordering::SeqCst);
+            abort_flag.store(false, Ordering::SeqCst);
+            tx.send_replace(9);
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(2), async { tokio::join!(old_stop, switch); })
+            .await.unwrap();
     }
 
     #[test]
