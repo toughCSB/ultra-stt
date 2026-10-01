@@ -1,4 +1,4 @@
-# Contributing to OpenTypeless
+# Contributing to Ultra STT
 
 Thanks for your interest in contributing! This guide covers everything you need to get started.
 
@@ -13,8 +13,8 @@ Thanks for your interest in contributing! This guide covers everything you need 
 | Type | Process |
 |------|---------|
 | Bug fix / small improvement | Open a PR directly |
-| New feature / architecture change | Start a [Discussion](https://github.com/tover0314-w/opentypeless/discussions/categories/ideas) first |
-| Question / help | Post in [Q&A Discussions](https://github.com/tover0314-w/opentypeless/discussions/categories/q-a) |
+| New feature / architecture change | Open a [feature request](https://github.com/toughCSB/ultra-stt/issues/new?template=feature_request.yml) first |
+| Question / help | Open a [question](https://github.com/toughCSB/ultra-stt/issues) |
 
 ## Making Changes
 

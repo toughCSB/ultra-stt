@@ -70,7 +70,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/tover0314-w/opentypeless/releases/latest/download/latest.json"
+        "https://github.com/toughCSB/ultra-stt/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdBNEFFRjEzN0ZCQTNBMEQKUldRTk9ycC9FKzlLZXVKSFZLNUYxdFZ2Ri9Ya0FRaGsvUEZ1bkJRTDZ6dHZ1emhtZWR6QkprS3kK"
     },

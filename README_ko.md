@@ -18,11 +18,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tover0314-w/opentypeless/actions/workflows/ci.yml"><img src="https://github.com/tover0314-w/opentypeless/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/tover0314-w/opentypeless/releases"><img src="https://img.shields.io/github/v/release/tover0314-w/opentypeless?color=2ABBA7" alt="릴리스" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/tover0314-w/opentypeless" alt="라이선스" /></a>
-  <a href="https://github.com/tover0314-w/opentypeless/stargazers"><img src="https://img.shields.io/github/stars/tover0314-w/opentypeless?style=social" alt="Stars" /></a>
-  <a href="https://discord.gg/V6rRpJ4RGD"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://github.com/toughCSB/ultra-stt/actions/workflows/ci.yml"><img src="https://github.com/toughCSB/ultra-stt/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/toughCSB/ultra-stt/releases"><img src="https://img.shields.io/github/v/release/toughCSB/ultra-stt?color=2ABBA7" alt="릴리스" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/toughCSB/ultra-stt" alt="라이선스" /></a>
 </p>
 
 <p align="center">
@@ -113,7 +111,7 @@
 
 플랫폼에 맞는 최신 버전을 다운로드하세요:
 
-**[Releases에서 다운로드](https://github.com/tover0314-w/opentypeless/releases)**
+**[Releases에서 다운로드](https://github.com/toughCSB/ultra-stt/releases)**
 
 | 플랫폼 | 파일 |
 |--------|------|
@@ -208,9 +206,7 @@ STT는 제공자에 따라 99개 이상의 언어를 지원합니다. AI 다듬�
 
 ## 커뮤니티
 
-- 💬 [Discord](https://discord.gg/V6rRpJ4RGD) — 대화, 도움 받기, 피드백 공유
-- 🗣️ [GitHub Discussions](https://github.com/tover0314-w/opentypeless/discussions) — 기능 제안, 질문과 답변
-- 🐛 [Issue Tracker](https://github.com/tover0314-w/opentypeless/issues) — 버그 보고 및 기능 요청
+- 🐛 [Issue Tracker](https://github.com/toughCSB/ultra-stt/issues) — 버그 보고, 질문, 기능 요청
 - 📖 [기여 가이드](CONTRIBUTING.md) — 개발 설정 및 가이드라인
 - 🔒 [보안 정책](SECURITY.md) — 취약점을 책임감 있게 보고
 - 🧭 [비전](VISION.md) — 프로젝트 원칙 및 로드맵 방향
@@ -219,17 +215,7 @@ STT는 제공자에 따라 99개 이상의 언어를 지원합니다. AI 다듬�
 
 기여를 환영합니다! 개발 설정 및 가이드라인은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참조하세요.
 
-시작할 곳을 찾고 계신가요? [`good first issue`](https://github.com/tover0314-w/opentypeless/labels/good%20first%20issue) 라벨이 붙은 이슈를 확인하세요.
-
-## Star History
-
-<a href="https://star-history.com/#tover0314-w/opentypeless&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=tover0314-w/opentypeless&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=tover0314-w/opentypeless&type=Date" />
-    <img alt="Star History 차트" src="https://api.star-history.com/svg?repos=tover0314-w/opentypeless&type=Date" />
-  </picture>
-</a>
+시작할 곳을 찾고 계신가요? [열린 이슈](https://github.com/toughCSB/ultra-stt/issues)를 확인하세요.
 
 ## 라이선스
 

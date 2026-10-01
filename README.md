@@ -18,18 +18,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tover0314-w/opentypeless/actions/workflows/ci.yml"><img src="https://github.com/tover0314-w/opentypeless/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/tover0314-w/opentypeless/releases"><img src="https://img.shields.io/github/v/release/tover0314-w/opentypeless?color=2ABBA7" alt="Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/tover0314-w/opentypeless" alt="License" /></a>
-  <a href="https://github.com/tover0314-w/opentypeless/stargazers"><img src="https://img.shields.io/github/stars/tover0314-w/opentypeless?style=social" alt="Stars" /></a>
-  <a href="https://discord.gg/V6rRpJ4RGD"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://github.com/toughCSB/ultra-stt/actions/workflows/ci.yml"><img src="https://github.com/toughCSB/ultra-stt/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/toughCSB/ultra-stt/releases"><img src="https://img.shields.io/github/v/release/toughCSB/ultra-stt?color=2ABBA7" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/toughCSB/ultra-stt" alt="License" /></a>
 </p>
 
 <p align="center">
-  <a href="https://www.opentypeless.com"><strong>Website</strong></a> ·
-  <a href="https://github.com/tover0314-w/opentypeless/releases"><strong>Download</strong></a> ·
+  <a href="https://github.com/toughCSB/ultra-stt/releases"><strong>Download</strong></a> ·
   <a href="#getting-started"><strong>Run locally</strong></a> ·
-  <a href="https://github.com/tover0314-w/opentypeless/discussions"><strong>Discussions</strong></a>
+  <a href="https://github.com/toughCSB/ultra-stt/issues"><strong>Issues</strong></a>
 </p>
 
 <p align="center">
@@ -210,7 +207,7 @@ sequenceDiagram
 
 ## Try It in 5 Minutes
 
-1. Download the latest build for your platform from [Releases](https://github.com/tover0314-w/opentypeless/releases).
+1. Download the latest build for your platform from [Releases](https://github.com/toughCSB/ultra-stt/releases).
 2. Configure a speech provider in **Settings**. Add provider credentials if required.
 3. Pick speech recognition and AI polish providers in Settings.
 4. Set one or more shortcuts for Dictation, Ask Anything, and Translation.
@@ -220,7 +217,7 @@ sequenceDiagram
 
 Download the latest version for your platform:
 
-**[Download the latest release](https://github.com/tover0314-w/opentypeless/releases/latest)**
+**[Download the latest release](https://github.com/toughCSB/ultra-stt/releases/latest)**
 
 | Platform | File                                         |
 | -------- | -------------------------------------------- |
@@ -230,7 +227,7 @@ Download the latest version for your platform:
 
 ## Installation Notes
 
-Release signing differs by platform while distribution is being improved. Always download from the official [GitHub Releases](https://github.com/tover0314-w/opentypeless/releases) page.
+Release signing differs by platform while distribution is being improved. Always download from the official [GitHub Releases](https://github.com/toughCSB/ultra-stt/releases) page.
 
 ### Windows
 
@@ -370,9 +367,7 @@ No managed quota or subscription is included. Remote provider fees, if any, are 
 
 ## Community
 
-- 💬 [Discord](https://discord.gg/V6rRpJ4RGD) — Chat, get help, share feedback
-- 🗣️ [GitHub Discussions](https://github.com/tover0314-w/opentypeless/discussions) — Feature proposals, Q&A
-- 🐛 [Issue Tracker](https://github.com/tover0314-w/opentypeless/issues) — Bug reports and feature requests
+- 🐛 [Issue Tracker](https://github.com/toughCSB/ultra-stt/issues) — Bug reports, questions, and feature requests
 - 📖 [Contributing Guide](CONTRIBUTING.md) — Development setup and guidelines
 - 🔒 [Security Policy](SECURITY.md) — Report vulnerabilities responsibly
 - 🧭 [Vision](VISION.md) — Project principles and roadmap direction
@@ -381,17 +376,7 @@ No managed quota or subscription is included. Remote provider fees, if any, are 
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
-Looking for a place to start? Check out issues labeled [`good first issue`](https://github.com/tover0314-w/opentypeless/labels/good%20first%20issue).
-
-## Star History
-
-<a href="https://star-history.com/#tover0314-w/opentypeless&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=tover0314-w/opentypeless&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=tover0314-w/opentypeless&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=tover0314-w/opentypeless&type=Date" />
-  </picture>
-</a>
+Looking for a place to start? Browse the [open issues](https://github.com/toughCSB/ultra-stt/issues).
 
 ## Built With
 
