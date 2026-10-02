@@ -28,6 +28,16 @@
 
 Windows 모드 전환·취소는 이전 사용자 확인과 앱 로그가 있다. Mac의 기존 마이크·커서 입력 문제는 이전 사용자 확인을 받았으나, **이번 1.1.62 설치 후 실제 마이크 → 평소 입력창 → 물리적 Esc 키의 최종 확인은 별도 수동 항목**이다. 실제 원격 HTTP와 native 테스트 통과가 이를 대체하지 않는다.
 
+## GitHub 자동 검사 상태 — 로컬 기능 검증과 별도
+
+릴리스 소스 `df1ef499104bf4e5f89c55ee4ab7b8c025d20d22`의 GitHub 검사를 확인했다. **CI 전체가 통과한 릴리스는 아니다.** 이전 main `e3b3f31`에도 CI·Typos·CodeQL 실패가 있었으며, 이번 Android·문서 커밋은 기존 데스크톱 소스·npm 의존성·workflow를 변경하지 않았다.
+
+- [CI](https://github.com/toughCSB/ultra-stt/actions/runs/37024983654): 기존 Rust `cargo fmt --check`와 frontend Prettier 서식 검사가 실패했다. `npm audit`는 4건(High 1, Moderate 3)을 보고했고, 그 뒤 Cargo audit는 건너뛰었다. 현재 High는 `brace-expansion 5.0.9`이며 lockfile에서 개발 의존성으로 확인했다. 이를 보안 검사 통과로 표시하지 않는다.
+- [Typos](https://github.com/toughCSB/ultra-stt/actions/runs/37024983650): 기존 코드·다국어 문자열의 `ine`, `Profesional`, `Profissional` 지적으로 실패했다.
+- [CodeQL](https://github.com/toughCSB/ultra-stt/actions/runs/37024983759): checkout에서 이 private 저장소에 대한 `repository not found`/exit 128로 실패했으므로 코드 분석이 완료되지 않았다. 개인 설치·릴리스를 위해 저장소 공개 전환이나 workflow 권한 변경을 하지 않았다.
+
+위 실패는 실제 설치·음성 입력 성공이나 로컬 테스트 통과와 구분한다. 개인 프리뷰의 제한으로 공개하고, 의존성 업데이트·기존 서식 정리·CI 권한 수정은 별도 작업으로 남겼다.
+
 ## 원격 경로 실측
 
 Mac에서 같은 한국어 음성 fixture를 설치된 Windows 서버로 전송했다. 문장은 “맥에서 음성 입력을 테스트하고 있습니다.”이다. 다음은 각 구성의 **1회** 요청 완료 시간이다.
