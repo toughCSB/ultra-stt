@@ -144,6 +144,10 @@ fn pcm_from_wav(wav: &[u8]) -> Result<&[u8]> {
 }
 
 async fn dictate(pcm: &[u8]) -> Result<serde_json::Value> {
+    dictate_with_options(pcm, &crate::stt::RemotePolishOptions::default()).await
+}
+
+async fn dictate_with_options(pcm: &[u8], options: &crate::stt::RemotePolishOptions) -> Result<serde_json::Value> {
     let started = Instant::now();
     let raw = ultra_local::transcribe(pcm, Some("ko"))
         .await?
@@ -164,7 +168,7 @@ async fn dictate(pcm: &[u8]) -> Result<serde_json::Value> {
         context: ContextProfile::general_native().summary(),
         dictionary: Vec::new(),
         correction_rules: Vec::new(),
-        polish_style: "clean".to_string(),
+        polish_style: options.style.clone(),
         mapped_scene_prompt: String::new(),
         active_scene_prompt: String::new(),
         polish_custom_prompt: String::new(),
@@ -179,15 +183,21 @@ async fn dictate(pcm: &[u8]) -> Result<serde_json::Value> {
         model: "gpt-6-luna".to_string(),
         ..Default::default()
     };
-    let polished = llm::codex::CodexProvider
-        .polish(&config, &request, None)
-        .await?
-        .polished_text;
+    let polished = if options.enabled {
+        llm::codex::CodexProvider
+            .polish(&config, &request, None)
+            .await?
+            .polished_text
+    } else {
+        raw.clone()
+    };
     let total_elapsed = started.elapsed();
     tracing::info!(
         stt_ms = stt_elapsed.as_millis() as u64,
         llm_ms = total_elapsed.saturating_sub(stt_elapsed).as_millis() as u64,
         total_ms = total_elapsed.as_millis() as u64,
+        polish_style = options.style.as_str(),
+        polish_enabled = options.enabled,
         "Remote dictation completed"
     );
     Ok(serde_json::json!({"type":"result","raw":raw,"text":polished}))

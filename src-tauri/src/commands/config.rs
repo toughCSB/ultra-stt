@@ -14,6 +14,12 @@ use tauri_plugin_store::StoreExt;
 
 fn config_patch_between(previous: &storage::AppConfig, next: &storage::AppConfig) -> Value {
     let mut patch = Map::new();
+    if previous.polish_style != next.polish_style {
+        patch.insert("polish_style".to_string(), json!(next.polish_style));
+    }
+    if previous.polish_enabled != next.polish_enabled {
+        patch.insert("polish_enabled".to_string(), json!(next.polish_enabled));
+    }
     if previous.capsule_auto_hide != next.capsule_auto_hide {
         patch.insert(
             "capsule_auto_hide".to_string(),
@@ -225,6 +231,34 @@ pub(crate) async fn save_capsule_auto_hide(
     Ok(())
 }
 
+pub(crate) async fn save_polish_style(
+    app: &tauri::AppHandle,
+    state: &storage::ConfigManager,
+    style: &str,
+) -> Result<Value, String> {
+    let style = style.trim();
+    if !storage::POLISH_STYLES.contains(&style) {
+        return Err("invalid_polish_style".to_string());
+    }
+    let mut config = state.load().await.map_err(|error| error.to_string())?;
+    config.polish_style = style.to_string();
+    config.polish_enabled = true;
+    state.save(&config).await.map_err(|error| error.to_string())?;
+    let patch = json!({ "polish_style": style, "polish_enabled": true });
+    emit_config_patch(app, &patch);
+    crate::refresh_tray(app);
+    Ok(patch)
+}
+
+#[tauri::command]
+pub async fn set_polish_style(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, storage::ConfigManager>,
+    style: String,
+) -> Result<Value, String> {
+    save_polish_style(&app, &state, &style).await
+}
+
 #[tauri::command]
 pub async fn get_config(
     app: tauri::AppHandle,
@@ -313,7 +347,8 @@ pub async fn update_config(
 
     update_runtime_caches(&cache, &ask_cache, &role_cache, &close_tray_cache, &config);
     emit_config_patch(&app, &patch);
-    if patch.get("ui_language").is_some() || patch.get("capsule_auto_hide").is_some() {
+    if patch.get("ui_language").is_some() || patch.get("capsule_auto_hide").is_some()
+        || patch.get("polish_style").is_some() || patch.get("polish_enabled").is_some() {
         crate::refresh_tray(&app);
     }
     if refresh_provider_connections {
@@ -531,6 +566,18 @@ mod tests {
         let patch = config_patch_between(&previous, &next);
 
         assert_eq!(patch["capsule_auto_hide"], next.capsule_auto_hide);
+    }
+
+    #[test]
+    fn config_patch_syncs_polish_mode_and_enabled_state_without_other_settings() {
+        let previous = storage::AppConfig::default();
+        let mut next = previous.clone();
+        next.polish_style = "original".into();
+        next.polish_enabled = !previous.polish_enabled;
+        let patch = config_patch_between(&previous, &next);
+        assert_eq!(patch["polish_style"], "original");
+        assert_eq!(patch["polish_enabled"], next.polish_enabled);
+        assert!(patch.get("llm_model").is_none());
     }
 
     #[test]

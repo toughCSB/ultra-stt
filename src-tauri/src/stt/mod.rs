@@ -17,6 +17,18 @@ use crate::error::AppError;
 
 use whisper_compat::{WhisperCompatConfig, WhisperCompatProvider};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemotePolishOptions {
+    pub style: String,
+    pub enabled: bool,
+}
+
+impl Default for RemotePolishOptions {
+    fn default() -> Self {
+        Self { style: "clean".to_string(), enabled: true }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SttConfig {
     pub api_key: String,
@@ -60,6 +72,7 @@ pub trait SttProvider: Send + Sync {
     async fn recv_transcript(&mut self) -> Result<Option<TranscriptEvent>, AppError>;
     /// Disconnect and optionally return a final transcript (for file-based providers).
     async fn disconnect(&mut self) -> Result<Option<String>, AppError>;
+    fn set_remote_polish(&mut self, _options: &RemotePolishOptions) {}
     fn recording_limit_override_seconds(&self) -> Option<u32> {
         None
     }

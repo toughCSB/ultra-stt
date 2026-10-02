@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use tauri::Manager;
-#[cfg(target_os = "windows")]
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 use tokio::sync::{mpsc, Notify};
 
@@ -190,6 +189,16 @@ struct SttTaskControl {
     id: u64,
     done: Arc<Notify>,
     abort: Arc<Notify>,
+    remote_polish: Arc<Mutex<Option<stt::RemotePolishOptions>>>,
+}
+
+fn remote_polish_options(config: &storage::AppConfig) -> Option<stt::RemotePolishOptions> {
+    (config.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
+        && config.stt_custom_preset == stt::config::ULTRA_REMOTE_STT_PRESET)
+        .then(|| stt::RemotePolishOptions {
+            style: config.polish_style.clone(),
+            enabled: config.polish_enabled,
+        })
 }
 
 fn should_finalize_stt_task(
@@ -687,9 +696,7 @@ pub struct PipelineHandle {
     app_handle: tauri::AppHandle,
     context_detector: app_detector::ContextDetectorHandle,
     state: Arc<AtomicU8>,
-    #[cfg(target_os = "windows")]
     escape_registered: Arc<AtomicBool>,
-    #[cfg(target_os = "windows")]
     escape_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<AudioCaptureHandle>>>,
     audio_volume: Arc<Mutex<f32>>,
@@ -950,11 +957,14 @@ impl PolishTextOutcome {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn consume_escape_event(pending: &AtomicBool, shortcut: &Shortcut) -> bool {
     shortcut.key == Code::Escape
         && shortcut.mods.is_empty()
         && pending.swap(false, Ordering::SeqCst)
+}
+
+fn should_register_escape(state: PipelineState, registered: bool) -> bool {
+    state != PipelineState::Idle && !registered
 }
 
 impl PipelineHandle {
@@ -967,9 +977,7 @@ impl PipelineHandle {
             app_handle,
             context_detector,
             state: Arc::new(AtomicU8::new(PipelineState::Idle.as_u8())),
-            #[cfg(target_os = "windows")]
             escape_registered: Arc::new(AtomicBool::new(false)),
-            #[cfg(target_os = "windows")]
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
             audio_volume: Arc::new(Mutex::new(0.0)),
@@ -995,9 +1003,7 @@ impl PipelineHandle {
         }
     }
 
-    fn set_state(&self, new_state: PipelineState) {
-        let previous = PipelineState::from_u8(self.state.swap(new_state.as_u8(), Ordering::SeqCst));
-        #[cfg(target_os = "windows")]
+    pub(crate) fn sync_escape_shortcut(&self, new_state: PipelineState) {
         {
             let escape = Shortcut::new(None, Code::Escape);
             if new_state == PipelineState::Idle {
@@ -1006,7 +1012,7 @@ impl PipelineHandle {
                         tracing::warn!("Failed to release recording Escape shortcut: {error}");
                     }
                 }
-            } else if previous == PipelineState::Idle && new_state == PipelineState::Preparing {
+            } else if should_register_escape(new_state, self.escape_registered.load(Ordering::SeqCst)) {
                 let registered = self.app_handle.global_shortcut().on_shortcut(
                     escape,
                     |app, _, event| {
@@ -1016,14 +1022,17 @@ impl PipelineHandle {
                         if event.state != ShortcutState::Pressed {
                             return;
                         }
-                        if pipeline.current_state() == PipelineState::Idle {
+                        let ask_busy = app.try_state::<crate::commands::ask::AskDictationState>().is_some_and(|state| state.is_busy());
+                        if pipeline.current_state() == PipelineState::Idle && !ask_busy {
                             return;
                         }
                         let generation = pipeline.session_generation.load(Ordering::SeqCst);
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let pipeline = app.state::<PipelineHandle>();
-                            if pipeline.session_generation.load(Ordering::SeqCst) == generation {
+                            if let Some(ask) = app.try_state::<crate::commands::ask::AskDictationState>().filter(|state| state.is_busy()) {
+                                let _ = crate::commands::ask::abort_ask_dictation(app.clone(), ask);
+                            } else if pipeline.session_generation.load(Ordering::SeqCst) == generation {
                                 pipeline.abort();
                             }
                         });
@@ -1033,6 +1042,7 @@ impl PipelineHandle {
                     Ok(()) => {
                         self.escape_registered.store(true, Ordering::SeqCst);
                         if self.current_state() == PipelineState::Idle
+                            && !self.app_handle.try_state::<crate::commands::ask::AskDictationState>().is_some_and(|state| state.is_busy())
                             && self.escape_registered.swap(false, Ordering::SeqCst)
                         {
                             if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
@@ -1044,8 +1054,11 @@ impl PipelineHandle {
                 }
             }
         }
-        #[cfg(not(target_os = "windows"))]
-        let _ = previous;
+    }
+
+    fn set_state(&self, new_state: PipelineState) {
+        self.state.store(new_state.as_u8(), Ordering::SeqCst);
+        self.sync_escape_shortcut(new_state);
         if new_state == PipelineState::Idle {
             *self
                 .active_translation_operation
@@ -1077,7 +1090,6 @@ impl PipelineHandle {
         crate::refresh_tray(&self.app_handle);
     }
 
-    #[cfg(target_os = "windows")]
     pub(crate) fn take_escape_event_for_global(&self, shortcut: &Shortcut) -> bool {
         consume_escape_event(&self.escape_event_pending, shortcut)
     }
@@ -1668,6 +1680,7 @@ impl PipelineHandle {
             id: session_id,
             done: Arc::new(Notify::new()),
             abort: Arc::new(Notify::new()),
+            remote_polish: Arc::new(Mutex::new(remote_polish_options(&config_data))),
         };
         *self.stt_session.lock().unwrap_or_else(|e| e.into_inner()) = Some(stt_control.clone());
         let abort_flag_ref = self.abort_flag.clone();
@@ -1718,6 +1731,10 @@ impl PipelineHandle {
                                     break;
                                 }
 
+                                let options = stt_control.remote_polish.lock().unwrap_or_else(|error| error.into_inner()).clone();
+                                if let Some(options) = options {
+                                    provider.set_remote_polish(&options);
+                                }
                                 let disconnect_result = tokio::select! {
                                     _ = stt_control.abort.notified() => None,
                                     result = provider.disconnect() => Some(result),
@@ -1900,6 +1917,7 @@ impl PipelineHandle {
             return Ok(());
         }
         self.active_deadline_session_id.store(0, Ordering::SeqCst);
+        let current_config = self.load_config().await;
         let _ = self
             .app_handle
             .emit("pipeline:state", PipelineState::Transcribing);
@@ -1945,6 +1963,15 @@ impl PipelineHandle {
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = selected_text;
 
+        let stt_control = self
+            .stt_session
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone();
+        if let Some(control) = &stt_control {
+            *control.remote_polish.lock().unwrap_or_else(|error| error.into_inner()) = remote_polish_options(&current_config);
+        }
+
         // Stop audio capture (this drops the channel, signaling STT task to stop)
         {
             let mut handle = self.audio_handle.lock().unwrap_or_else(|e| e.into_inner());
@@ -1953,11 +1980,6 @@ impl PipelineHandle {
             }
             *handle = None;
         }
-        let stt_control = self
-            .stt_session
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone();
 
         // P2-1: Pre-build LLM resources while waiting for STT
         let preloaded_config = self
@@ -1969,6 +1991,8 @@ impl PipelineHandle {
             Some(c) => c,
             None => self.load_config().await,
         };
+        config.polish_style = current_config.polish_style;
+        config.polish_enabled = current_config.polish_enabled;
         if let Some(target) = finalized_translation_target {
             config.translation.active_target = target.clone();
             config.target_lang = target;
@@ -3224,7 +3248,6 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
     fn escape_cancel_event_is_consumed_before_the_global_dictation_handler() {
         let pending = AtomicBool::new(false);
@@ -3236,6 +3259,30 @@ mod tests {
         assert!(!consume_escape_event(&pending, &dictation));
         assert!(consume_escape_event(&pending, &escape));
         assert!(!consume_escape_event(&pending, &escape));
+    }
+
+    #[test]
+    fn escape_is_registered_after_start_has_already_claimed_preparing_state() {
+        let state = AtomicU8::new(PipelineState::Idle.as_u8());
+        state.compare_exchange(PipelineState::Idle.as_u8(), PipelineState::Preparing.as_u8(), Ordering::SeqCst, Ordering::SeqCst).unwrap();
+        let current = PipelineState::from_u8(state.load(Ordering::SeqCst));
+        assert!(should_register_escape(current, false));
+        assert!(!should_register_escape(current, true));
+        assert!(!should_register_escape(PipelineState::Idle, false));
+        assert!(should_register_escape(PipelineState::Polishing, false));
+    }
+
+    #[test]
+    fn remote_polish_options_only_follow_the_personal_remote_preset() {
+        let mut config = storage::AppConfig::default();
+        config.polish_style = "original".to_string();
+        config.polish_enabled = false;
+        assert!(remote_polish_options(&config).is_none());
+        config.stt_provider = stt::config::CUSTOM_WHISPER_PROVIDER.to_string();
+        config.stt_custom_preset = stt::config::ULTRA_REMOTE_STT_PRESET.to_string();
+        assert_eq!(remote_polish_options(&config), Some(stt::RemotePolishOptions { style: "original".to_string(), enabled: false }));
+        config.stt_custom_preset = "custom".to_string();
+        assert!(remote_polish_options(&config).is_none());
     }
 
     #[test]

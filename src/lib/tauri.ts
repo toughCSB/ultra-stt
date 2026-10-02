@@ -10,6 +10,7 @@ import type {
   FamilySceneAssignment,
   BrowserAccessStatus,
   BrowserTarget,
+  PolishStyle,
 } from '../stores/appStore'
 
 // Pipeline commands
@@ -116,6 +117,10 @@ export async function getConfig(): Promise<AppConfig> {
 
 export async function updateConfig(config: AppConfig): Promise<void> {
   return invoke('update_config', { config })
+}
+
+export async function setPolishStyle(style: PolishStyle): Promise<Pick<AppConfig, 'polish_style' | 'polish_enabled'>> {
+  return invoke('set_polish_style', { style })
 }
 
 export type RecordingLimitMode = 'auto' | 'custom'

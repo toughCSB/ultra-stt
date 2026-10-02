@@ -38,6 +38,7 @@ export function TranslateTargetChip() {
       onPointerUp={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation()
+        useAppStore.getState().setPolishModeMenuOpen(false)
         setContextMenuOpen(false)
         setMenuOpen(!menuOpen)
       }}

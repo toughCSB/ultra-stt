@@ -937,9 +937,11 @@ fn legacy_output_mode_for_insertion_strategy(strategy: &str) -> &'static str {
 }
 
 const POLISH_CUSTOM_PROMPT_MAX_CHARS: usize = 2000;
+pub const POLISH_STYLES: [&str; 5] = ["original", "minimal", "clean", "structured", "professional"];
 
 fn normalize_polish_style(value: &str) -> &'static str {
     match value.trim() {
+        "original" => "original",
         "minimal" => "minimal",
         "clean" => "clean",
         "structured" => "structured",
@@ -2385,12 +2387,13 @@ mod tests {
 
     #[test]
     fn app_config_preserves_valid_polish_style() {
-        let mut value = serde_json::to_value(AppConfig::default()).unwrap();
-        value["polish_style"] = serde_json::json!("structured");
-
-        let config = AppConfig::from_stored_value(value).unwrap();
-
-        assert_eq!(config.polish_style, "structured");
+        for style in ["original", "minimal", "clean", "structured", "professional"] {
+            let mut value = serde_json::to_value(AppConfig::default()).unwrap();
+            value["polish_style"] = serde_json::json!(style);
+            let config = AppConfig::from_stored_value(value).unwrap();
+            let reloaded = AppConfig::from_stored_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(reloaded.polish_style, style);
+        }
     }
 
     #[test]

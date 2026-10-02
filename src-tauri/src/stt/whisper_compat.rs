@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use crate::error::AppError;
 
-use super::{SttConfig, SttProvider, TranscriptEvent};
+use super::{RemotePolishOptions, SttConfig, SttProvider, TranscriptEvent};
 
 /// Configuration for a Whisper-compatible HTTP file-upload STT provider.
 #[derive(Debug)]
@@ -27,6 +27,7 @@ pub struct WhisperCompatProvider {
     stt_config: Option<SttConfig>,
     audio_buffer: Vec<u8>,
     client: reqwest::Client,
+    remote_polish: Option<RemotePolishOptions>,
 }
 
 impl WhisperCompatProvider {
@@ -36,6 +37,7 @@ impl WhisperCompatProvider {
             stt_config: None,
             audio_buffer: Vec::new(),
             client: reqwest::Client::new(),
+            remote_polish: None,
         }
     }
 
@@ -45,6 +47,7 @@ impl WhisperCompatProvider {
             stt_config: None,
             audio_buffer: Vec::new(),
             client,
+            remote_polish: None,
         }
     }
 
@@ -93,6 +96,10 @@ impl WhisperCompatProvider {
 
 #[async_trait]
 impl SttProvider for WhisperCompatProvider {
+    fn set_remote_polish(&mut self, options: &RemotePolishOptions) {
+        self.remote_polish = Some(options.clone());
+    }
+
     async fn connect(&mut self, config: &SttConfig) -> Result<(), AppError> {
         if self.provider_config.api_key_required && config.api_key.is_empty() {
             return Err(AppError::Auth(format!(
@@ -186,6 +193,12 @@ impl SttProvider for WhisperCompatProvider {
 
             if !config.api_key.trim().is_empty() {
                 request = request.header("Authorization", format!("Bearer {}", config.api_key));
+            }
+
+            if let Some(options) = &self.remote_polish {
+                request = request
+                    .header("x-ultra-stt-polish-style", &options.style)
+                    .header("x-ultra-stt-polish-enabled", options.enabled.to_string());
             }
 
             let resp_result = request.send().await;
@@ -292,8 +305,13 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     async fn transcribe_http_reply(body: &'static str) -> Result<Option<String>, AppError> {
+        transcribe_http_reply_with_options(body, None).await
+    }
+
+    async fn transcribe_http_reply_with_options(body: &'static str, options: Option<RemotePolishOptions>) -> Result<Option<String>, AppError> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}/transcriptions", listener.local_addr().unwrap());
+        let expected_options = options.clone();
         let server = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = Vec::new();
@@ -313,6 +331,13 @@ mod tests {
                         })
                         .unwrap();
                     if request.len() >= head_end + 4 + length {
+                        match &expected_options {
+                            Some(options) => {
+                                assert!(head.contains(&format!("x-ultra-stt-polish-style: {}", options.style)));
+                                assert!(head.contains(&format!("x-ultra-stt-polish-enabled: {}", options.enabled)));
+                            }
+                            None => assert!(!head.contains("x-ultra-stt-polish-")),
+                        }
                         break;
                     }
                 }
@@ -348,11 +373,24 @@ mod tests {
             .await
             .unwrap();
         provider.send_audio(&[0, 0]).await.unwrap();
+        if let Some(options) = &options {
+            provider.set_remote_polish(&RemotePolishOptions::default());
+            provider.set_remote_polish(options);
+        }
         let result = tokio::time::timeout(std::time::Duration::from_secs(3), provider.disconnect())
             .await
             .unwrap();
         server.await.unwrap();
         result
+    }
+
+    #[tokio::test]
+    async fn remote_headers_use_the_final_mode_and_do_not_leak_to_other_requests() {
+        for style in crate::storage::POLISH_STYLES {
+            let options = RemotePolishOptions { style: style.to_string(), enabled: false };
+            assert_eq!(transcribe_http_reply_with_options(r#"{"text":"원문"}"#, Some(options)).await.unwrap(), Some("원문".to_string()));
+        }
+        assert_eq!(transcribe_http_reply(r#"{"text":"일반"}"#).await.unwrap(), Some("일반".to_string()));
     }
 
     #[tokio::test]

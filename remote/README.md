@@ -18,3 +18,15 @@ Android, iPhone에는 모델이나 Codex 로그인을 복사하지 않습니다.
 직접 타이핑하는 Windows/Mac 키보드나 iPhone 시스템 키보드로 설치되는 것은
 아닙니다. iPhone 서드파티 키보드는 마이크 접근이 허용되지 않습니다.
 서버 PC가 꺼지거나 Tailnet 연결이 끊기면 원격 입력도 사용할 수 없습니다.
+
+## Mac 데스크톱의 다듬기 모드
+
+Mac의 `ultra-remote` 프리셋은 선택한 모드와 AI 활성 여부를 서버로 전달합니다.
+녹음 중 선택한 모드는 녹음 종료 시 확정하며, 처리 시작 후 변경은 다음 녹음에 적용됩니다.
+Mac에서 취소하여 HTTP 연결을 끊으면 서버도 진행 중인 처리를 중단합니다.
+
+기존 Bearer 인증과 JSON 응답은 유지합니다. 선택 헤더는
+`x-ultra-stt-polish-style` (`original`, `minimal`, `clean`, `structured`, `professional`)과
+`x-ultra-stt-polish-enabled` (`true`, `false`)입니다. 헤더가 없는 기존 클라이언트는
+종전처럼 `clean` + AI 활성 상태로 처리됩니다. 잘못된 값이나 중복 헤더는 HTTP 400으로 거절합니다.
+이 헤더는 개인 서버 프리셋에서만 전송하며 다른 STT 제공자에는 추가하지 않습니다.

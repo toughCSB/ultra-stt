@@ -1,5 +1,9 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import appIconUrl from '../../assets/brand/app-icon.png'
+import { useTranslation } from 'react-i18next'
+import { useAppStore } from '../../stores/appStore'
+import { polishModeLabelKey } from '../../lib/polishStyles'
+import { togglePolishModeMenu } from '../../lib/capsulePolishMenu'
 
 interface CapsuleWorkIndicatorProps {
   tone?: 'steady' | 'thinking'
@@ -7,13 +11,19 @@ interface CapsuleWorkIndicatorProps {
 
 /** The app mark sits at the front of every capsule state. */
 export function CapsuleBrand() {
+  const { t } = useTranslation()
+  const style = useAppStore((state) => state.config.polish_style)
   return (
+    <button type="button" aria-label={`${t('settings.polishModeTitle')}: ${t(polishModeLabelKey(style))}`} title={t('settings.polishModeTitle')}
+      className="shrink-0 rounded-[22%]" onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}
+      onClick={(event) => { event.stopPropagation(); togglePolishModeMenu() }}>
     <img
       src={appIconUrl}
       alt=""
       aria-hidden="true"
       className="w-6 h-6 shrink-0 rounded-[22%] object-contain"
     />
+    </button>
   )
 }
 

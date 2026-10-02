@@ -128,6 +128,11 @@ describe('getCapsuleVisibility', () => {
 
   it('keeps the capsule overlay from stealing keyboard output focus', () => {
     expect(getCapsuleFocusable()).toBe(false)
+    expect(getCapsuleFocusable(true)).toBe(true)
+  })
+
+  it('keeps an idle mode chooser visible when automatic hiding is enabled', () => {
+    expect(getCapsuleVisibility({ capsuleAutoHide: true, contextMenuOpen: false, polishModeMenuOpen: true, capsuleExpanded: false, hasError: false, pipelineState: 'idle' })).toBe(true)
   })
 })
 

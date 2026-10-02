@@ -1,9 +1,12 @@
 import React from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../i18n'
 import { useAppStore, type HistoryEntry } from '../../stores/appStore'
 import { HomePage } from './index'
+import { setPolishStyle } from '../../lib/tauri'
+
+vi.mock('../../lib/tauri', () => ({ setPolishStyle: vi.fn() }))
 
 vi.mock('framer-motion', () => ({
   motion: new Proxy({}, {
@@ -61,6 +64,24 @@ describe('HomePage recent history activity', () => {
     expect(screen.getByRole('button', { name: /2026-09-29.*0건/ })).toBeInTheDocument()
     fireEvent.click(today)
     expect(window.location.hash).toBe('#/history?date=2026-09-30')
+  })
+
+  it('persists a one-click mode change and highlights the saved selection', async () => {
+    vi.mocked(setPolishStyle).mockResolvedValue({ polish_style: 'original', polish_enabled: true })
+    render(<HomePage />)
+    expect(screen.getByRole('radio', { name: '깔끔하게' })).toHaveAttribute('aria-checked', 'true')
+    await act(async () => fireEvent.click(screen.getByRole('radio', { name: '원문 · Original' })))
+    expect(setPolishStyle).toHaveBeenCalledWith('original')
+    expect(screen.getByRole('radio', { name: '원문 · Original' })).toHaveAttribute('aria-checked', 'true')
+    expect(useAppStore.getState().config.polish_enabled).toBe(true)
+  })
+
+  it('keeps the previous mode when persistence fails', async () => {
+    vi.mocked(setPolishStyle).mockRejectedValue(new Error('Save failed'))
+    render(<HomePage />)
+    await act(async () => fireEvent.click(screen.getByRole('radio', { name: '최소' })))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '깔끔하게' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('shows the most recent session timing as STT, LLM, and total seconds', () => {

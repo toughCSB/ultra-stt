@@ -61,7 +61,7 @@ export type InsertStatus = 'inserted' | 'copiedFallback' | 'failed' | 'partially
 export type HotkeyMode = 'hold' | 'toggle'
 export type Theme = 'light' | 'dark' | 'system'
 export type PolishChineseScript = 'preserve' | 'simplified' | 'traditional'
-export type PolishStyle = 'minimal' | 'clean' | 'structured' | 'professional'
+export type PolishStyle = 'original' | 'minimal' | 'clean' | 'structured' | 'professional'
 export type SceneSource = 'custom' | 'builtin' | 'cloud'
 export type ContextFamily =
   | 'email'
@@ -350,6 +350,8 @@ interface AppState {
   contextMenuReady: boolean
   setContextMenuReady: (ready: boolean) => void
   translationTargetMenuOpen: boolean
+  polishModeMenuOpen: boolean
+  setPolishModeMenuOpen: (open: boolean) => void
   setTranslationTargetMenuOpen: (open: boolean) => void
 
   // Reset recording state
@@ -882,6 +884,8 @@ export const useAppStore = create<AppState>((set) => ({
   contextMenuReady: false,
   setContextMenuReady: (contextMenuReady) => set({ contextMenuReady }),
   translationTargetMenuOpen: false,
+  polishModeMenuOpen: false,
+  setPolishModeMenuOpen: (polishModeMenuOpen) => set({ polishModeMenuOpen }),
   setTranslationTargetMenuOpen: (translationTargetMenuOpen) => set({ translationTargetMenuOpen }),
 
   resetRecording: () =>

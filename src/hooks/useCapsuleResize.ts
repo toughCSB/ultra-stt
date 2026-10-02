@@ -94,6 +94,7 @@ export interface CapsuleVisibilityInput {
   capsuleAutoHide: boolean
   contextMenuOpen: boolean
   translationTargetMenuOpen?: boolean
+  polishModeMenuOpen?: boolean
   capsuleExpanded: boolean
   hasError: boolean
   pipelineState: PipelineState
@@ -103,6 +104,7 @@ export function getCapsuleVisibility({
   capsuleAutoHide,
   contextMenuOpen,
   translationTargetMenuOpen = false,
+  polishModeMenuOpen = false,
   capsuleExpanded,
   hasError,
   pipelineState,
@@ -111,14 +113,15 @@ export function getCapsuleVisibility({
     !capsuleAutoHide ||
     contextMenuOpen ||
     translationTargetMenuOpen ||
+    polishModeMenuOpen ||
     capsuleExpanded ||
     hasError ||
     pipelineState !== 'idle'
   )
 }
 
-export function getCapsuleFocusable(): boolean {
-  return false
+export function getCapsuleFocusable(menuOpen = false): boolean {
+  return menuOpen
 }
 
 function getSizeForState(
@@ -157,10 +160,12 @@ export function useCapsuleResize() {
   const pipelineError = useAppStore((s) => s.pipelineError)
   const contextMenuOpen = useAppStore((s) => s.contextMenuOpen)
   const translationTargetMenuOpen = useAppStore((s) => s.translationTargetMenuOpen)
+  const polishModeMenuOpen = useAppStore((s) => s.polishModeMenuOpen)
   const setContextMenuReady = useAppStore((s) => s.setContextMenuReady)
   const capsuleAutoHide = useAppStore((s) => s.config.capsule_auto_hide)
   const initialized = useRef(false)
   const prevWindowSize = useRef<{ width: number; height: number } | null>(null)
+  const modeMenuAnchor = useRef<PhysicalPoint | null>(null)
   const effectGeneration = useRef(0)
 
   const hasError = pipelineError !== null
@@ -169,19 +174,23 @@ export function useCapsuleResize() {
     const generation = ++effectGeneration.current
     let cancelled = false
     const isCurrent = () => !cancelled && effectGeneration.current === generation
-    const size = getSizeForState(
+    const size = polishModeMenuOpen ? { width: 324, height: 420 } : getSizeForState(
       pipelineState,
       capsuleExpanded,
       hasError,
       contextMenuOpen,
       translationTargetMenuOpen,
     )
+    if (!polishModeMenuOpen && !contextMenuOpen && !translationTargetMenuOpen && pipelineState !== 'idle') {
+      size.width += ['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) ? 130 : 90
+    }
     const windowWidth = size.width + 24
     const windowHeight = size.height + 24
     const shouldShow = getCapsuleVisibility({
       capsuleAutoHide,
       contextMenuOpen,
       translationTargetMenuOpen,
+      polishModeMenuOpen,
       capsuleExpanded,
       hasError,
       pipelineState,
@@ -201,7 +210,7 @@ export function useCapsuleResize() {
 
           const win = getCurrentWindow()
           if (!isCurrent()) return
-          await win.setFocusable(getCapsuleFocusable()).catch(() => {})
+          await win.setFocusable(getCapsuleFocusable(polishModeMenuOpen)).catch(() => {})
           if (!isCurrent()) return
 
           if (!initialized.current) {
@@ -276,6 +285,18 @@ export function useCapsuleResize() {
               const physicalHeight = Math.round(windowHeight * scale)
               let newX = pos.x
               let newY = Math.round(pos.y + oldHeight / 2 - physicalHeight / 2)
+              if (polishModeMenuOpen) {
+                modeMenuAnchor.current ??= pos
+                newY = Math.round(pos.y + oldHeight - physicalHeight)
+                if (monitor) {
+                  newX = clamp(newX, monitor.workArea.position.x, monitor.workArea.position.x + monitor.workArea.size.width - physicalWidth)
+                  newY = clamp(newY, monitor.workArea.position.y, monitor.workArea.position.y + monitor.workArea.size.height - physicalHeight)
+                }
+              } else if (modeMenuAnchor.current) {
+                newX = modeMenuAnchor.current.x
+                newY = modeMenuAnchor.current.y
+                modeMenuAnchor.current = null
+              }
 
               if (!isCurrent()) return
               await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
@@ -352,6 +373,7 @@ export function useCapsuleResize() {
       cancelled = true
     }
   }, [
+    polishModeMenuOpen,
     pipelineState,
     capsuleExpanded,
     hasError,

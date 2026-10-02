@@ -39,6 +39,8 @@ pub struct AskDictationState(Arc<Mutex<AskDictationStateInner>>);
 
 #[derive(Default)]
 struct AskDictationStateInner {
+    generation: u64,
+    cancellation: Arc<Notify>,
     starting: bool,
     stop_after_start: bool,
     session: Option<AskDictationSession>,
@@ -71,6 +73,8 @@ impl AskDictationState {
         }
         guard.starting = true;
         guard.stop_after_start = false;
+        guard.generation = guard.generation.wrapping_add(1);
+        guard.cancellation = Arc::new(Notify::new());
         true
     }
 
@@ -80,6 +84,7 @@ impl AskDictationState {
         guard.stop_after_start = false;
     }
 
+    #[cfg(test)]
     fn set_processing(&self, processing: bool) {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).processing = processing;
     }
@@ -132,6 +137,9 @@ impl AskDictationState {
     fn abort_starting_or_recording(&self) -> (Option<AskDictationSession>, bool) {
         let mut guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
         let was_starting = guard.starting;
+        guard.cancellation.notify_one();
+        guard.generation = guard.generation.wrapping_add(1);
+        guard.processing = false;
         guard.starting = false;
         guard.stop_after_start = false;
         (guard.session.take(), was_starting)
@@ -282,6 +290,9 @@ pub enum PendingAskMessage {
 }
 
 fn emit_capsule_state(app: &tauri::AppHandle, state: PipelineState) {
+    if let Some(pipeline) = app.try_state::<crate::pipeline::PipelineHandle>() {
+        pipeline.sync_escape_shortcut(state);
+    }
     let _ = app.emit("pipeline:state", state);
 }
 
@@ -1039,6 +1050,7 @@ pub(crate) async fn start_reserved_ask_dictation(
     client: tauri::State<'_, reqwest::Client>,
     include_selected_text: bool,
 ) -> Result<AskDictationStartResult, String> {
+    let generation = state.0.lock().unwrap_or_else(|error| error.into_inner()).generation;
     let result = async {
         let config = config_state.load().await.map_err(|e| e.to_string())?;
         let recording_context = app
@@ -1135,7 +1147,9 @@ pub(crate) async fn start_reserved_ask_dictation(
 
         let should_discard_started_resources = {
             let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
-            if !guard.starting || guard.session.is_some() || guard.processing {
+            if guard.generation != generation {
+                true
+            } else if !guard.starting || guard.session.is_some() || guard.processing {
                 guard.starting = false;
                 guard.stop_after_start = false;
                 true
@@ -1349,7 +1363,7 @@ pub(crate) async fn start_reserved_ask_dictation(
     }
     .await;
 
-    if result.is_err() {
+    if result.is_err() && state.0.lock().unwrap_or_else(|error| error.into_inner()).generation == generation {
         state.clear_starting();
     }
     result
@@ -1363,7 +1377,7 @@ pub async fn stop_ask_dictation(
     token_store: tauri::State<'_, SessionTokenStore>,
     client: tauri::State<'_, reqwest::Client>,
 ) -> Result<AskDictationResult, String> {
-    let mut session = {
+    let (mut session, cancellation, generation) = {
         let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
         if guard.processing {
             return Err("Ask is already processing".to_string());
@@ -1374,10 +1388,10 @@ pub async fn stop_ask_dictation(
             .ok_or_else(|| "Ask dictation is not recording".to_string())?;
         guard.stop_after_start = false;
         guard.processing = true;
-        session
+        (session, guard.cancellation.clone(), guard.generation)
     };
 
-    let result = async {
+    let work = async {
         session.handle.stop();
         emit_capsule_state(&app, PipelineState::AskThinking);
 
@@ -1513,13 +1527,26 @@ pub async fn stop_ask_dictation(
             voice_intent.kind,
             AskDictationResultMetadata::popup(used_selected_text, selected_text_truncated),
         ))
+    };
+    let result = tokio::select! {
+        result = work => result,
+        _ = cancellation.notified() => Err("Ask cancelled".to_string()),
+    };
+    let current = {
+        let mut guard = state.0.lock().unwrap_or_else(|error| error.into_inner());
+        if guard.generation == generation {
+            guard.processing = false;
+            true
+        } else {
+            false
+        }
+    };
+    if current {
+        emit_capsule_state(&app, PipelineState::Idle);
+        result
+    } else {
+        Err("Ask cancelled".to_string())
     }
-    .await;
-
-    state.set_processing(false);
-    emit_capsule_state(&app, PipelineState::Idle);
-
-    result
 }
 
 #[tauri::command]
@@ -1537,6 +1564,7 @@ pub async fn stop_ask_flow(
     match stop_ask_dictation(app.clone(), state, config_state, token_store, client).await {
         Ok(result) if result.should_show_window() => show_answer_window(&app, result),
         Ok(_) => Ok(()),
+        Err(message) if message == "Ask cancelled" => Ok(()),
         Err(message) => show_error_window(&app, message),
     }
 }
@@ -1563,6 +1591,23 @@ pub fn take_pending_ask_message(
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn cancelling_ask_interrupts_processing_and_invalidates_the_old_generation() {
+        let state = AskDictationState::default();
+        assert!(state.try_begin_starting());
+        state.set_processing(true);
+        let (cancellation, generation) = {
+            let guard = state.0.lock().unwrap();
+            (guard.cancellation.clone(), guard.generation)
+        };
+        state.abort_starting_or_recording();
+        tokio::time::timeout(std::time::Duration::from_millis(100), cancellation.notified()).await.unwrap();
+        assert!(!state.is_busy());
+        assert!(state.try_begin_starting());
+        let guard = state.0.lock().unwrap();
+        assert_ne!(guard.generation, generation);
+        assert!(!Arc::ptr_eq(&guard.cancellation, &cancellation));
+    }
     use super::*;
 
     #[test]
@@ -2065,16 +2110,14 @@ mod tests {
     }
 
     #[test]
-    fn aborting_ask_does_not_clear_processing_stage() {
+    fn aborting_ask_clears_processing_and_allows_a_new_request() {
         let state = AskDictationState::default();
         state.set_processing(true);
 
         let (_session, was_starting) = state.abort_starting_or_recording();
 
         assert!(!was_starting);
-        assert!(state.is_busy());
-
-        state.set_processing(false);
         assert!(!state.is_busy());
+        assert!(state.try_begin_starting());
     }
 }

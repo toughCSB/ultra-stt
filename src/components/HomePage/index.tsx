@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { spring } from '../../lib/animations'
 import { useAppStore } from '../../stores/appStore'
 import { useRoute } from '../../lib/router'
+import { PolishModeSelector } from '../PolishModeSelector'
 
 function localDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -59,6 +60,14 @@ export function HomePage() {
       </div>
 
       {/* Readout */}
+      <div className="jelly-card p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-[13px] font-semibold">{t('settings.polishModeTitle')}</h3>
+          <span className="text-[11px] text-accent">{config.polish_enabled ? t('settings.polishModeSelected') : t('home.disabled')}</span>
+        </div>
+        <PolishModeSelector />
+      </div>
+
       <div className="jelly-card p-5">
         <div className="flex items-center justify-between mb-4">
           <span className="text-[11px] uppercase tracking-[0.2em] text-text-secondary">

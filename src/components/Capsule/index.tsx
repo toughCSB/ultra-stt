@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useAppStore } from '../../stores/appStore'
 import { useRecording } from '../../hooks/useRecording'
 import { useCapsuleResize } from '../../hooks/useCapsuleResize'
-import { stopAskFlow } from '../../lib/tauri'
+import { abortAskDictation, abortRecording, stopAskFlow } from '../../lib/tauri'
 import { CapsuleIdle } from './CapsuleIdle'
 import { CapsulePreparing } from './CapsulePreparing'
 import { CapsuleRecording } from './CapsuleRecording'
@@ -15,6 +15,7 @@ import { CapsuleContextMenu } from './CapsuleContextMenu'
 import { CapsuleAskRecording } from './CapsuleAskRecording'
 import { CapsuleAskThinking } from './CapsuleAskThinking'
 import { TranslateTargetMenu } from './TranslateTargetChip'
+import { PolishModeChip, PolishModeMenu } from './PolishModeMenu'
 
 const DRAG_THRESHOLD = 5
 
@@ -53,6 +54,8 @@ export function Capsule() {
   const setContextMenuReady = useAppStore((s) => s.setContextMenuReady)
   const translationTargetMenuOpen = useAppStore((s) => s.translationTargetMenuOpen)
   const setTranslationTargetMenuOpen = useAppStore((s) => s.setTranslationTargetMenuOpen)
+  const polishModeMenuOpen = useAppStore((s) => s.polishModeMenuOpen)
+  const setPolishModeMenuOpen = useAppStore((s) => s.setPolishModeMenuOpen)
   const { stopRecording, isRecording } = useRecording()
 
   const dragStart = useRef<{ x: number; y: number } | null>(null)
@@ -63,6 +66,25 @@ export function Capsule() {
   const hasError = pipelineError !== null
   const capsuleState = getCapsuleState(pipelineState, hasError)
   const capsuleShellSize = getCapsuleShellSize(capsuleState)
+  const cancel = useCallback(() => {
+    const abort = pipelineState === 'ask_recording' || pipelineState === 'ask_thinking' ? abortAskDictation : abortRecording
+    void abort().catch((error) => console.error('Failed to cancel voice input:', error))
+  }, [pipelineState])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return
+      if (translationTargetMenuOpen) return
+      event.preventDefault()
+      if (polishModeMenuOpen) setPolishModeMenuOpen(false)
+      else if (contextMenuOpen) {
+        setContextMenuOpen(false)
+        setContextMenuReady(false)
+      } else if (pipelineState !== 'idle' && pipelineState !== 'outputting') cancel()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [cancel, contextMenuOpen, pipelineState, polishModeMenuOpen, setContextMenuOpen, setContextMenuReady, setPolishModeMenuOpen, translationTargetMenuOpen])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
@@ -111,6 +133,7 @@ export function Capsule() {
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     if (!contextMenuOpen) {
+      setPolishModeMenuOpen(false)
       setTranslationTargetMenuOpen(false)
       setContextMenuOpen(true)
     }
@@ -147,7 +170,7 @@ export function Capsule() {
               ? 'jelly-capsule text-[#8dffc9]'
               : 'jelly-capsule-active text-white'
         }`}
-        style={capsuleShellSize}
+        style={{ ...capsuleShellSize, top: polishModeMenuOpen ? 12 : undefined }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -181,6 +204,13 @@ export function Capsule() {
         </div>
       )}
       <TranslateTargetMenu />
+      {!contextMenuOpen && !translationTargetMenuOpen && capsuleState !== 'idle' && (
+        <PolishModeChip left={capsuleShellSize.width + 20} />
+      )}
+      {['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) && !polishModeMenuOpen && !contextMenuOpen && !translationTargetMenuOpen && (
+        <button type="button" title="Escape" onClick={cancel} className="absolute top-1/2 h-7 -translate-y-1/2 rounded-full border border-white/20 bg-[#05251b]/95 px-2 text-[10px] text-[#8dffc9] hover:border-accent" style={{ left: capsuleShellSize.width + 110 }}>Esc</button>
+      )}
+      <PolishModeMenu />
     </div>
   )
 }

@@ -138,7 +138,7 @@ fn polish_effort(req: &PolishRequest) -> ReasoningEffort {
         && req.polish_custom_prompt.trim().is_empty()
         && req.dictionary.is_empty()
         && !req.correction_rules.iter().any(|rule| rule.enabled)
-        && matches!(req.polish_style.trim(), "clean" | "minimal")
+        && matches!(req.polish_style.trim(), "original" | "clean" | "minimal")
         && req.raw_text.chars().count() <= 1024
     { ReasoningEffort::Medium } else { ReasoningEffort::High }
 }
@@ -283,7 +283,7 @@ mod tests {
     fn ordinary_dictation_uses_medium_fast_and_preserves_prompt_constraints() {
         let mut request = dictation_request();
         request.selected_text = Some("  ".into());
-        for style in ["clean", "minimal"] {
+        for style in ["original", "clean", "minimal"] {
             request.polish_style = style.into();
             assert_eq!(polish_effort(&request), ReasoningEffort::Medium);
         }
@@ -322,6 +322,78 @@ mod tests {
         for request in variants { assert_eq!(polish_effort(&request), ReasoningEffort::High); }
         let mut boundary = base; boundary.raw_text = "가".repeat(1024);
         assert_eq!(polish_effort(&boundary), ReasoningEffort::Medium);
+    }
+
+    #[test]
+    fn original_dictation_preserves_form_across_app_contexts() {
+        use crate::app_detector::types::ContextFamily;
+        let mut request = dictation_request();
+        request.polish_style = "original".into();
+        for family in [ContextFamily::Email, ContextFamily::WorkChat, ContextFamily::PersonalChat,
+            ContextFamily::Document, ContextFamily::ProjectManagement,
+            ContextFamily::DeveloperCollaboration, ContextFamily::PromptOrCode,
+            ContextFamily::Support, ContextFamily::Social, ContextFamily::General] {
+            request.context.family = family;
+            let content = polish_content(&request);
+            assert!(content.contains("POLISH STYLE: Original"));
+            assert!(content.contains("unmistakable speech-recognition errors"));
+            assert!(content.contains("Never guess uncertain names"));
+            assert!(content.contains("Preserve existing line breaks"));
+            assert!(!content.contains("format as a numbered list"));
+            assert!(!content.contains("separate them with a blank line"));
+            assert!(!content.contains(&super::super::context_policy::ContextPolicy::for_family(family).render_family_rules(family)));
+            assert!(content.contains("<transcription>"));
+        }
+        request.translate_enabled = true;
+        request.target_lang = "ko".into();
+        assert!(polish_content(&request).contains("translate the entire result into Korean"));
+    }
+
+    #[test]
+    fn original_style_respects_scenes_selected_text_and_explicit_operations() {
+        let mut request = dictation_request();
+        request.polish_style = "original".into();
+        let mut variants = vec![];
+        let mut selected = request.clone(); selected.selected_text = Some("Existing text".into()); variants.push(selected);
+        let mut mapped = request.clone(); mapped.mapped_scene_prompt = "Use an email body.".into(); variants.push(mapped);
+        let mut scene = request.clone(); scene.active_scene_prompt = "Use meeting notes.".into(); variants.push(scene);
+        request.voice_intent.kind = crate::voice_intent::VoiceIntentKind::DraftInsert;
+        variants.push(request);
+        for variant in variants {
+            let content = polish_content(&variant);
+            assert!(!content.contains("POLISH STYLE: Original"));
+            assert!(!content.contains("Do not rephrase, summarize, expand, reorder"));
+            assert_eq!(polish_effort(&variant), ReasoningEffort::High);
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires an existing ChatGPT subscription login and uses Fast quota"]
+    async fn live_original_polish_preserves_words_and_corrects_only_clear_errors() {
+        let config = LlmConfig { model: "gpt-6-luna".into(), ..LlmConfig::default() };
+        let fixtures = [
+            ("spoken-list", "음 오늘 할 일은 첫째 계약서 검토 둘째 영수증 세 장 정리야 그리고 예약은 취소하지 마"),
+            ("typo", "어 오늘은 왠일인지 기분이 좋네 근데 내일 예약은 취소하지 마"),
+            ("emphasis", "정말 정말 중요해 프로젝트 이름은 누리봄이야 B2B API v2.1은 변경하지 마"),
+        ];
+        for (name, text) in fixtures {
+            let mut request = dictation_request();
+            request.polish_style = "original".into();
+            request.context.family = crate::app_detector::types::ContextFamily::Email;
+            request.raw_text = text.into();
+            assert_eq!(polish_effort(&request), ReasoningEffort::Medium);
+            let started = Instant::now();
+            let output = CodexProvider.polish(&config, &request, None).await.unwrap().polished_text;
+            let compact: String = output.chars().filter(|character| !character.is_whitespace() && !character.is_ascii_punctuation()).collect();
+            let faithful = match name {
+                "spoken-list" => compact == "오늘할일은첫째계약서검토둘째영수증세장정리야그리고예약은취소하지마",
+                "typo" => compact == "오늘은웬일인지기분이좋네근데내일예약은취소하지마",
+                "emphasis" => compact == "정말정말중요해프로젝트이름은누리봄이야B2BAPIv21은변경하지마",
+                _ => false,
+            };
+            assert!(faithful && !output.contains('\n'), "Original dictation was rewritten ({name}): {output}");
+            println!("LIVE_ORIGINAL case={name} effort=Medium elapsed_ms={} output={output}", started.elapsed().as_millis());
+        }
     }
 
     #[tokio::test]

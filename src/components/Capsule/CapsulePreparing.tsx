@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { motion, useReducedMotion } from 'framer-motion'
-import { X } from 'lucide-react'
 import { abortRecording } from '../../lib/tauri'
 
 export function CapsulePreparing() {
@@ -37,7 +36,7 @@ export function CapsulePreparing() {
         aria-label={t('capsule.cancelRecording')}
         className="flex-shrink-0 p-1 rounded-full text-white/70 hover:text-white hover:bg-white/15 transition-colors bg-transparent border-none cursor-pointer"
       >
-        <X size={12} />
+        <span className="text-[9px] font-semibold">Esc</span>
       </button>
     </motion.div>
   )

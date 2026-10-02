@@ -977,7 +977,6 @@ pub fn build_shortcut_handler(
        + 'static {
     move |_app, shortcut, event| {
         let handle = app_handle.clone();
-        #[cfg(target_os = "windows")]
         if handle
             .state::<pipeline::PipelineHandle>()
             .take_escape_event_for_global(shortcut)

@@ -39,6 +39,8 @@ vi.mock('react-i18next', () => ({
         'settings.manageAppMappings': 'Manage app mappings',
         'settings.appStyleDialogTitle': 'Writing style for this app',
         'settings.polishStyle': 'Polish style',
+        'settings.polishStyleOriginal': 'Original',
+        'settings.polishStyleOriginalHint': 'Preserve wording, order, and tone without creating lists or headings.',
         'settings.polishStyleMinimal': 'Minimal',
         'settings.polishStyleClean': 'Clean',
         'settings.polishStyleStructured': 'Structured',
@@ -411,6 +413,17 @@ describe('LlmPane', () => {
   })
 
   describe('AI polish behavior settings', () => {
+    it('offers Original and shows its preservation guidance when selected', () => {
+      render(<LlmPane />)
+      fireEvent.change(screen.getByDisplayValue('Clean'), { target: { value: 'original' } })
+      expect(mockAppStore.updateConfig).toHaveBeenCalledWith({ polish_style: 'original' })
+      mockAppStore.config.polish_style = 'original'
+      cleanup()
+      render(<LlmPane />)
+      expect(screen.getByDisplayValue('Original')).toBeInTheDocument()
+      expect(screen.getByText('Preserve wording, order, and tone without creating lists or headings.')).toBeInTheDocument()
+    })
+
     it('shows Clean as the default polish style outside advanced settings', () => {
       render(<LlmPane />)
 

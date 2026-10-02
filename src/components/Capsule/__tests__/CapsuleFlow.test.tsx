@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '../../../stores/appStore'
-import { setActiveTranslationTarget, stopAskFlow } from '../../../lib/tauri'
+import { abortAskDictation, abortRecording, setActiveTranslationTarget, setPolishStyle, stopAskFlow } from '../../../lib/tauri'
 import { Capsule } from '../index'
 
 vi.mock('framer-motion', () => ({
@@ -39,6 +39,7 @@ vi.mock('../../../lib/tauri', () => ({
   }),
   setCapsuleAutoHide: vi.fn().mockResolvedValue(undefined),
   stopAskFlow: vi.fn().mockResolvedValue(undefined),
+  setPolishStyle: vi.fn().mockResolvedValue({ polish_style: 'original', polish_enabled: true }),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -78,6 +79,44 @@ describe('Capsule flow states', () => {
     render(<Capsule />)
 
     expect(screen.getByText('capsule.preparing')).toBeInTheDocument()
+  })
+
+  it.each(['preparing', 'recording', 'transcribing', 'polishing'] as const)('cancels %s on Escape without submitting recording', (pipelineState) => {
+    useAppStore.setState({ pipelineState })
+    render(<Capsule />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(abortRecording).toHaveBeenCalledTimes(1)
+    expect(invoke).not.toHaveBeenCalledWith('stop_recording')
+  })
+
+  it('cancels Ask on Escape', () => {
+    useAppStore.setState({ pipelineState: 'ask_recording' })
+    render(<Capsule />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(abortAskDictation).toHaveBeenCalledTimes(1)
+    expect(stopAskFlow).not.toHaveBeenCalled()
+  })
+
+  it('opens modes without stopping capture and saves a new mode', async () => {
+    useAppStore.setState({ pipelineState: 'recording' })
+    render(<Capsule />)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.polishModeTitle' }))
+    expect(screen.getByRole('dialog', { name: 'settings.polishModeTitle' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'settings.polishStyleOriginal' }))
+    await waitFor(() => expect(setPolishStyle).toHaveBeenCalledWith('original'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(useAppStore.getState().config.polish_style).toBe('original')
+    expect(invoke).not.toHaveBeenCalledWith('stop_recording')
+  })
+
+  it('closes the mode chooser on Escape before cancelling dictation', () => {
+    useAppStore.setState({ pipelineState: 'recording', polishModeMenuOpen: true })
+    render(<Capsule />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(abortRecording).not.toHaveBeenCalled()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(abortRecording).toHaveBeenCalledTimes(1)
   })
 
   it('renders transcribing state with partial transcript when available', () => {

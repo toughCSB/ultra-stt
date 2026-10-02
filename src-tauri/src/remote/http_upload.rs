@@ -52,6 +52,33 @@ pub(super) fn bearer_token(head: &str) -> Option<&str> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn legacy_requests_keep_clean_and_accept_only_valid_optional_modes() {
+        assert_eq!(request_polish_options("POST / HTTP/1.1\r\nHost: test\r\n").unwrap(), crate::stt::RemotePolishOptions::default());
+        for style in crate::storage::POLISH_STYLES {
+            let head = format!("POST / HTTP/1.1\r\nX-Ultra-STT-Polish-Style: {style}\r\nx-ultra-stt-polish-enabled: false\r\n");
+            assert_eq!(request_polish_options(&head).unwrap(), crate::stt::RemotePolishOptions { style: style.to_string(), enabled: false });
+        }
+        for head in [
+            "x-ultra-stt-polish-style: unknown",
+            "x-ultra-stt-polish-enabled: maybe",
+            "x-ultra-stt-polish-style: original\r\nx-ultra-stt-polish-style: clean",
+            "x-ultra-stt-polish-enabled: true\r\nx-ultra-stt-polish-enabled: false",
+        ] {
+            assert!(request_polish_options(head).is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn disconnect_monitor_waits_for_a_live_client_and_detects_cancellation() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(listener.local_addr().unwrap()).await.unwrap();
+        let (mut server, _) = listener.accept().await.unwrap();
+        assert!(tokio::time::timeout(Duration::from_millis(20), wait_for_disconnect(&mut server)).await.is_err());
+        client.shutdown().await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), wait_for_disconnect(&mut server)).await.unwrap();
+    }
+
     fn wav() -> Vec<u8> {
         let mut bytes = vec![0u8; 44 + 8];
         bytes[0..4].copy_from_slice(b"RIFF");
@@ -128,6 +155,10 @@ pub(super) async fn handle(
     if !authorized {
         return respond(&mut stream, 403, "application/json", br#"{"error":"forbidden"}"#).await;
     }
+    let options = match request_polish_options(&head) {
+        Ok(options) => options,
+        Err(_) => return respond(&mut stream, 400, "application/json", br#"{"error":"invalid polish options"}"#).await,
+    };
     // Tailscale Serve strips the configured path prefix before forwarding, so the
     // same request arrives as /audio/transcriptions when it came through /v1.
     let is_transcription = head.starts_with("POST /v1/audio/transcriptions")
@@ -163,8 +194,15 @@ pub(super) async fn handle(
             .await;
         }
     };
-    let work = tokio::time::timeout(Duration::from_secs(120), dictate(&pcm));
-    let reply = match work.await {
+    let work = tokio::time::timeout(Duration::from_secs(120), dictate_with_options(&pcm, &options));
+    let result = tokio::select! {
+        result = work => result,
+        _ = wait_for_disconnect(&mut stream) => {
+            tracing::info!("Remote transcription cancelled by client disconnect");
+            return Ok(());
+        }
+    };
+    let reply = match result {
         Ok(Ok(payload)) => payload,
         Ok(Err(error)) => {
             tracing::warn!("Remote transcription failed: {error}");
@@ -174,6 +212,36 @@ pub(super) async fn handle(
     };
     let payload = serde_json::to_vec(&reply).unwrap_or_default();
     respond(&mut stream, 200, "application/json", &payload).await
+}
+
+fn request_polish_options(head: &str) -> std::result::Result<crate::stt::RemotePolishOptions, ()> {
+    let mut options = crate::stt::RemotePolishOptions::default();
+    let mut style_seen = false;
+    let mut enabled_seen = false;
+    for line in head.lines() {
+        let Some((name, value)) = line.split_once(':') else { continue };
+        let value = value.trim();
+        if name.eq_ignore_ascii_case("x-ultra-stt-polish-style") {
+            if style_seen || !crate::storage::POLISH_STYLES.contains(&value) { return Err(()) }
+            style_seen = true;
+            options.style = value.to_string();
+        } else if name.eq_ignore_ascii_case("x-ultra-stt-polish-enabled") {
+            if enabled_seen { return Err(()) }
+            enabled_seen = true;
+            options.enabled = match value { "true" => true, "false" => false, _ => return Err(()) };
+        }
+    }
+    Ok(options)
+}
+
+async fn wait_for_disconnect(stream: &mut tokio::net::TcpStream) {
+    let mut buffer = [0u8; 1024];
+    loop {
+        match stream.read(&mut buffer).await {
+            Ok(0) | Err(_) => return,
+            Ok(_) => {}
+        }
+    }
 }
 
 async fn respond(

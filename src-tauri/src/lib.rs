@@ -1075,6 +1075,16 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .tooltip("Ultra STT")
                 .on_menu_event(move |app, event| match event.id.as_ref() {
+                    identifier if identifier.starts_with("polish_style:") => {
+                        let style = identifier.trim_start_matches("polish_style:").to_string();
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = handle.state::<storage::ConfigManager>();
+                            if let Err(error) = commands::config::save_polish_style(&handle, &state, &style).await {
+                                tracing::error!("Tray polish mode change failed: {error}");
+                            }
+                        });
+                    }
                     "quit" => {
                         tauri::async_runtime::block_on(stt::ultra_local::shutdown());
                         app.exit(0);
@@ -1295,6 +1305,7 @@ pub fn run() {
             commands::config::load_onboarding_completed,
             commands::config::save_onboarding_completed,
             commands::config::update_config,
+            commands::config::set_polish_style,
             commands::credentials::get_credential_status,
             commands::credentials::read_credential,
             commands::credentials::set_credential,

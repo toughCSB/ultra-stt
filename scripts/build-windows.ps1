@@ -188,6 +188,10 @@ public static class UltraSttTaskbarIconProperties {
             Write-Output "START_MENU_RELAUNCH_ICON=$([UltraSttTaskbarIconProperties]::GetRelaunchIcon($menuShortcutPath))"
             Write-Output "START_MENU_APP_ID=$([UltraSttTaskbarIconProperties]::GetAppId($menuShortcutPath))"
         }
+        if ($personalRuntimeReady) {
+            $env:ULTRA_STT_ROOT = $root
+            $env:ULTRA_STT_DATA_DIR = Join-Path $root 'data'
+        }
         Start-Process -FilePath $installedExecutable -WindowStyle Hidden -RedirectStandardOutput (Join-Path $root 'runtime/windows-updated.log') -RedirectStandardError (Join-Path $root 'runtime/windows-updated.err')
         Write-Output "INSTALLED=$installedExecutable"
     } elseif ($running.Count -gt 0) {

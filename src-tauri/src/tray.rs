@@ -1,6 +1,6 @@
 use crate::{pipeline, storage};
 use std::sync::Mutex;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
@@ -220,6 +220,21 @@ fn tray_capsule_auto_hide(app: &tauri::AppHandle) -> bool {
     capsule_auto_hide_from_app_config(config.as_ref())
 }
 
+fn polish_mode_labels(lang: &str) -> (&'static str, [&'static str; 5]) {
+    match lang {
+        "ko" => ("AI 다듬기 모드", ["원문 · Original", "최소", "깔끔하게", "구조화", "전문적으로"]),
+        "ja" => ("整形スタイル", ["原文", "最小", "クリーン", "構造化", "プロ"]),
+        "zh" => ("润色风格", ["原文", "轻改", "清爽", "结构化", "专业"]),
+        "de" => ("Schreibstil", ["Original", "Minimal", "Klar", "Strukturiert", "Professionell"]),
+        "es" => ("Estilo de pulido", ["Original", "Mínimo", "Limpio", "Estructurado", "Profesional"]),
+        "fr" => ("Style de réécriture", ["Original", "Minimal", "Clair", "Structuré", "Professionnel"]),
+        "it" => ("Stile di rifinitura", ["Originale", "Minimo", "Pulito", "Strutturato", "Professionale"]),
+        "pt" => ("Estilo de polimento", ["Original", "Mínimo", "Limpo", "Estruturado", "Profissional"]),
+        "ru" => ("Стиль обработки", ["Оригинал", "Минимальный", "Чистый", "Структурный", "Профессиональный"]),
+        _ => ("AI polish mode", ["Original", "Minimal", "Clean", "Structured", "Professional"]),
+    }
+}
+
 /// Build (or rebuild) the system tray menu based on current state.
 pub fn build_tray_menu(
     app: &tauri::AppHandle,
@@ -229,6 +244,15 @@ pub fn build_tray_menu(
 ) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
     let lang = tray_language(app);
     let labels = get_tray_labels(&lang);
+    let (mode_label, mode_labels) = polish_mode_labels(&lang);
+    let config = app_config_value(app);
+    let current_style = config.as_ref().and_then(|value| value.get("polish_style"))
+        .and_then(|value| value.as_str()).unwrap_or("clean");
+    let polish_modes = Submenu::new(app, mode_label, true)?;
+    for (index, style) in storage::POLISH_STYLES.iter().enumerate() {
+        let item = CheckMenuItem::with_id(app, format!("polish_style:{style}"), mode_labels[index], true, current_style == *style, None::<&str>)?;
+        polish_modes.append(&item)?;
+    }
 
     let show_hide = MenuItem::with_id(
         app,
@@ -279,6 +303,7 @@ pub fn build_tray_menu(
             &sep1,
             &record,
             &capsule_visibility,
+            &polish_modes,
             &sep2,
             &settings,
             &history,
