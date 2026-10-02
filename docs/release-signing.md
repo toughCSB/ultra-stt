@@ -1,5 +1,7 @@
 # Release Signing Setup
 
+> **Ultra STT personal fork:** The following document describes the inherited upstream signing pipeline, not this repository's release destination. Personal previews are published only to the user-owned private [`toughCSB/ultra-stt`](https://github.com/toughCSB/ultra-stt) repository. See [the personal release notes](releases/v1.1.62-personal.1.md). Do not configure or publish to the upstream repositories below for an Ultra STT personal release. The current preview uses manual downloads, not the inherited signed updater workflow.
+
 OpenTypeless releases are built in `toverwu-qaq/opentypeless` and published to
 `tover0314-w/opentypeless`.
 

@@ -1,8 +1,8 @@
 # Ultra STT 1.1.62 — 검증·성능·알려진 한계
 
-**기준일:** 2026-10-02
+**기준일:** 2026-10-03 (한국 시간; 주요 기능 검증은 10월 2일)
 
-**대상:** Windows x64와 macOS Apple Silicon 개인 설치
+**대상:** Windows x64·macOS Apple Silicon·Android 개인 설치
 
 [제품 안내](../README_ko.md) · [기능 사양](FEATURES.md)
 
@@ -19,6 +19,8 @@
 | 실제 Windows UI | Home·AI·일반 설정 캡처 | 설치 앱에서 모드·현재 선택 표시와 기록 그래프 확인 |
 | Mac → Windows 원격 smoke | 통과 | 다섯 모드·legacy·AI 비활성화·잘못된 헤더·인증 거부 |
 | 클라이언트 취소 | 통과 | Mac HTTP 연결 종료 후 설치 서버의 작업 취소 로그 확인 |
+| Android 재검증 | Java 80개 검사·APK 빌드·서명 검사 통과 | Android Lint 오류 0; debug 서명, SDK XML·Gradle 경고는 남음 |
+| 집 PC 설치 | 1.1.62 설치·실행·서버 인증 통과 | 사용자 console 세션, portable runtime marker, NSIS payload 일치, 평문 토큰 없는 설정, HTTPS 인증 probe |
 
 기본 실행에서 제외한 native live 테스트는 외부 로그인·서비스와 사용량이 필요하다. 기본 suite 숫자를 모든 제공자에 대한 실마이크 acceptance 숫자로 해석하지 않는다. UI 테스트에는 의도적인 오류 경로의 stderr와 animation mock 관련 경고가 있을 수 있으며, 통과·실패 결과와 구분한다.
 
@@ -88,6 +90,7 @@ cargo test --locked --lib --manifest-path src-tauri/Cargo.toml
 - **Mac 원격의 고급 설정:** 현재는 모드·활성 여부만 전달한다. 로컬 선택 텍스트·번역·씬·사전 설정 전체를 전달하지 않는다.
 - **기록 그래프:** 전체 DB가 아닌 현재 불러온 최대 200건 기준이다. 처리 시간은 세션의 마지막 작업 기준이다.
 - **플랫폼:** Windows x64·Mac arm64 외 Linux·Mac Intel·Windows ARM은 이번 설치 검증 대상이 아니다.
-- **배포:** GitHub 릴리스·자동 업데이트 패키지를 게시하지 않았다. 개인 Mac 서명은 notarization이 아니다.
-- **모바일:** 브라우저 복사·공유만 제공한다. 네이티브 앱·입력 통합·권한 설계·실기기 검증이 남는다.
+- **배포:** [개인 프리뷰 릴리스](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.1)는 Windows·Mac·Android 수동 설치용이다. Windows 미서명·Mac ad-hoc 서명·Android debug APK이며, 자동 업데이트용 서명 패키지·`latest.json`은 게시하지 않는다. 개인 Mac 서명은 notarization이 아니다.
+- **집 PC:** SB 서버를 쓰도록 설치·인증·실행을 확인했다. `Ctrl+Alt+R` 토글·Minimal·커서 입력으로 설정했고, 기존 키보드·개발 Codex 로그인은 변경하지 않았다. 새 앱의 자동 시작은 끈 상태로 설치했다. 사용자가 실제 집 PC 음성→커서 입력 성공을 확인했다. 원격 받아쓰기에 집 PC의 별도 Codex 로그인은 필요 없다.
+- **모바일:** Android 1.1.62-android.5는 기존 키보드를 유지하며 5색 버튼·반원 드래그·녹음 중 종료 버튼과 시간·처리 회전 표시를 제공한다. 앱 전용 Tailscale IP 연결로 휴대폰의 HTTPS·인증 확인이 통과했다. 잘못된 인증 거부 등을 포함한 기기 통신 10개 검사와 Java 80개 검사도 통과했다. 사용자가 앱 테스트 입력창에서 실제 한국어 음성 전사→커서 입력 성공을 확인했다. 모든 외부 앱의 편집기 호환성을 검증한 것은 아니다. iOS는 브라우저 복사·공유 단계다. [Android 범위·설정·검증](../android/README.md).
 - **제공자·언어:** 기능 범위는 선택한 제공자에 따라 다르고, 일부 고급 UI 설명은 영어 fallback이다.

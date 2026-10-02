@@ -5,7 +5,7 @@
 <h1 align="center">Ultra STT</h1>
 <p align="center"><strong>Your voice. Your words. Your cursor.</strong></p>
 <p align="center">
-  A personal voice keyboard for Windows and macOS.<br />
+  Personal voice input for Windows, macOS, and Android.<br />
   Local Whisper recognition, optional AI cleanup, and direct text insertion.
 </p>
 <p align="center">
@@ -22,7 +22,7 @@
 </p>
 <p align="center"><em>Actual installed Windows app, captured October 2, 2026. Minimal is selected.</em></p>
 
-> **Project status:** This is the user-owned repository at [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt), currently private. Version 1.1.62 has been built and installed on Windows x64 and an Apple Silicon Mac. No downloadable GitHub release is published at this snapshot. Linux code is inherited, but this personal version has not been validated on Linux. Mobile currently means a browser recorder, not an Android/iOS keyboard app.
+> **Project status:** This is the user-owned **private** repository at [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt). The [personal preview release](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.1) provides Windows x64, Apple Silicon Mac, and Android `1.1.62-android.5` downloads. GitHub repository access is required. Android keeps the existing keyboard, and the user confirmed real Korean speech-to-cursor input in the app's test field. This is not universal editor compatibility. Linux and Intel Mac are not validated release targets; iOS remains a browser recorder. [Android setup](android/README.md) · [Detailed Korean explanation](README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기).
 
 ## Why Ultra STT?
 
@@ -35,6 +35,42 @@ Speak without leaving your text editor, choose how much rewriting you want, and 
 - **Quality-conscious performance:** a warm CUDA recognizer, reusable HTTP clients, Fast Codex requests, and task-sensitive reasoning.
 - **Separate AI profile:** app-only instructions and ChatGPT login, independent of development Codex settings.
 - **Mac + Windows server:** record on Mac, recognize and clean on the Windows host, then insert on Mac—without a second cleanup call.
+
+## How the personal setup works
+
+Think of the devices as microphones and the private Windows host as a shared processing desk:
+
+```text
+Android / Mac / home PC records your voice
+                 ↓ private Tailscale + verified HTTPS + server authentication
+SB Windows host: Whisper → optional AI cleanup
+                 ↓ completed text
+The originating device inserts into the original text field
+```
+
+**Why keep the server?** The phone does not need to download a large speech model or run a heavy AI model. Mac and home PC can reuse the same configured recognizer and cleanup profile. The tradeoff is explicit: SB, its app/server, and Tailscale must remain online. Speech recognition is local to SB in this setup; enabled Codex cleanup sends the transcript to OpenAI. This is not a fully offline mobile app.
+
+**Why not a replacement keyboard?** The first Android keyboard was removed because switching away from the usual keyboard was inconvenient. The current app uses a small accessibility voice button over the active editable field, leaving Samsung Keyboard or Gboard in place. Accessibility is needed to identify that field and insert text; microphone permission is needed to record. Password fields are excluded, existing editor text is not sent to the server, and a changed editor/cursor cancels the operation so a late result does not land in the wrong conversation. Special editors may not support this insertion path.
+
+**What do the button states mean?** Tap to record; tap again to stop and send. A white stop square, timer, and breathing animation mean recording. A spinner means processing; tapping it again only explains that work is in progress, rather than cancelling it. Hold, drag to one of five icons on the semicircle, and release to select a mode. The whole button changes color, not a tiny badge. Recording and networking have separate workers so a delayed request cannot block the next microphone operation.
+
+**Why the extra connection handling?** The tested phone could connect to Tailscale but could not resolve the host's name. Pairing therefore supplies a private IP mapping for that host only. The original HTTPS hostname, certificate checks, encryption, and server token remain mandatory. No global DNS/VPN changes or insecure TLS fallback are used. If the host's Tailscale IP changes, pair again. Tokens are not embedded in downloads; Android encrypts its provisioned token with Android Keystore, while desktop credentials use the OS vault.
+
+**Why isolate Codex?** The server's app-only `CODEX_HOME` is a separate workroom: app instructions and an explicitly authorized ChatGPT login, not the development account's skills, settings, or copied auth files. Ordinary remote dictation needs no local Codex login on a client, and runs cleanup once on the server. Client-side Ask/translation/selected-text features are not equivalent to that remote path; local AI connection tests do not test the server's login.
+
+Cleanup still takes seconds depending on the request and network. Fast mode and task-sensitive reasoning reduce avoidable overhead but are not a latency guarantee. Disabling cleanup removes that stage and changes the output quality. See [measurements and limits](docs/VALIDATION.md), and the [full plain-language Korean explanation](README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기).
+
+## Downloads and first setup
+
+Use the [private personal preview release](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.1). Repository access is required; downloads do not contain server credentials or models.
+
+| Device | Download | First setup |
+| --- | --- | --- |
+| Windows x64 | `Ultra-STT-1.1.62-windows-x64-setup.exe` | Install; configure a speech provider or pair with your server. The approved home PC uses SB and `Ctrl+Alt+R` toggle capture. |
+| Apple Silicon Mac | `Ultra-STT-1.1.62-macos-arm64.zip` | Extract the app into Applications; explicitly allow microphone and Accessibility; configure the server. |
+| Android (min SDK 28) | `Ultra-STT-1.1.62-android.5-debug.apk` | Install/update; pair once; allow microphone and the accessibility voice button. Keep your normal keyboard. [Steps and tested device](android/README.md). |
+
+This is a **personal prerelease**, not a store release: Windows is unsigned, Mac is ad-hoc signed and not notarized, and Android is a debug APK. Check `SHA256SUMS.txt` against your download; a checksum checks file integrity, not a trusted publisher signature. Follow OS warnings rather than globally disabling security protections. Updates are manual; no signed `latest.json` automatic-update feed is published. Android updates must retain the signing key and app data. Intel Mac, Linux, Windows ARM, native iOS, and offline phone inference are not released targets.
 
 ## A simple daily workflow
 
@@ -118,7 +154,7 @@ The chart uses the latest loaded records, **up to 200**, rather than pretending 
 | Reasoning | Medium for simple short dictation; High for complex/terminology-sensitive operations |
 | Private remote transport | Tailscale Serve HTTPS, same-owner checks, existing Bearer authentication |
 | Validated desktop targets | Windows x64 and macOS arm64 |
-| Mobile status | Browser microphone → result → copy/share; no native mobile keyboard yet |
+| Mobile status | Android floating voice button, five full-button mode colors and radial drag selection; real speech insertion confirmed in the app test field. Other editors require verification. iOS uses browser copy/share |
 
 No minimum VRAM/RAM benchmark is claimed. The personal GPU route needs a compatible NVIDIA CUDA environment and separately downloaded model files. Other STT integrations include Apple Speech, Whisper-compatible endpoints, Deepgram, AssemblyAI, Aliyun Qwen3, and Volcengine; availability and credentials are provider-dependent, not all personally acceptance-tested.
 
@@ -194,7 +230,7 @@ Do not copy authentication files from the development profile. The current Mac r
 
 The 1.1.62 snapshot has **414 frontend tests**, **629 Windows native tests**, and **635 Mac native tests** passing; three live/provider-dependent native tests are excluded from each default run. Production builds and personal installs completed on both validated desktop targets. The Mac-to-Windows smoke test exercised all five modes, AI disabled, legacy requests, invalid headers, missing authentication, and client cancellation.
 
-Latest physical Mac microphone → cursor → Esc acceptance remains a separate manual check, not something unit tests prove. Native Android/iOS input integration, permissions, and device testing remain future work—**not just packaging**. [Validation details](docs/VALIDATION.md).
+Latest physical Mac microphone → cursor → Esc acceptance remains a separate manual check, not something unit tests prove. Android 1.1.62-android.5 adds a pulsing stop button with an elapsed timer, a processing spinner and app-only paired Tailscale IP routing while preserving HTTPS verification and Bearer authentication. Processing taps no longer cancel the request. The build, 80 logic checks, lint, signature and 10 real-device transport checks pass. The user confirmed real Korean speech-to-cursor input in the app's test field; this is not universal third-party editor compatibility. It does not replace the default keyboard. Native iOS input integration remains future work. [Desktop validation details](docs/VALIDATION.md) · [Android scope and setup](android/README.md).
 
 ## Documentation & credits
 
