@@ -1,0 +1,65 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.ultrastt.androidvoice'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+
+    defaultConfig {
+        applicationId 'com.ultrastt.androidvoice'
+        minSdk 28
+        targetSdk 36
+        versionCode 5
+        versionName '1.1.62-android.5'
+        testInstrumentationRunner 'com.ultrastt.androidvoice.NetworkChecks'
+    }
+
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('.local/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.squareup.okhttp3:okhttp:5.4.0'
+}
+
+def voiceTestOutput = layout.buildDirectory.dir('voice-tests')
+tasks.register('compileVoiceTests', JavaCompile) {
+    source = files(
+        'src/main/java/com/ultrastt/androidvoice/WavCodec.java',
+        'src/main/java/com/ultrastt/androidvoice/Endpoint.java',
+        'src/main/java/com/ultrastt/androidvoice/PairedAddress.java',
+        'src/main/java/com/ultrastt/androidvoice/Modes.java',
+        'src/main/java/com/ultrastt/androidvoice/EditorGuard.java',
+        'src/main/java/com/ultrastt/androidvoice/TextInsertion.java',
+        'src/main/java/com/ultrastt/androidvoice/RadialGeometry.java',
+        'src/test/java/com/ultrastt/androidvoice/VoiceTests.java'
+    )
+    classpath = files()
+    destinationDirectory = voiceTestOutput
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('voiceTests', JavaExec) {
+    dependsOn 'compileVoiceTests'
+    classpath = files(voiceTestOutput)
+    mainClass = 'com.ultrastt.androidvoice.VoiceTests'
+}

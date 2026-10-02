@@ -57,3 +57,11 @@ docs/superpowers/
 
 # Local isolated worktrees
 .worktrees/
+
+# Native Android local builds and signing material
+android/.gradle/
+android/.local/
+android/local.properties
+android/build/
+android/app/build/
+*.apk

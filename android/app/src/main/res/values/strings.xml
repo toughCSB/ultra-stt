@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ultra STT</string>
+    <string name="floating_service_name">Ultra STT 작은 음성 버튼</string>
+    <string name="accessibility_description">기존 키보드를 그대로 유지하고 활성 입력창 옆에 작은 음성 버튼을 표시합니다. 입력창 감지와 커서 위치에 전사문 입력을 위해 접근성을 사용합니다. 비밀번호와 화면 이력은 수집하지 않으며 현재 입력창의 내용은 기기 내부에서 입력 보존에만 사용합니다.</string>
+    <string name="setup_saved">설정을 저장했습니다. 실제 서버 연결은 음성 입력 시 확인됩니다.</string>
+    <string name="polish_enabled">AI 다듬기 사용</string>
+    <string name="show_floating_button">작은 음성 버튼 표시</string>
+    <string name="connection_ready">✓ PC 연결 정보 준비됨 · 토큰 입력 불필요</string>
+    <string name="connection_missing">PC 연결 정보가 필요합니다 · PC에서 한 번만 연결 설정을 받아 주세요.</string>
+    <string name="permission_summary">마이크 %1$s · 작은 버튼 %2$s</string>
+    <string name="connection_verified">✓ PC 서버 연결·인증 확인됨 · 토큰 입력 불필요</string>
+    <string name="connection_unreachable">연결 정보는 저장됨 · 휴대폰 Tailscale 연결과 서버 PC를 확인해 주세요.</string>
+</resources>
