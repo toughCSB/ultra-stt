@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = 'UltraSTTFloatingVoice'
 include ':app'
+include ':qa'

@@ -9,8 +9,8 @@ android {
         applicationId 'com.ultrastt.androidvoice'
         minSdk 28
         targetSdk 36
-        versionCode 5
-        versionName '1.1.62-android.5'
+        versionCode 9
+        versionName '1.1.62-android.9'
         testInstrumentationRunner 'com.ultrastt.androidvoice.NetworkChecks'
     }
 

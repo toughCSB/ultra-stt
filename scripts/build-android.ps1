@@ -1,6 +1,7 @@
 param(
     [string]$ToolRoot,
-    [switch]$Offline
+    [switch]$Offline,
+    [switch]$IncludeDeviceTests
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,6 +40,7 @@ try {
     Push-Location $androidRoot
     try {
         $arguments = @('--no-daemon', '--console=plain', ':app:voiceTests', ':app:assembleDebug', ':app:lintDebug')
+        if ($IncludeDeviceTests) { $arguments += @(':app:assembleDebugAndroidTest', ':qa:assembleDebug', ':qa:lintDebug') }
         if ($Offline) { $arguments += '--offline' }
         & $gradle.FullName @arguments
         if ($LASTEXITCODE -ne 0) { throw 'Android tests, APK build or lint failed.' }

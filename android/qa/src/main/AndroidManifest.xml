@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="com.ultrastt.androidvoice.EditorChecks"
+        android:targetPackage="com.ultrastt.androidvoice.qa" />
+    <application android:label="Ultra STT QA" android:allowBackup="false">
+        <activity android:name="com.ultrastt.androidvoice.EditorActivity" android:exported="true" />
+    </application>
+</manifest>

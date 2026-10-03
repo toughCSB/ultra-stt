@@ -25,7 +25,13 @@ public final class NetworkChecks extends Instrumentation {
     @Override
     public void onStart() {
         Bundle result = new Bundle();
+        int status = Activity.RESULT_CANCELED;
         try {
+            OkHttpClient internet = new OkHttpClient.Builder().callTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build();
+            try (Response response = internet.newCall(new Request.Builder()
+                    .url("https://www.google.com/generate_204").build()).execute()) {
+                check(response.code() == 204, "Ordinary DNS and public HTTPS work");
+            }
             Preferences preferences = new Preferences(getTargetContext());
             String endpoint = preferences.endpoint();
             String address = preferences.serverAddress();
@@ -68,12 +74,21 @@ public final class NetworkChecks extends Instrumentation {
                 oversizedRejected = true;
             }
             check(oversizedRejected, "Oversized response rejected");
-            result.putString("stream", "PASS: " + checks + " device transport checks; no audio or AI request\n");
-            finish(Activity.RESULT_OK, result);
+            result.putString("stream", "PASS: " + checks + " device transport checks"
+                    + "; no audio or AI request\n");
+            status = Activity.RESULT_OK;
         } catch (Exception | AssertionError error) {
-            result.putString("stream", "FAIL after " + checks + " checks: " + error.getClass().getSimpleName() + "\n");
-            finish(Activity.RESULT_CANCELED, result);
+            result.putString("stream", "FAIL after " + checks + " checks: " + error.getClass().getSimpleName()
+                    + (error instanceof AssertionError ? ": " + error.getMessage() : "") + "\n");
+        } finally {
+            try (java.io.FileOutputStream output = getTargetContext().openFileOutput("network-checks.txt", 0)) {
+                output.write(result.getString("stream", "No result").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (IOException error) {
+                result.putString("stream", "FAIL: QA report could not be saved\n");
+                status = Activity.RESULT_CANCELED;
+            }
         }
+        finish(status, result);
     }
 
     private void check(boolean condition, String label) {

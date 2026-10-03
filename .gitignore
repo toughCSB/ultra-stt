@@ -64,4 +64,5 @@ android/.local/
 android/local.properties
 android/build/
 android/app/build/
+android/qa/build/
 *.apk

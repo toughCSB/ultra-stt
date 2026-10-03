@@ -20,6 +20,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.SurroundingText;
 import android.widget.Toast;
 
 import java.util.List;
@@ -32,13 +33,19 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     private final EditorGuard guard = new EditorGuard();
     private final ExecutorService audioWorker = Executors.newSingleThreadExecutor();
     private final ExecutorService networkWorker = Executors.newSingleThreadExecutor();
-    private final Runnable update = this::updateTarget;
+    private boolean updatePending;
+    private final Runnable update = () -> {
+        updatePending = false;
+        updateTarget();
+    };
     private Preferences preferences;
     private WindowManager windows;
     private BubbleView bubble;
     private RadialModeView palette;
     private AccessibilityNodeInfo focused;
     private AccessibilityNodeInfo captured;
+    private EditorInfo capturedEditorInfo;
+    private InputMethod.AccessibilityInputConnection capturedConnection;
     private String original;
     private int selectionStart;
     private int selectionEnd;
@@ -47,6 +54,11 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     private RecordingActivity recordingActivity;
     private boolean sending;
     private boolean writing;
+    private boolean connectionTarget;
+    private boolean keyboardSuppressed;
+    private int previousKeyboardMode;
+    private long keyboardHideDeadline;
+    private boolean preparingKeyboard;
     private boolean destroyed;
     private long session;
     private int anchorX;
@@ -80,7 +92,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             @Override
             public void onStartInput(EditorInfo info, boolean restarting) {
                 super.onStartInput(info, restarting);
-                if (guard.isActive() && captured != null && !samePackage(captured, info.packageName)) {
+                if (guard.isActive() && !writing && !preparingKeyboard && captured != null && info != capturedEditorInfo) {
                     cancelWork("입력창이 바뀌어 취소했습니다.");
                 }
                 scheduleUpdate();
@@ -88,7 +100,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
 
             @Override
             public void onFinishInput() {
-                if (guard.isActive() && !writing) {
+                if (guard.isActive() && !writing && !preparingKeyboard) {
                     cancelWork("입력창이 닫혀 취소했습니다.");
                 }
                 super.onFinishInput();
@@ -99,7 +111,9 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             public void onUpdateSelection(int oldStart, int oldEnd, int newStart, int newEnd,
                     int candidatesStart, int candidatesEnd) {
                 super.onUpdateSelection(oldStart, oldEnd, newStart, newEnd, candidatesStart, candidatesEnd);
-                if (guard.isActive() && !writing && (oldStart != newStart || oldEnd != newEnd)) {
+                if (guard.isActive() && !writing && original != null
+                        && (TextInsertion.editorSelection(original, newStart) != selectionStart
+                        || TextInsertion.editorSelection(original, newEnd) != selectionEnd)) {
                     cancelWork("커서가 이동해 취소했습니다.");
                 }
             }
@@ -111,7 +125,13 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         if (destroyed || preferences == null) {
             return;
         }
-        if (guard.isActive() && !writing && captured != null
+        if (preparingKeyboard && event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            AccessibilityNodeInfo source = event.getSource();
+            if (source != null && !source.equals(captured) && !samePackage(source, getPackageName())) {
+                cancelWork("입력 대상이 바뀌어 취소했습니다.");
+            }
+        }
+        if (guard.isActive() && !writing && !preparingKeyboard && captured != null
                 && (event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
                 || event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)) {
             AccessibilityNodeInfo source = event.getSource();
@@ -123,8 +143,10 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     private void scheduleUpdate() {
-        main.removeCallbacks(update);
-        main.postDelayed(update, 100);
+        if (!destroyed && !updatePending) {
+            updatePending = true;
+            main.postDelayed(update, 100);
+        }
     }
 
     private boolean samePackage(AccessibilityNodeInfo node, String packageName) {
@@ -132,7 +154,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     private boolean eligible(AccessibilityNodeInfo node) {
-        if (node == null || !node.isEditable() || !node.isFocused() || !node.isVisibleToUser()
+        if (node == null || !node.isEditable() || !focusedTarget(node) || !node.isVisibleToUser()
                 || !node.isEnabled() || node.isPassword()) {
             return false;
         }
@@ -140,6 +162,17 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             return (getPackageName() + ":id/voice_test_editor").equals(node.getViewIdResourceName());
         }
         return true;
+    }
+
+    private boolean focusedTarget(AccessibilityNodeInfo node) {
+        if (node.isFocused()) {
+            return true;
+        }
+        if (Build.VERSION.SDK_INT < 33 || !guard.isActive() || captured == null || !captured.equals(node)
+                || recordingActivity == null || !recordingActivity.isRecordingForeground()) {
+            return false;
+        }
+        return sameInputConnection();
     }
 
     private AccessibilityNodeInfo findEditor() {
@@ -155,7 +188,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             }
         }
         AccessibilityNodeInfo node = findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-        if (eligible(node)) {
+        if (node != null && node.refresh() && eligible(node)) {
             return node;
         }
         for (AccessibilityWindowInfo window : visibleWindows) {
@@ -165,16 +198,45 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             AccessibilityNodeInfo root = window.getRoot();
             if (root != null) {
                 node = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-                if (eligible(node)) {
+                if (node != null && node.refresh() && eligible(node)) {
                     return node;
                 }
+                if (window.isActive() || window.isFocused()) {
+                    node = findFocusedDescendant(root, new int[]{256}, 0);
+                    if (node != null) {
+                        return node;
+                    }
+                }
+            }
+        }
+        return eligible(captured) ? captured : null;
+    }
+
+    private AccessibilityNodeInfo findFocusedDescendant(AccessibilityNodeInfo node, int[] remaining, int depth) {
+        if (remaining[0]-- <= 0 || depth > 32) {
+            return null;
+        }
+        if (node.isEditable() && node.isFocused() && node.refresh() && eligible(node)) {
+            return node;
+        }
+        for (int index = 0; index < node.getChildCount() && remaining[0] > 0; index++) {
+            AccessibilityNodeInfo child = node.getChild(index);
+            if (child == null) {
+                continue;
+            }
+            AccessibilityNodeInfo found = findFocusedDescendant(child, remaining, depth + 1);
+            if (found != child) {
+                child.recycle();
+            }
+            if (found != null) {
+                return found;
             }
         }
         return null;
     }
 
     private void updateTarget() {
-        if (destroyed || preferences == null) {
+        if (destroyed || preferences == null || preparingKeyboard) {
             return;
         }
         AccessibilityNodeInfo editor = preferences.floatingEnabled() ? findEditor() : null;
@@ -222,9 +284,6 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         anchorY = Math.max(Ui.dp(this, 32), Math.min(desired, display.height() - Ui.dp(this, 96)));
         if (bubble != null) {
             windows.updateViewLayout(bubble, overlayParams(Ui.dp(this, 56), Ui.dp(this, 56), anchorX, anchorY));
-        }
-        if (recordingActivity != null) {
-            recordingActivity.position(anchorX, anchorY);
         }
     }
 
@@ -297,9 +356,26 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             return;
         }
         captured = AccessibilityNodeInfo.obtain(editor);
+        if (Build.VERSION.SDK_INT >= 33) {
+            InputMethod method = getInputMethod();
+            EditorInfo info = method == null ? null : method.getCurrentInputEditorInfo();
+            if (info != null && samePackage(captured, info.packageName)) {
+                capturedEditorInfo = info;
+                capturedConnection = method.getCurrentInputConnection();
+            }
+        }
         original = TextInsertion.editorText(editor.getText(), editor.isShowingHintText());
         selectionStart = TextInsertion.editorSelection(original, editor.getTextSelectionStart());
         selectionEnd = TextInsertion.editorSelection(original, editor.getTextSelectionEnd());
+        if (Build.VERSION.SDK_INT >= 33 && (selectionStart < 0 || selectionEnd < 0)) {
+            SurroundingText actual = connectedText();
+            if (actual != null && actual.getOffset() == 0) {
+                original = actual.getText().toString();
+                selectionStart = actual.getSelectionStart();
+                selectionEnd = actual.getSelectionEnd();
+                connectionTarget = true;
+            }
+        }
         if (selectionStart < 0 || selectionEnd < 0 || selectionStart > original.length()
                 || selectionEnd > original.length() || original.length() > 200000) {
             releaseTarget();
@@ -308,11 +384,19 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         }
         session = guard.begin();
         hideBubble();
+        preparingKeyboard = true;
+        keyboardHideDeadline = android.os.SystemClock.uptimeMillis() + 1500;
+        hideKeyboardForRecording();
+        long expected = session;
+        main.postDelayed(() -> prepareHiddenEditor(expected, false), 250);
+    }
+
+    private void launchRecorder() {
+        preparingKeyboard = false;
+        keyboardHideDeadline = 0;
         Intent recorder = new Intent(this, RecordingActivity.class);
         recorder.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         recorder.putExtra("session", session);
-        recorder.putExtra("x", anchorX);
-        recorder.putExtra("y", anchorY);
         try {
             startActivity(recorder);
             long expected = session;
@@ -327,7 +411,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     boolean attachRecorder(RecordingActivity activity, long expected) {
-        if (!guard.accepts(expected) || !unchangedTarget()) {
+        if (!guard.accepts(expected) || captured == null) {
             return false;
         }
         recordingActivity = activity;
@@ -335,7 +419,11 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     void beginCapture(long expected) {
-        if (!guard.accepts(expected) || capture != null || sending || !unchangedTarget()) {
+        if (!guard.accepts(expected) || capture != null || sending) {
+            return;
+        }
+        if (!unchangedTarget()) {
+            cancelWork("입력창이 바뀌어 취소했습니다.");
             return;
         }
         capture = new AudioCapture(new AudioCapture.Listener() {
@@ -388,14 +476,139 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         refreshBubble();
     }
 
+    private void hideKeyboardForRecording() {
+        SoftKeyboardController controller = getSoftKeyboardController();
+        previousKeyboardMode = controller.getShowMode();
+        if (previousKeyboardMode != SHOW_MODE_HIDDEN) {
+            keyboardSuppressed = controller.setShowMode(SHOW_MODE_HIDDEN);
+        }
+    }
+
+    private void prepareHiddenEditor(long expected, boolean focusRequested) {
+        if (!guard.accepts(expected) || !preparingKeyboard) {
+            return;
+        }
+        AccessibilityNodeInfo current = findEditor();
+        AccessibilityNodeInfo active = getRootInActiveWindow();
+        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+        KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        if (!power.isInteractive() || keyguard.isKeyguardLocked()
+                || captured == null || !captured.refresh() || !captured.isEditable()
+                || !captured.isEnabled() || captured.isPassword() || (current != null && !captured.equals(current))
+                || active == null || !samePackage(active, captured.getPackageName().toString())
+                || active.getWindowId() != captured.getWindowId()
+                || android.os.SystemClock.uptimeMillis() >= keyboardHideDeadline) {
+            cancelWork("입력창이 닫혀 취소했습니다.");
+            return;
+        }
+        if (!captured.isVisibleToUser()) {
+            boolean requested = focusRequested;
+            main.postDelayed(() -> prepareHiddenEditor(expected, requested), 50);
+            return;
+        }
+        for (AccessibilityWindowInfo window : getWindows()) {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD && keyboardSuppressed) {
+                boolean requested = focusRequested;
+                main.postDelayed(() -> prepareHiddenEditor(expected, requested), 50);
+                return;
+            }
+        }
+        if (unchangedTarget()) {
+            position(captured);
+            launchRecorder();
+            return;
+        }
+        String currentText = TextInsertion.editorText(captured.getText(), captured.isShowingHintText());
+        if (!original.equals(currentText)
+                || TextInsertion.editorSelection(currentText, captured.getTextSelectionStart()) != selectionStart
+                || TextInsertion.editorSelection(currentText, captured.getTextSelectionEnd()) != selectionEnd) {
+            cancelWork("입력 내용이나 커서가 바뀌어 취소했습니다.");
+            return;
+        }
+        if (!captured.isFocused() && !focusRequested) {
+            if (!captured.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) {
+                cancelWork("입력창의 커서를 유지하지 못해 취소했습니다.");
+                return;
+            }
+            focusRequested = true;
+        }
+        if (Build.VERSION.SDK_INT < 33) {
+            cancelWork("입력창의 커서를 유지하지 못해 취소했습니다.");
+            return;
+        }
+        InputMethod method = getInputMethod();
+        EditorInfo info = method == null ? null : method.getCurrentInputEditorInfo();
+        InputMethod.AccessibilityInputConnection connection = method == null ? null : method.getCurrentInputConnection();
+        if (captured.refresh() && captured.isFocused() && info != null && connection != null
+                && samePackage(captured, info.packageName)) {
+            SurroundingText actual = connection.getSurroundingText(200001, 200001, 0);
+            if (!matchesCapturedText(actual)) {
+                cancelWork("입력 내용이나 커서가 바뀌어 취소했습니다.");
+                return;
+            }
+            capturedEditorInfo = info;
+            capturedConnection = connection;
+            connectionTarget = true;
+            position(captured);
+            launchRecorder();
+            return;
+        }
+        boolean requested = focusRequested;
+        main.postDelayed(() -> prepareHiddenEditor(expected, requested), 50);
+    }
+
+    private void restoreKeyboardMode() {
+        if (keyboardSuppressed) {
+            keyboardSuppressed = false;
+            SoftKeyboardController controller = getSoftKeyboardController();
+            if (controller.getShowMode() == SHOW_MODE_HIDDEN) {
+                controller.setShowMode(previousKeyboardMode);
+            }
+        }
+    }
+
     private boolean unchangedTarget() {
         if (captured == null || !captured.refresh() || !eligible(captured)) {
             return false;
+        }
+        if (capturedConnection != null && !sameInputConnection()) {
+            return false;
+        }
+        if (connectionTarget && Build.VERSION.SDK_INT >= 33) {
+            SurroundingText actual = connectedText();
+            return matchesCapturedText(actual);
         }
         String current = TextInsertion.editorText(captured.getText(), captured.isShowingHintText());
         return current.equals(original)
                 && TextInsertion.editorSelection(current, captured.getTextSelectionStart()) == selectionStart
                 && TextInsertion.editorSelection(current, captured.getTextSelectionEnd()) == selectionEnd;
+    }
+
+    private SurroundingText connectedText() {
+        if (Build.VERSION.SDK_INT < 33 || !sameInputConnection()) {
+            return null;
+        }
+        return capturedConnection.getSurroundingText(200001, 200001, 0);
+    }
+
+    @android.annotation.TargetApi(31)
+    private boolean matchesCapturedText(SurroundingText actual) {
+        if (actual == null || !original.contentEquals(actual.getText())
+                || actual.getSelectionStart() != selectionStart || actual.getSelectionEnd() != selectionEnd) {
+            return false;
+        }
+        return actual.getOffset() == 0 || (actual.getOffset() == -1 && original.isEmpty()
+                && selectionStart == 0 && selectionEnd == 0 && !captured.isShowingHintText()
+                && captured.getText() != null && captured.getText().length() == 0);
+    }
+
+    private boolean sameInputConnection() {
+        if (Build.VERSION.SDK_INT < 33 || captured == null || capturedConnection == null || capturedEditorInfo == null) {
+            return false;
+        }
+        InputMethod method = getInputMethod();
+        return method != null && method.getCurrentInputEditorInfo() == capturedEditorInfo
+                && method.getCurrentInputConnection() != null && samePackage(captured, capturedEditorInfo.packageName);
     }
 
     private void insert(String text) {
@@ -408,15 +621,12 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         boolean inserted = false;
         try {
             if (Build.VERSION.SDK_INT >= 33) {
-                InputMethod method = getInputMethod();
-                EditorInfo info = method == null ? null : method.getCurrentInputEditorInfo();
-                InputMethod.AccessibilityInputConnection connection = method == null ? null : method.getCurrentInputConnection();
-                if (connection != null && info != null && samePackage(captured, info.packageName)) {
-                    connection.commitText(text, 1, null);
+                if (sameInputConnection()) {
+                    capturedConnection.commitText(text, 1, null);
                     inserted = true;
                 }
             }
-            if (!inserted) {
+            if (!inserted && !connectionTarget) {
                 String updated = TextInsertion.replaceSelection(original, selectionStart, selectionEnd, text);
                 Bundle arguments = new Bundle();
                 arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, updated);
@@ -434,7 +644,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         } finally {
             writing = false;
         }
-        cancelWork(inserted ? "음성 입력을 전달했습니다." : "이 앱의 입력창에서 음성 입력을 지원하지 않습니다.");
+        finishWork(inserted ? "음성 입력을 전달했습니다." : "이 앱의 입력창에서 음성 입력을 지원하지 않습니다.", inserted);
     }
 
     private void releaseTarget() {
@@ -443,11 +653,20 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             captured = null;
         }
         original = null;
+        capturedEditorInfo = null;
+        capturedConnection = null;
+        connectionTarget = false;
     }
 
     void cancelWork(String message) {
+        finishWork(message, false);
+    }
+
+    private void finishWork(String message, boolean delivered) {
         boolean wasActive = guard.isActive();
         guard.invalidate();
+        preparingKeyboard = false;
+        keyboardHideDeadline = 0;
         if (capture != null) {
             capture.cancel();
             capture = null;
@@ -459,17 +678,38 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         sending = false;
         releaseTarget();
         RecordingActivity activity = recordingActivity;
-        recordingActivity = null;
-        if (activity != null) {
-            activity.complete();
+        boolean showingResult = delivered && activity != null;
+        if (showingResult) {
+            activity.delivered();
+        } else {
+            recordingActivity = null;
+            if (activity != null) {
+                activity.complete();
+            }
+            restoreKeyboardMode();
         }
         closePalette();
         refreshBubble();
-        if (wasActive && message != null) {
+        if (wasActive && message != null && !showingResult) {
             notice(message);
         }
         if (!destroyed) {
             scheduleUpdate();
+        }
+    }
+
+    void recorderDismissed(RecordingActivity activity) {
+        if (recordingActivity == activity) {
+            recordingActivity = null;
+            restoreKeyboardMode();
+            scheduleUpdate();
+        }
+    }
+
+    void selectRecordingMode(String mode) {
+        if (guard.isActive() && !sending) {
+            preferences.mode(Modes.IDS[Modes.index(mode)]);
+            refreshBubble();
         }
     }
 

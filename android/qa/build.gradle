@@ -1,0 +1,45 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.ultrastt.androidvoice.qa'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+
+    defaultConfig {
+        applicationId 'com.ultrastt.androidvoice.qa'
+        minSdk 28
+        targetSdk 36
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('.local/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    sourceSets {
+        main.java.srcDirs = ['../app/src/androidTest/java', layout.buildDirectory.dir('generated/panel-sources')]
+        main.java.includes = ['**/EditorChecks.java', '**/EditorActivity.java', '**/RecordingPanelView.java', '**/Ui.java', '**/Modes.java']
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+def syncPanelSources = tasks.register('syncPanelSources', Sync) {
+    from('../app/src/main/java') {
+        include '**/RecordingPanelView.java', '**/Ui.java', '**/Modes.java'
+    }
+    into layout.buildDirectory.dir('generated/panel-sources')
+}
+
+tasks.named('preBuild').configure {
+    dependsOn syncPanelSources
+}
