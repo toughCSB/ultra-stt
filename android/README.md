@@ -139,7 +139,11 @@ AI 배경 제거 후보는 사용하지 않았고, 사용자 승인 후 원본 �
 - `findFocus`가 잘못된 호스트를 반환하는 가상 입력창 검사는 수정 전 실패, 수정 후 통과했다. 같은 구조의 비밀번호·포커스 없는 칸은 거부하는 검사도 통과했다.
 - 실제 발화를 전송하지 않은 자동 검증이다. 모든 앱 호환성이나 서버 왕복·실제 문장 삽입 완료를 이 검사만으로 보장하지 않는다.
 
-<img src="../docs/images/android-recording-panel-9.png" alt="갤럭시에 설치한 작은 반투명 녹음창과 원본 Ultra STT 타이포그래피" width="280" />
+| 길게 누른 뒤 드래그로 선택 | 현재 모드·시간·종료 | 녹음 중 모드 변경 |
+| :---: | :---: | :---: |
+| <img src="../docs/images/android-mode-drag.png" alt="반원 모드 메뉴에서 구조화가 흰 테두리로 강조된 실제 화면" width="240" /> | <img src="../docs/images/android-recording-chatgpt.png" alt="키보드를 숨긴 녹색 중앙 녹음창" width="240" /> | <img src="../docs/images/android-recording-mode-picker.png" alt="녹음 중 다섯 모드를 펼쳐 선택하는 실제 화면" width="240" /> |
+
+2026-10-03 실제 Galaxy .9와 ChatGPT 새 입력창에서 촬영했습니다. 영어 예시 초안은 직접 입력한 미전송 문구로 촬영 뒤 삭제했고, 녹음은 취소했으며 음성을 업로드하지 않았습니다. [대기 버튼을 포함한 다섯 장과 조작 순서](../README_ko.md#모바일--익숙한-키보드는-그대로-녹음창은-작게). 드래그는 모드 선택이며 버튼 위치 이동은 지원하지 않습니다.
 
 [위젯 문제 원인과 검증 상세](../docs/2026-10-03-android-widget-entry.md).
 

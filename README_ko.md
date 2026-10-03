@@ -22,12 +22,28 @@
 
 > **현재 릴리스:** [개인 프리뷰 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2)는 Android **1.1.62-android.9**와 기존 그대로인 Windows·Mac 1.1.62 설치 파일을 제공합니다. [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt)는 사용자 소유 **비공개** 저장소이며, 접근 권한이 있는 계정으로 내려받습니다. Android는 삼성 키보드·Gboard를 대체하지 않습니다. Linux·Mac Intel은 이번 배포 대상이 아니고, iOS는 브라우저 녹음·복사·공유 단계입니다. [Android 설치](android/README.md) · [검증·한계](docs/VALIDATION.md).
 
+> **데스크톱 후속 수정 (10월 3일):** 녹음창이 다른 창 뒤에 가려지지 않도록 표시 순서를 다시 올립니다. 입력창의 포커스는 빼앗지 않으며, Home에서 사용자 실사용 확인을 받았습니다. 현재 소스는 개인 프리뷰 2의 기존 데스크톱 다운로드보다 최신입니다. [수정·설치 현황과 한계](docs/2026-10-03-capsule-topmost.md).
+
 ## 모바일 — 익숙한 키보드는 그대로, 녹음창은 작게
 
-<p align="center">
-  <img src="docs/images/android-recording-panel-9.png" width="280" alt="갤럭시 Android .9 실제 녹음창: 원본 Ultra STT 로고, 최소 모드, 녹음 시간, 종료 버튼" />
-</p>
-<p align="center"><em>2026년 10월 3일 설치된 갤럭시 앱의 실제 화면입니다. 뒤쪽은 개인 대화가 아닌 빈 테스트 입력창입니다.</em></p>
+| ① 길게 누르면 다섯 모드 | ② 드래그하고 손을 떼면 선택 | ③ 키보드 없이 녹음 |
+| :---: | :---: | :---: |
+| <a href="docs/images/android-radial-modes.png"><img src="docs/images/android-radial-modes.png" width="240" alt="기존 키보드 위 마이크 주변에 다섯 색상·아이콘의 반원 메뉴가 펼쳐진 실제 화면" /></a> | <a href="docs/images/android-mode-drag.png"><img src="docs/images/android-mode-drag.png" width="240" alt="구조화 아이콘으로 드래그하면 파란 목록 아이콘에 흰 선택 테두리가 표시됩니다" /></a> | <a href="docs/images/android-recording-chatgpt.png"><img src="docs/images/android-recording-chatgpt.png" width="240" alt="키보드가 숨겨지고 현재 모드·녹음 시간·종료·취소가 표시되는 녹색 녹음창" /></a> |
+
+**꾹 누르기 → 원하는 아이콘 쪽으로 밀기 → 손 떼기.** 흰 테두리가 생긴 모드가 선택되고, 마이크 버튼 전체 색상도 바뀝니다. 이 드래그는 **모드 선택용**이며 버튼 위치 이동 기능은 아닙니다.
+
+<details>
+<summary>대기 중 마이크와 녹음 중 모드 선택 화면 더 보기</summary>
+
+| 익숙한 키보드 + 작은 마이크 | 녹음 중에도 모드 변경 |
+| :---: | :---: |
+| <a href="docs/images/android-idle-mic.png"><img src="docs/images/android-idle-mic.png" width="260" alt="삼성 키보드를 유지하면서 구조화 모드의 파란 마이크가 떠 있는 실제 화면" /></a> | <a href="docs/images/android-recording-mode-picker.png"><img src="docs/images/android-recording-mode-picker.png" width="260" alt="녹음창 안에서 원문·최소·깔끔하게·구조화·전문적으로를 선택하는 화면" /></a> |
+
+</details>
+
+2026년 10월 3일 갤럭시 Android .9의 실제 화면입니다. 이미지를 누르면 크게 볼 수 있습니다. 배경은 ChatGPT의 새 입력창이며, 영어 예시 문구는 설명용으로 직접 입력한 미전송 초안입니다. 전사 결과가 아니며 촬영 후 지웠습니다. 녹음도 촬영 후 취소해 음성을 업로드하지 않았습니다. 화면 합성이나 개인 대화 공개는 하지 않았습니다.
+
+**녹음창 구성:** 위에는 원본 로고와 `× 취소`, 가운데에는 움직이는 마이크·상태·녹음 시간, 아래에는 현재 모드와 큰 `녹음 종료` 버튼이 있습니다. 녹음 시작과 함께 키보드가 접히고, 모드 이름을 누르면 다섯 선택지가 펼쳐집니다.
 
 | 순서 | 화면과 동작 |
 | --- | --- |

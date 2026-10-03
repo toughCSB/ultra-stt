@@ -24,12 +24,28 @@
 
 > **Current release:** [Personal Preview 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2) includes Android **1.1.62-android.9** and unchanged Windows/Mac 1.1.62 installers. This is the user-owned **private** repository [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt); repository access is required to download. Android keeps your existing keyboard. Linux and Intel Mac are not validated release targets; iOS remains a browser recorder. [Android setup](android/README.md) · [Korean guide](README_ko.md).
 
+> **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
+
 ## Android: your keyboard, a smaller voice panel
 
-<p align="center">
-  <img src="docs/images/android-recording-panel-9.png" width="280" alt="Actual Galaxy Android .9 recording panel: original Ultra STT wordmark, active mode, elapsed time and stop button" />
-</p>
-<p align="center"><em>Actual installed Galaxy app, October 3, 2026. The background is an empty QA editor, not a conversation or mockup.</em></p>
+| Hold to reveal five modes | Drag and release to choose | Record without the keyboard |
+| :---: | :---: | :---: |
+| <a href="docs/images/android-radial-modes.png"><img src="docs/images/android-radial-modes.png" width="240" alt="Five differently colored mode icons unfold around the microphone over an existing Android keyboard" /></a> | <a href="docs/images/android-mode-drag.png"><img src="docs/images/android-mode-drag.png" width="240" alt="Dragging toward Structured highlights its blue list icon with a white ring" /></a> | <a href="docs/images/android-recording-chatgpt.png"><img src="docs/images/android-recording-chatgpt.png" width="240" alt="The keyboard is hidden and the green recording panel displays Structured mode, timer, stop and cancel" /></a> |
+
+**Press and hold → slide toward an icon → release.** The highlighted icon selects the cleanup style; the microphone's full color reflects the selection. This gesture changes **mode**, not the button's screen position.
+
+<details>
+<summary>See the idle microphone and the in-recording mode picker</summary>
+
+| Existing keyboard + idle microphone | Change style while recording |
+| :---: | :---: |
+| <a href="docs/images/android-idle-mic.png"><img src="docs/images/android-idle-mic.png" width="260" alt="An existing Samsung keyboard and a blue microphone for Structured mode" /></a> | <a href="docs/images/android-recording-mode-picker.png"><img src="docs/images/android-recording-mode-picker.png" width="260" alt="The recording panel expands to list Original, Minimal, Clean, Structured and Professional" /></a> |
+
+</details>
+
+Actual Galaxy Android .9 screenshots, October 3, 2026, above a new ChatGPT composer. Click to enlarge. The English demo draft was manually entered for illustration, never sent, and removed afterwards; it is not a transcription result. Recording was cancelled after capture without uploading audio. No composited UI or personal conversations are included.
+
+**Panel anatomy:** original Ultra STT wordmark and × at the top; animated microphone, status and elapsed time in the middle; current mode with a dropdown; a large stop button at the bottom. The keyboard hides when recording starts. Tap the mode name to open the five full-name choices without leaving the panel.
 
 | Step | What happens |
 | --- | --- |
