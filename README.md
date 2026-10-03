@@ -22,7 +22,26 @@
 </p>
 <p align="center"><em>Actual installed Windows app, captured October 2, 2026. Minimal is selected.</em></p>
 
-> **Project status:** This is the user-owned **private** repository at [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt). The [personal preview release](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.1) provides Windows x64, Apple Silicon Mac, and Android `1.1.62-android.5` downloads. GitHub repository access is required. Android keeps the existing keyboard, and the user confirmed real Korean speech-to-cursor input in the app's test field. This is not universal editor compatibility. Linux and Intel Mac are not validated release targets; iOS remains a browser recorder. [Android setup](android/README.md) · [Detailed Korean explanation](README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기).
+> **Current release:** [Personal Preview 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2) includes Android **1.1.62-android.9** and unchanged Windows/Mac 1.1.62 installers. This is the user-owned **private** repository [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt); repository access is required to download. Android keeps your existing keyboard. Linux and Intel Mac are not validated release targets; iOS remains a browser recorder. [Android setup](android/README.md) · [Korean guide](README_ko.md).
+
+## Android: your keyboard, a smaller voice panel
+
+<p align="center">
+  <img src="docs/images/android-recording-panel-9.png" width="280" alt="Actual Galaxy Android .9 recording panel: original Ultra STT wordmark, active mode, elapsed time and stop button" />
+</p>
+<p align="center"><em>Actual installed Galaxy app, October 3, 2026. The background is an empty QA editor, not a conversation or mockup.</em></p>
+
+| Step | What happens |
+| --- | --- |
+| Start | Tap the small microphone in the active editor. The text keyboard hides and the green central panel opens. |
+| Speak | See the current mode, elapsed time and pulsing microphone. Tap the mode name to change style. |
+| Finish | Tap Stop recording. Processing is shown and repeat taps cannot submit twice. |
+| Deliver | Text is handed to the original editor; a completion notice stays for 1.2 seconds, then the panel closes. It does not send a chat message. |
+| Cancel | Tap × or leave the app. A changed editor or cursor prevents stale insertion. |
+
+Five full-button colors and the idle long-press semicircle mode selector remain. The panel is now 264dp wide with a more translucent background and the original wordmark. ChatGPT/Grok widget-entry detection, delayed editor detection and keyboard-hide transitions are improved. Paired IP routing needs no Tailscale DNS.
+
+**Verified:** 80 Java checks, 18 device scenarios, and five actual home-widget entries each for ChatGPT and Grok without an extra editor tap. Final .9 recording/hiding/cancellation is checked; these automated checks do not upload speech or establish universal editor compatibility. [Android details](android/README.md) · [Test evidence](docs/2026-10-03-android-widget-entry.md).
 
 ## Why Ultra STT?
 
@@ -52,7 +71,7 @@ The originating device inserts into the original text field
 
 **Why not a replacement keyboard?** The first Android keyboard was removed because switching away from the usual keyboard was inconvenient. The current app uses a small accessibility voice button over the active editable field, leaving Samsung Keyboard or Gboard in place. Accessibility is needed to identify that field and insert text; microphone permission is needed to record. Password fields are excluded, existing editor text is not sent to the server, and a changed editor/cursor cancels the operation so a late result does not land in the wrong conversation. Special editors may not support this insertion path.
 
-**What do the button states mean?** Tap to record; tap again to stop and send. A white stop square, timer, and breathing animation mean recording. A spinner means processing; tapping it again only explains that work is in progress, rather than cancelling it. Hold, drag to one of five icons on the semicircle, and release to select a mode. The whole button changes color, not a tiny badge. Recording and networking have separate workers so a delayed request cannot block the next microphone operation.
+**What do the button states mean?** The Android workflow above separates recording, processing and delivery. Before recording, hold and drag to one of five semicircle icons to select a mode; during recording, tap the panel's mode name. The idle button changes its whole color, not a tiny badge. Recording and networking have separate workers so a delayed request cannot block the next microphone operation.
 
 **Why the extra connection handling?** The tested phone could connect to Tailscale but could not resolve the host's name. Pairing therefore supplies a private IP mapping for that host only. The original HTTPS hostname, certificate checks, encryption, and server token remain mandatory. No global DNS/VPN changes or insecure TLS fallback are used. If the host's Tailscale IP changes, pair again. Tokens are not embedded in downloads; Android encrypts its provisioned token with Android Keystore, while desktop credentials use the OS vault.
 
@@ -62,13 +81,13 @@ Cleanup still takes seconds depending on the request and network. Fast mode and 
 
 ## Downloads and first setup
 
-Use the [private personal preview release](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.1). Repository access is required; downloads do not contain server credentials or models.
+Use [Personal Preview 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2). Repository access is required; downloads do not contain server credentials or models. Windows/Mac assets are byte-for-byte unchanged from Preview 1; this release updates Android and documentation only.
 
 | Device | Download | First setup |
 | --- | --- | --- |
-| Windows x64 | `Ultra-STT-1.1.62-windows-x64-setup.exe` | Install; configure a speech provider or pair with your server. The approved home PC uses SB and `Ctrl+Alt+R` toggle capture. |
+| Windows x64 | `Ultra-STT-1.1.62-windows-x64-setup.exe` | Install; configure a speech provider or pair with your server. Use the shortcut saved in Settings; existing bindings are preserved. |
 | Apple Silicon Mac | `Ultra-STT-1.1.62-macos-arm64.zip` | Extract the app into Applications; explicitly allow microphone and Accessibility; configure the server. |
-| Android (min SDK 28) | `Ultra-STT-1.1.62-android.5-debug.apk` | Install/update; pair once; allow microphone and the accessibility voice button. Keep your normal keyboard. [Steps and tested device](android/README.md). |
+| Android (min SDK 28) | `Ultra-STT-1.1.62-android.9-debug.apk` | Update without uninstalling; existing pairing remains. New devices pair once and allow microphone/accessibility. Keep your normal keyboard. [Steps and tested device](android/README.md). |
 
 This is a **personal prerelease**, not a store release: Windows is unsigned, Mac is ad-hoc signed and not notarized, and Android is a debug APK. Check `SHA256SUMS.txt` against your download; a checksum checks file integrity, not a trusted publisher signature. Follow OS warnings rather than globally disabling security protections. Updates are manual; no signed `latest.json` automatic-update feed is published. Android updates must retain the signing key and app data. Intel Mac, Linux, Windows ARM, native iOS, and offline phone inference are not released targets.
 
@@ -230,7 +249,7 @@ Do not copy authentication files from the development profile. The current Mac r
 
 The 1.1.62 snapshot has **414 frontend tests**, **629 Windows native tests**, and **635 Mac native tests** passing; three live/provider-dependent native tests are excluded from each default run. Production builds and personal installs completed on both validated desktop targets. The Mac-to-Windows smoke test exercised all five modes, AI disabled, legacy requests, invalid headers, missing authentication, and client cancellation.
 
-Latest physical Mac microphone → cursor → Esc acceptance remains a separate manual check, not something unit tests prove. Android 1.1.62-android.5 adds a pulsing stop button with an elapsed timer, a processing spinner and app-only paired Tailscale IP routing while preserving HTTPS verification and Bearer authentication. Processing taps no longer cancel the request. The build, 80 logic checks, lint, signature and 10 real-device transport checks pass. The user confirmed real Korean speech-to-cursor input in the app's test field; this is not universal third-party editor compatibility. It does not replace the default keyboard. Native iOS input integration remains future work. [Desktop validation details](docs/VALIDATION.md) · [Android scope and setup](android/README.md).
+Latest physical Mac microphone → cursor → Esc acceptance remains a separate manual check. Android .9 passes 80 logic checks, build/lint/signature verification, 18 device scenarios and five actual home-widget entries each for ChatGPT and Grok. Earlier .5 has 10 device transport checks and user-confirmed Korean speech insertion; that is not a new .9 spoken end-to-end check or universal editor compatibility. The default keyboard is preserved. The reported Windows Home wake-up/shortcut incident remains under observation: no recovery feature was added in this release. Native iOS input integration remains future work. [Validation and known limits](docs/VALIDATION.md) · [Android setup](android/README.md).
 
 ## Documentation & credits
 

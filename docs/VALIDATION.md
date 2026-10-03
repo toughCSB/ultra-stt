@@ -20,6 +20,8 @@
 | Mac → Windows 원격 smoke | 통과 | 다섯 모드·legacy·AI 비활성화·잘못된 헤더·인증 거부 |
 | 클라이언트 취소 | 통과 | Mac HTTP 연결 종료 후 설치 서버의 작업 취소 로그 확인 |
 | Android 재검증 | Java 80개 검사·APK 빌드·서명 검사 통과 | Android Lint 오류 0; debug 서명, SDK XML·Gradle 경고는 남음 |
+| Android .9 입력창·UI | 실기기 시나리오 18개 통과 | stale-focus 재현/비밀번호/비포커스 거부, 중앙창 상태·취소, 기존 입력창·키보드 회귀 |
+| Android .9 홈 위젯 | ChatGPT 5/5, Grok 5/5 | 실제 위젯 터치 후 입력칸 재터치 없이 버튼 표시; 각각 녹음·숨김·Home 취소 확인 |
 | 집 PC 설치 | 1.1.62 설치·실행·서버 인증 통과 | 사용자 console 세션, portable runtime marker, NSIS payload 일치, 평문 토큰 없는 설정, HTTPS 인증 probe |
 
 기본 실행에서 제외한 native live 테스트는 외부 로그인·서비스와 사용량이 필요하다. 기본 suite 숫자를 모든 제공자에 대한 실마이크 acceptance 숫자로 해석하지 않는다. UI 테스트에는 의도적인 오류 경로의 stderr와 animation mock 관련 경고가 있을 수 있으며, 통과·실패 결과와 구분한다.
@@ -30,7 +32,7 @@ Windows 모드 전환·취소는 이전 사용자 확인과 앱 로그가 있다
 
 ## GitHub 자동 검사 상태 — 로컬 기능 검증과 별도
 
-릴리스 소스 `df1ef499104bf4e5f89c55ee4ab7b8c025d20d22`의 GitHub 검사를 확인했다. **CI 전체가 통과한 릴리스는 아니다.** 이전 main `e3b3f31`에도 CI·Typos·CodeQL 실패가 있었으며, 이번 Android·문서 커밋은 기존 데스크톱 소스·npm 의존성·workflow를 변경하지 않았다.
+아래는 **이전 개인 프리뷰 1** 소스 `df1ef499104bf4e5f89c55ee4ab7b8c025d20d22`의 GitHub 검사 기록이다. **CI 전체가 통과한 릴리스는 아니다.** 개인 프리뷰 2 역시 기존 데스크톱 소스·npm 의존성·workflow를 변경하지 않았다. 아래 결과를 새 커밋의 검사 결과로 간주하지 않는다. 최신 상태는 [GitHub Actions](https://github.com/toughCSB/ultra-stt/actions)에서 확인한다.
 
 - [CI](https://github.com/toughCSB/ultra-stt/actions/runs/37024983654): 기존 Rust `cargo fmt --check`와 frontend Prettier 서식 검사가 실패했다. `npm audit`는 4건(High 1, Moderate 3)을 보고했고, 그 뒤 Cargo audit는 건너뛰었다. 현재 High는 `brace-expansion 5.0.9`이며 lockfile에서 개발 의존성으로 확인했다. 이를 보안 검사 통과로 표시하지 않는다.
 - [Typos](https://github.com/toughCSB/ultra-stt/actions/runs/37024983650): 기존 코드·다국어 문자열의 `ine`, `Profesional`, `Profissional` 지적으로 실패했다.
@@ -90,8 +92,9 @@ cargo test --locked --lib --manifest-path src-tauri/Cargo.toml
 | [ultra-stt-dashboard.png](images/ultra-stt-dashboard.png) | 홈: 다섯 모드, Minimal 체크, 날짜별 기록 건수, 현재 제공자 |
 | [ultra-stt-ai-settings.png](images/ultra-stt-ai-settings.png) | AI 설정: 구독 Codex, 모델, 활성 여부, 스타일 |
 | [ultra-stt-shortcuts.png](images/ultra-stt-shortcuts.png) | 일반 설정: 단축키, 녹음·출력 방식 |
+| [android-recording-panel-9.png](images/android-recording-panel-9.png) | 2026-10-03 갤럭시 .9: 작은 반투명 중앙창·원본 로고·모드·타이머·종료 버튼, 빈 QA 입력칸 위 실제 촬영 |
 
-모두 2026-10-02 설치된 Windows 1.1.62의 실제 화면이다. 창 바깥과 불필요한 여백만 제외하여 직접 캡처했으며 화면 요소나 기록 내용을 합성하지 않았다. API 키·개인 전사 본문은 캡처하지 않았다. Mac의 실제 화면이라고 표시하지 않는다. 버튼 그림은 [별도 생성 자산](polish-mode-assets.md)이다.
+위 Windows 세 장은 2026-10-02 설치된 Windows 1.1.62의 실제 화면이다. Android 한 장은 다음 날 실기기 테스트 중 촬영했고 개인 대화가 아닌 빈 QA 입력칸을 사용했다. 화면 요소나 기록 내용을 합성하지 않았다. API 키·개인 전사 본문은 캡처하지 않았다. Mac의 실제 화면이라고 표시하지 않는다. 버튼 그림은 [별도 생성 자산](polish-mode-assets.md)이다.
 
 ## 알려진 한계·남은 작업
 
@@ -100,7 +103,7 @@ cargo test --locked --lib --manifest-path src-tauri/Cargo.toml
 - **Mac 원격의 고급 설정:** 현재는 모드·활성 여부만 전달한다. 로컬 선택 텍스트·번역·씬·사전 설정 전체를 전달하지 않는다.
 - **기록 그래프:** 전체 DB가 아닌 현재 불러온 최대 200건 기준이다. 처리 시간은 세션의 마지막 작업 기준이다.
 - **플랫폼:** Windows x64·Mac arm64 외 Linux·Mac Intel·Windows ARM은 이번 설치 검증 대상이 아니다.
-- **배포:** [개인 프리뷰 릴리스](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.1)는 Windows·Mac·Android 수동 설치용이다. Windows 미서명·Mac ad-hoc 서명·Android debug APK이며, 자동 업데이트용 서명 패키지·`latest.json`은 게시하지 않는다. 개인 Mac 서명은 notarization이 아니다.
-- **집 PC:** SB 서버를 쓰도록 설치·인증·실행을 확인했다. `Ctrl+Alt+R` 토글·Minimal·커서 입력으로 설정했고, 기존 키보드·개발 Codex 로그인은 변경하지 않았다. 새 앱의 자동 시작은 끈 상태로 설치했다. 사용자가 실제 집 PC 음성→커서 입력 성공을 확인했다. 원격 받아쓰기에 집 PC의 별도 Codex 로그인은 필요 없다.
-- **모바일:** Android 1.1.62-android.5는 기존 키보드를 유지하며 5색 버튼·반원 드래그·녹음 중 종료 버튼과 시간·처리 회전 표시를 제공한다. 앱 전용 Tailscale IP 연결로 휴대폰의 HTTPS·인증 확인이 통과했다. 잘못된 인증 거부 등을 포함한 기기 통신 10개 검사와 Java 80개 검사도 통과했다. 사용자가 앱 테스트 입력창에서 실제 한국어 음성 전사→커서 입력 성공을 확인했다. 모든 외부 앱의 편집기 호환성을 검증한 것은 아니다. iOS는 브라우저 복사·공유 단계다. [Android 범위·설정·검증](../android/README.md).
+- **배포:** [개인 프리뷰 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2)는 Android .9와 이전 그대로인 Windows·Mac 수동 설치 파일을 제공한다. Windows 미서명·Mac ad-hoc 서명·Android debug APK이며, 자동 업데이트용 서명 패키지·`latest.json`은 게시하지 않는다. 개인 Mac 서명은 notarization이 아니다.
+- **집 PC:** SB 연결과 실제 음성→커서 입력은 확인했다. 단축키는 사용자 설정을 유지한다. 절전 복귀 후 단축키 무반응·앱 재시작 복구 보고가 있으며 당시 오류 로그가 없어 원인은 미확정이다. 사용자 요청에 따라 관찰만 하고, 이번 릴리스에 절전 복구 기능·새 프로그램 설치를 추가하지 않았다. 원격 받아쓰기에 집 PC의 별도 Codex 로그인은 필요 없다.
+- **모바일:** Android .9는 18개 기기 시나리오 및 실제 위젯 진입 검증을 통과했다. 이전 .5에서 HTTPS·잘못된 인증 거부 등을 포함한 통신 10개 검사와 사용자 실발화 입력이 확인됐다. 최신 .9 자동 검사는 발화를 업로드하지 않았으며 서버 왕복·문장 삽입·자동 완료의 새 전체 경로 확인을 의미하지 않는다. 모든 외부 편집기를 검증한 것은 아니다. iOS는 브라우저 복사·공유 단계다. [Android 범위·설정·검증](../android/README.md).
 - **제공자·언어:** 기능 범위는 선택한 제공자에 따라 다르고, 일부 고급 UI 설명은 영어 fallback이다.
