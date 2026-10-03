@@ -1,5 +1,6 @@
 pub mod app_detector;
 pub mod audio;
+mod capsule_window;
 pub mod commands;
 pub mod credentials;
 pub mod dictionary_io;
@@ -1278,6 +1279,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            capsule_window::raise_capsule,
             start_recording,
             stop_recording,
             abort_recording,

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { useAppStore, type PipelineState } from '../stores/appStore'
 
 interface CapsuleSize {
@@ -36,6 +37,12 @@ export interface CapsuleMonitorGeometry extends CapsuleMonitorBounds, CapsulePla
 export interface CapsuleWindowRect extends PhysicalPoint, PhysicalDimensions {}
 
 const CAPSULE_BOTTOM_MARGIN = 80
+
+async function raiseCapsule(): Promise<void> {
+  await invoke('raise_capsule').catch((error) =>
+    console.warn('Could not raise recording capsule', error),
+  )
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max))
@@ -171,6 +178,19 @@ export function useCapsuleResize() {
   const hasError = pipelineError !== null
 
   useEffect(() => {
+    if (pipelineState === 'idle') return
+    let pending = false
+    const interval = setInterval(() => {
+      if (pending) return
+      pending = true
+      void raiseCapsule().finally(() => {
+        pending = false
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [pipelineState])
+
+  useEffect(() => {
     const generation = ++effectGeneration.current
     let cancelled = false
     const isCurrent = () => !cancelled && effectGeneration.current === generation
@@ -248,6 +268,7 @@ export function useCapsuleResize() {
             if (!isCurrent()) return
             if (shouldShow) {
               await win.show().catch(() => {})
+              if (isCurrent()) await raiseCapsule()
             } else {
               await win.hide().catch(() => {})
             }
@@ -361,6 +382,7 @@ export function useCapsuleResize() {
           if (!isCurrent()) return
           if (shouldShow) {
             await win.show().catch(() => {})
+            if (isCurrent()) await raiseCapsule()
           } else {
             await win.hide().catch(() => {})
           }

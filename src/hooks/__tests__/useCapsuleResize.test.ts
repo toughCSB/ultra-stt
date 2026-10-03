@@ -24,7 +24,10 @@ const windowApiMocks = vi.hoisted(() => ({
   scaleFactor: vi.fn(),
   show: vi.fn(),
   hide: vi.fn(),
+  invoke: vi.fn(),
 }))
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: windowApiMocks.invoke }))
 
 vi.mock('@tauri-apps/api/window', () => {
   class LogicalSize {
@@ -316,6 +319,7 @@ describe('useCapsuleResize async updates', () => {
       contextMenuOpen: false,
       contextMenuReady: false,
       translationTargetMenuOpen: false,
+      polishModeMenuOpen: false,
       config: { ...state.config, capsule_auto_hide: true },
     }))
 
@@ -340,10 +344,44 @@ describe('useCapsuleResize async updates', () => {
     windowApiMocks.scaleFactor.mockReset().mockResolvedValue(1)
     windowApiMocks.show.mockReset().mockResolvedValue(undefined)
     windowApiMocks.hide.mockReset().mockResolvedValue(undefined)
+    windowApiMocks.invoke.mockReset().mockResolvedValue(undefined)
   })
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('raises the capsule after showing it on every recording cycle without taking focus', async () => {
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(1))
+    expect(windowApiMocks.invoke).not.toHaveBeenCalled()
+
+    for (let cycle = 0; cycle < 2; cycle++) {
+      act(() => useAppStore.setState({ pipelineState: 'recording' }))
+      await waitFor(() => expect(windowApiMocks.invoke).toHaveBeenCalledTimes(cycle + 1))
+      expect(windowApiMocks.invoke).toHaveBeenLastCalledWith('raise_capsule')
+      expect(windowApiMocks.show.mock.invocationCallOrder[cycle]).toBeLessThan(
+        windowApiMocks.invoke.mock.invocationCallOrder[cycle],
+      )
+      expect(windowApiMocks.setFocusable).toHaveBeenLastCalledWith(false)
+      act(() => useAppStore.setState({ pipelineState: 'idle' }))
+      await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(cycle + 2))
+    }
+  })
+
+  it('reasserts stacking during recording and stops when the capsule becomes idle', async () => {
+    useAppStore.setState({ pipelineState: 'recording' })
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.invoke).toHaveBeenCalled())
+    const initialCalls = windowApiMocks.invoke.mock.calls.length
+    await waitFor(() => expect(windowApiMocks.invoke.mock.calls.length).toBeGreaterThan(initialCalls), {
+      timeout: 1800,
+    })
+    act(() => useAppStore.setState({ pipelineState: 'idle' }))
+    await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalled())
+    const stoppedCalls = windowApiMocks.invoke.mock.calls.length
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(windowApiMocks.invoke).toHaveBeenCalledTimes(stoppedCalls)
   })
 
   it('prevents a superseded async resize from overwriting the latest window state', async () => {
