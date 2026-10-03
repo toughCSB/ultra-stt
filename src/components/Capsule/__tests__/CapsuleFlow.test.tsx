@@ -1,9 +1,9 @@
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '../../../stores/appStore'
-import { abortAskDictation, abortRecording, setActiveTranslationTarget, setPolishStyle, stopAskFlow } from '../../../lib/tauri'
+import { abortAskDictation, abortRecording, copyRecoveryEntry, setActiveTranslationTarget, setPolishStyle, stopAskFlow } from '../../../lib/tauri'
 import { Capsule } from '../index'
 
 vi.mock('framer-motion', () => ({
@@ -39,6 +39,7 @@ vi.mock('../../../lib/tauri', () => ({
   }),
   setCapsuleAutoHide: vi.fn().mockResolvedValue(undefined),
   stopAskFlow: vi.fn().mockResolvedValue(undefined),
+  copyRecoveryEntry: vi.fn().mockResolvedValue(undefined),
   setPolishStyle: vi.fn().mockResolvedValue({ polish_style: 'original', polish_enabled: true }),
 }))
 
@@ -71,6 +72,22 @@ describe('Capsule flow states', () => {
 
     expect(shell?.querySelectorAll('img')).toHaveLength(1)
     expect(shell?.querySelectorAll('svg')).toHaveLength(0)
+  })
+
+  it('keeps a failed finished sentence available from the idle capsule without stopping capture', async () => {
+    useAppStore.setState({
+      recoveryEntries: [{ id: 'recover-2', sessionId: 2, createdAt: '2026-10-03T00:00:00Z', text: 'Complete sentence', appName: 'Editor', reason: 'output_failed', charsInserted: 0 }],
+      recoveryAlertId: 'recover-2',
+    })
+    render(<Capsule />)
+    expect(screen.getByText(/Complete sentence/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'recovery.copy' }))
+    await waitFor(() => expect(copyRecoveryEntry).toHaveBeenCalledWith('recover-2'))
+    expect(stopAskFlow).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalledWith('stop_recording')
+    act(() => useAppStore.setState({ pipelineState: 'recording', recoveryAlertId: null }))
+    expect(screen.queryByText(/Complete sentence/)).not.toBeInTheDocument()
+    expect(useAppStore.getState().recoveryEntries).toHaveLength(1)
   })
 
   it('renders preparing state', () => {

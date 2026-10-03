@@ -18,7 +18,29 @@
     "ask": "質問",
     "settings": "設定",
     "history": "履歴",
+    "recovery": "Input recovery",
     "mainNavigation": "メインナビゲーション"
+  },
+  "recovery": {
+    "title": "Input recovery",
+    "pendingCount": "{{count}} waiting",
+    "description": "Finished text that could not be fully entered. Copy it before closing the app; dismiss it when you no longer need it.",
+    "empty": "No text to recover",
+    "emptyHint": "Finished text appears here if it cannot be fully entered.",
+    "copy": "Copy full text",
+    "copied": "Copied",
+    "copyFailed": "Could not copy. Please try again.",
+    "partialHint": "Some text is already in the input field. Check it before pasting the full sentence.",
+    "dismiss": "Dismiss",
+    "dismissFailed": "Could not dismiss. Please try again.",
+    "capsuleNotice": "Text ready to recover",
+    "hideNotice": "Hide notice",
+    "reasons": {
+      "target_changed": "Input target changed",
+      "partial_insert": "Only part was entered",
+      "output_failed": "Input failed",
+      "clipboard_fallback": "Copied instead of entered"
+    }
   },
   "ask": {
     "title": "質問",

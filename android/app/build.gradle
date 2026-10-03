@@ -47,6 +47,7 @@ tasks.register('compileVoiceTests', JavaCompile) {
         'src/main/java/com/ultrastt/androidvoice/PairedAddress.java',
         'src/main/java/com/ultrastt/androidvoice/Modes.java',
         'src/main/java/com/ultrastt/androidvoice/EditorGuard.java',
+        'src/main/java/com/ultrastt/androidvoice/RecoveryResult.java',
         'src/main/java/com/ultrastt/androidvoice/TextInsertion.java',
         'src/main/java/com/ultrastt/androidvoice/RadialGeometry.java',
         'src/test/java/com/ultrastt/androidvoice/VoiceTests.java'

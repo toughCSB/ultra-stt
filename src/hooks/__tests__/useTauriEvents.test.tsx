@@ -8,6 +8,7 @@ import { toast } from '../../components/toast-service'
 
 const eventListeners = vi.hoisted(() => new Map<string, (event: { payload: unknown }) => void>())
 const invalidateCloudSessionOnce = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const getRecoveryEntries = vi.hoisted(() => vi.fn().mockResolvedValue([]))
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn((event: string, handler: (event: { payload: unknown }) => void) => {
@@ -29,6 +30,7 @@ vi.mock('../../i18n', () => ({
 
 vi.mock('../../lib/tauri', () => ({
   getHistory: vi.fn().mockResolvedValue([]),
+  getRecoveryEntries,
 }))
 
 vi.mock('../../components/toast-service', () => ({
@@ -52,6 +54,8 @@ describe('useTauriEvents', () => {
       lastContext: null,
       lastPipelineTiming: null,
       activeVoiceMode: null,
+      recoveryEntries: [],
+      recoveryAlertId: null,
     })
     useCloudServiceStore.setState({ incident: null })
   })
@@ -96,6 +100,24 @@ describe('useTauriEvents', () => {
     })
 
     expect(useAppStore.getState().pipelineError).toBeNull()
+  })
+
+  it('keeps a live recovery event when initial hydration resolves later', async () => {
+    let resolveQuery!: (entries: import('../../stores/appStore').RecoveryEntry[]) => void
+    getRecoveryEntries.mockImplementationOnce(() => new Promise((resolve) => { resolveQuery = resolve }))
+    render(<HookHarness />)
+    await waitFor(() => expect(getRecoveryEntries).toHaveBeenCalled())
+    const entry = { id: 'r1', sessionId: 4, createdAt: '2026-10-03T00:00:00Z', text: 'full text', appName: 'Editor', reason: 'partial_insert' as const, charsInserted: 2 }
+    act(() => {
+      eventListeners.get('pipeline:recovery')?.({ payload: [entry] })
+    })
+    await act(async () => resolveQuery([]))
+    expect(useAppStore.getState().recoveryEntries).toEqual([entry])
+    expect(useAppStore.getState().recoveryAlertId).toBe('r1')
+
+    act(() => eventListeners.get('pipeline:state')?.({ payload: 'recording' }))
+    expect(useAppStore.getState().recoveryEntries).toEqual([entry])
+    expect(useAppStore.getState().recoveryAlertId).toBeNull()
   })
 
   it('forwards one Rust session-invalid event to the shared coordinator in Strict Mode', async () => {

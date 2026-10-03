@@ -559,7 +559,7 @@ async fn run_streaming_insert_worker(
             continue;
         }
 
-        if !context_detector.target_still_matches(&expected_target_guard) {
+        if !context_detector.target_still_matches_now(&expected_target_guard) {
             report.failed = true;
             report.target_lost = true;
             report.error_message = Some(format!(
@@ -824,6 +824,7 @@ struct PipelineVoiceExecutionBackend<'a> {
     config: &'a storage::AppConfig,
     already_copied: bool,
     popup_fallback_enabled: bool,
+    session_generation: u64,
 }
 
 #[async_trait::async_trait]
@@ -851,7 +852,7 @@ impl crate::voice_intent::executor::VoiceExecutionBackend for PipelineVoiceExecu
     async fn insert_at_cursor(&mut self, text: &str) -> std::result::Result<(), String> {
         let result = self
             .pipeline
-            .output_text(text, self.app_name, self.target_guard, self.config)
+            .output_text(text, self.app_name, self.target_guard, self.config, self.session_generation)
             .await
             .map_err(|error| error.to_string())?;
         if result.status == output::InsertStatus::Inserted {
@@ -895,6 +896,7 @@ impl crate::voice_intent::executor::VoiceExecutionBackend for PipelineVoiceExecu
                 self.app_name,
                 &TargetAppGuard::default(),
                 &copy_config,
+                self.session_generation,
             )
             .await
             .map_err(|error| error.to_string())?;
@@ -2253,6 +2255,7 @@ impl PipelineHandle {
                     &app_ctx.profile.app_label,
                     &app_ctx.target_guard,
                     config,
+                    session_generation,
                 )
                 .await;
             if let Err(error) = &output_result {
@@ -2348,6 +2351,7 @@ let provider_plan =
                     &app_ctx.profile.app_label,
                     &app_ctx.target_guard,
                     config,
+                    session_generation,
                 )
                 .await;
             if let Err(error) = &output_result {
@@ -2454,6 +2458,9 @@ let provider_plan =
             Some(worker) => worker.finish().await,
             None => None,
         };
+        if !self.is_current_session(session_generation) || self.abort_flag.load(Ordering::SeqCst) {
+            return PolishTextOutcome::normal(String::new(), llm_start.elapsed());
+        }
 
         let polish_outcome = match polish_result {
             Ok(response) => {
@@ -2476,6 +2483,18 @@ let provider_plan =
                             StreamingRecoveryAction::InsertSuffix { suffix } => {
                                 let mut recovered_report = report.clone();
                                 if !suffix.is_empty() {
+                                    if !self.context_detector.target_still_matches_now(&app_ctx.target_guard) {
+                                        recovered_report.target_lost = true;
+                                        self.copy_streaming_recovery_to_clipboard(
+                                            &response.polished_text,
+                                            "Target changed before the remaining text could be inserted".to_string(),
+                                            &app_ctx.profile.app_label,
+                                            config,
+                                            session_generation,
+                                            &recovered_report,
+                                        ).await;
+                                        return PolishTextOutcome::with_history_status(response.polished_text, elapsed, "clipboard_fallback", "Target changed before final streaming suffix");
+                                    }
                                     match output::output_stream_chunk(
                                         &self.app_handle,
                                         &suffix,
@@ -2505,6 +2524,9 @@ let provider_plan =
                                             );
                                         }
                                         Ok(insert_result) => {
+                                            recovered_report.inserted_text.extend(
+                                                suffix.chars().take(insert_result.chars_inserted),
+                                            );
                                             let reason = format!(
                                                 "streaming suffix insert stopped with status {:?}",
                                                 insert_result.status
@@ -2522,6 +2544,8 @@ let provider_plan =
                                                 reason,
                                                 &app_ctx.profile.app_label,
                                                 config,
+                                                session_generation,
+                                                &recovered_report,
                                             )
                                             .await;
                                         }
@@ -2539,6 +2563,8 @@ let provider_plan =
                                                 error,
                                                 &app_ctx.profile.app_label,
                                                 config,
+                                                session_generation,
+                                                &recovered_report,
                                             )
                                             .await;
                                         }
@@ -2565,6 +2591,8 @@ let provider_plan =
                                     reason,
                                     &app_ctx.profile.app_label,
                                     config,
+                                    session_generation,
+                                    report,
                                 )
                                 .await;
                             }
@@ -2582,6 +2610,8 @@ let provider_plan =
                                     reason,
                                     &app_ctx.profile.app_label,
                                     config,
+                                    session_generation,
+                                    report,
                                 )
                                 .await;
                             }
@@ -2606,6 +2636,8 @@ let provider_plan =
                             reason,
                             &app_ctx.profile.app_label,
                             config,
+                            session_generation,
+                            report,
                         )
                         .await;
                         return PolishTextOutcome::with_history_status(
@@ -2650,6 +2682,7 @@ let provider_plan =
                     config,
                     already_copied: false,
                     popup_fallback_enabled,
+                    session_generation,
                 };
                 let execution = crate::voice_intent::executor::execute_voice_intent(
                     crate::voice_intent::executor::VoiceExecutionRequest {
@@ -2664,6 +2697,21 @@ let provider_plan =
                 )
                 .await;
                 let _ = self.app_handle.emit("pipeline:voice_execution", &execution);
+
+                if let Some(reason) = crate::recovery::reason_for_voice_fallback(
+                    execution.fallback_reason,
+                    output::InsertionStrategy::from_config_value(&config.insertion_strategy)
+                        == output::InsertionStrategy::ClipboardCopyOnly,
+                    backend.already_copied,
+                ) {
+                    self.retain_recovery(
+                        &response.polished_text,
+                        &app_ctx.profile.app_label,
+                        session_generation,
+                        reason,
+                        0,
+                    );
+                }
 
                 let (history_status, history_error) = match execution.status {
                     crate::voice_intent::executor::VoiceExecutionStatus::Completed => (None, None),
@@ -2716,6 +2764,8 @@ let provider_plan =
                                 reason,
                                 &app_ctx.profile.app_label,
                                 config,
+                                session_generation,
+                                report,
                             )
                             .await;
                         }
@@ -2756,6 +2806,7 @@ let provider_plan =
                         &app_ctx.profile.app_label,
                         &app_ctx.target_guard,
                         config,
+                        session_generation,
                     )
                     .await;
                 if let Err(output_error) = &output_result {
@@ -2942,13 +2993,31 @@ let provider_plan =
         let _ = self.app_handle.emit("pipeline:target_app", app_name);
     }
 
+    fn retain_recovery(&self, text: &str, app_name: &str, generation: u64, reason: crate::recovery::RecoveryReason, chars_inserted: usize) {
+        if self.is_current_session(generation) && !self.abort_flag.load(Ordering::SeqCst) {
+            crate::recovery::retain(&self.app_handle, generation, text, app_name, reason, chars_inserted);
+        }
+    }
+
     async fn copy_streaming_recovery_to_clipboard(
         &self,
         text: &str,
         reason: String,
         app_name: &str,
         config: &storage::AppConfig,
+        generation: u64,
+        report: &StreamingInsertReport,
     ) {
+        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) { return; }
+        let recovery_reason = if report.target_lost {
+            crate::recovery::RecoveryReason::TargetChanged
+        } else if report.has_inserted_text() {
+            crate::recovery::RecoveryReason::PartialInsert
+        } else {
+            crate::recovery::RecoveryReason::OutputFailed
+        };
+        // Save before copying, so a clipboard failure cannot lose the result.
+        self.retain_recovery(text, app_name, generation, recovery_reason, report.inserted_text.chars().count());
         self.copy_text_to_clipboard_with_warning(
             text,
             app_name,
@@ -3011,7 +3080,11 @@ let provider_plan =
         app_name: &str,
         target_guard: &TargetAppGuard,
         config: &storage::AppConfig,
+        session_generation: u64,
     ) -> Result<output::InsertResult> {
+        if !self.is_current_session(session_generation) || self.abort_flag.load(Ordering::SeqCst) {
+            anyhow::bail!("Output session was cancelled");
+        }
         self.set_state(PipelineState::Outputting);
 
         let configured_strategy =
@@ -3082,7 +3155,11 @@ let provider_plan =
         .await
         {
             Ok(outcome) => outcome,
-            Err(e) => anyhow::bail!("{}", e),
+            Err(e) => {
+                self.retain_recovery(text, app_name, session_generation,
+                    if target_warning.is_some() { crate::recovery::RecoveryReason::TargetChanged } else { crate::recovery::RecoveryReason::OutputFailed }, 0);
+                anyhow::bail!("{}", e)
+            },
         };
 
         if let Some(user_error) = target_warning.or(accessibility_warning) {
@@ -3097,6 +3174,9 @@ let provider_plan =
             output_outcome.insert_result.chars_inserted
         );
         let insert_result = output_outcome.insert_result.clone();
+        if let Some(reason) = crate::recovery::reason_for_result(&insert_result, configured_strategy == output::InsertionStrategy::ClipboardCopyOnly) {
+            self.retain_recovery(text, app_name, session_generation, reason, insert_result.chars_inserted);
+        }
         let _ = self
             .app_handle
             .emit("pipeline:insert_result", &insert_result);
@@ -3623,11 +3703,13 @@ mod tests {
         let expected = TargetAppGuard {
             process_id: Some(42),
             native_identity: Some("com.example.notes".to_string()),
+            ..TargetAppGuard::default()
         };
         assert!(expected.matches(&expected));
         assert!(!expected.matches(&TargetAppGuard {
             process_id: Some(99),
             native_identity: Some("com.example.browser".to_string()),
+            ..TargetAppGuard::default()
         }));
     }
 

@@ -6,6 +6,10 @@ afterEach(() => {
 })
 
 describe('desktop route parsing', () => {
+  it('recognizes the input recovery route', () => {
+    window.location.hash = '#/recovery'
+    expect(parseHash()).toBe('recovery')
+  })
   it('keeps direct recovery links inside Settings', () => {
     window.location.hash = '#/settings?pane=stt'
     expect(parseHash()).toBe('settings')

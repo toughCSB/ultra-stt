@@ -17,6 +17,7 @@ import {
 import { Capsule } from './components/Capsule'
 import { Settings } from './components/Settings'
 import { History } from './components/History'
+import { Recovery } from './components/Recovery'
 import { Onboarding } from './components/Onboarding'
 import { MainLayout } from './components/MainLayout'
 import { HomePage } from './components/HomePage'
@@ -193,6 +194,7 @@ function MainApp() {
       {route === 'home' && <HomePage />}
       {route === 'settings' && <Settings />}
       {route === 'history' && <History />}
+      {route === 'recovery' && <Recovery />}
       <ToastContainer />
     </MainLayout>
   )

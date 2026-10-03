@@ -11,9 +11,22 @@ import type {
   BrowserAccessStatus,
   BrowserTarget,
   PolishStyle,
+  RecoveryEntry,
 } from '../stores/appStore'
 
 // Pipeline commands
+export async function getRecoveryEntries(): Promise<RecoveryEntry[]> {
+  return invoke('get_recovery_entries')
+}
+
+export async function dismissRecoveryEntry(id: string): Promise<RecoveryEntry[]> {
+  return invoke('dismiss_recovery_entry', { id })
+}
+
+export async function copyRecoveryEntry(id: string): Promise<void> {
+  return invoke('copy_recovery_entry', { id })
+}
+
 export async function startRecording(): Promise<void> {
   return invoke('start_recording')
 }

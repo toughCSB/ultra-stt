@@ -104,6 +104,7 @@ export interface CapsuleVisibilityInput {
   polishModeMenuOpen?: boolean
   capsuleExpanded: boolean
   hasError: boolean
+  hasRecovery?: boolean
   pipelineState: PipelineState
 }
 
@@ -114,6 +115,7 @@ export function getCapsuleVisibility({
   polishModeMenuOpen = false,
   capsuleExpanded,
   hasError,
+  hasRecovery = false,
   pipelineState,
 }: CapsuleVisibilityInput): boolean {
   return (
@@ -123,6 +125,7 @@ export function getCapsuleVisibility({
     polishModeMenuOpen ||
     capsuleExpanded ||
     hasError ||
+    hasRecovery ||
     pipelineState !== 'idle'
   )
 }
@@ -135,11 +138,13 @@ function getSizeForState(
   state: PipelineState,
   expanded: boolean,
   hasError: boolean,
+  hasRecovery: boolean,
   contextMenuOpen: boolean,
   translationTargetMenuOpen = false,
 ): CapsuleSize {
   if (translationTargetMenuOpen) return { width: 360, height: 180 }
   if (contextMenuOpen) return { width: 220, height: 220 }
+  if (state === 'idle' && hasRecovery) return { width: 304, height: 36 }
   if (hasError) return { width: 200, height: 36 }
   if (expanded) return { width: 220, height: 90 }
   switch (state) {
@@ -165,6 +170,8 @@ export function useCapsuleResize() {
   const pipelineState = useAppStore((s) => s.pipelineState)
   const capsuleExpanded = useAppStore((s) => s.capsuleExpanded)
   const pipelineError = useAppStore((s) => s.pipelineError)
+  const recoveryAlertId = useAppStore((s) => s.recoveryAlertId)
+  const recoveryEntries = useAppStore((s) => s.recoveryEntries)
   const contextMenuOpen = useAppStore((s) => s.contextMenuOpen)
   const translationTargetMenuOpen = useAppStore((s) => s.translationTargetMenuOpen)
   const polishModeMenuOpen = useAppStore((s) => s.polishModeMenuOpen)
@@ -176,6 +183,7 @@ export function useCapsuleResize() {
   const effectGeneration = useRef(0)
 
   const hasError = pipelineError !== null
+  const hasRecovery = pipelineState === 'idle' && recoveryEntries.some((entry) => entry.id === recoveryAlertId)
 
   useEffect(() => {
     if (pipelineState === 'idle') return
@@ -198,6 +206,7 @@ export function useCapsuleResize() {
       pipelineState,
       capsuleExpanded,
       hasError,
+      hasRecovery,
       contextMenuOpen,
       translationTargetMenuOpen,
     )
@@ -213,6 +222,7 @@ export function useCapsuleResize() {
       polishModeMenuOpen,
       capsuleExpanded,
       hasError,
+      hasRecovery,
       pipelineState,
     })
 
@@ -399,6 +409,7 @@ export function useCapsuleResize() {
     pipelineState,
     capsuleExpanded,
     hasError,
+    hasRecovery,
     contextMenuOpen,
     translationTargetMenuOpen,
     capsuleAutoHide,
@@ -409,6 +420,7 @@ export function useCapsuleResize() {
     pipelineState,
     capsuleExpanded,
     hasError,
+    hasRecovery,
     contextMenuOpen,
     translationTargetMenuOpen,
   )

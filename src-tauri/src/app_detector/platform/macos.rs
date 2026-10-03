@@ -1,5 +1,8 @@
+use std::collections::VecDeque;
 use std::ffi::{c_void, CStr};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use objc2::msg_send;
 use objc2::rc::autoreleasepool;
@@ -8,7 +11,7 @@ use url::Url;
 
 use super::ContextSignalSource;
 use crate::app_detector::types::{
-    BrowserAccessStatus, BrowserTarget, ContextSignals, TargetAppGuard,
+    BrowserAccessStatus, BrowserTarget, ContextSignals, FocusIdentity, TargetAppGuard,
 };
 
 pub struct MacOsContextSource;
@@ -21,6 +24,9 @@ struct SupportedBrowser {
 }
 
 pub(crate) fn restore_target_application(target: &TargetAppGuard) -> bool {
+    let Some(window_id) = target.target_window else {
+        return false;
+    };
     let Some(process_id) = target.process_id else {
         return false;
     };
@@ -43,11 +49,15 @@ pub(crate) fn restore_target_application(target: &TargetAppGuard) -> bool {
             }
         }
         let activated: Bool = msg_send![application, activateWithOptions: 1usize << 1];
-        activated.as_bool()
+        activated.as_bool() && raise_window(process_id, window_id)
     })
 }
 
 impl ContextSignalSource for MacOsContextSource {
+    fn requires_focus_guard(&self) -> bool {
+        true
+    }
+
     fn collect(&self) -> Option<ContextSignals> {
         let (app_name, process_id, native_identity) = frontmost_app_identity()?;
         let window_title = focused_window_title(process_id);
@@ -73,6 +83,9 @@ impl ContextSignalSource for MacOsContextSource {
         Some(ContextSignals {
             process_id: Some(process_id),
             native_identity,
+            target_window: None,
+            target_focus: None,
+            focus_required: true,
             process_alias: Some(app_name),
             window_title,
             browser_host,
@@ -84,11 +97,158 @@ impl ContextSignalSource for MacOsContextSource {
 
     fn current_target_guard(&self) -> Option<TargetAppGuard> {
         let (_, process_id, native_identity) = frontmost_app_identity()?;
+        let (target_window, target_focus) = focused_ax_identity(process_id)
+            .map(|(window, element)| {
+                (
+                    Some(window),
+                    Some(FocusIdentity::MacAccessibility { window, element }),
+                )
+            })
+            .unwrap_or((None, None));
+        if frontmost_app_identity().is_none_or(|(_, current_pid, current_identity)| {
+            current_pid != process_id || current_identity != native_identity
+        }) {
+            return Some(TargetAppGuard::unavailable());
+        }
         Some(TargetAppGuard {
             process_id: Some(process_id),
             native_identity,
+            target_window,
+            target_focus,
+            focus_required: true,
         })
     }
+}
+
+fn focused_ax_identity(process_id: u32) -> Option<(u64, u64)> {
+    if !crate::pipeline::is_accessibility_trusted() {
+        return None;
+    }
+    unsafe {
+        let application = AXUIElementCreateApplication(process_id as i32);
+        if application.is_null() {
+            return None;
+        }
+        let _ = AXUIElementSetMessagingTimeout(application, 0.15);
+        let result = (|| {
+            let window = copy_ax_attribute(application, b"AXFocusedWindow\0")?;
+            let Some(element) = copy_ax_attribute(application, b"AXFocusedUIElement\0") else {
+                CFRelease(window);
+                return None;
+            };
+            let identity = if CFGetTypeID(window) == AXUIElementGetTypeID()
+                && CFGetTypeID(element) == AXUIElementGetTypeID()
+            {
+                let mut window_pid = 0i32;
+                let mut element_pid = 0i32;
+                if AXUIElementGetPid(window, &mut window_pid) == 0
+                    && AXUIElementGetPid(element, &mut element_pid) == 0
+                    && window_pid == process_id as i32
+                    && element_pid == process_id as i32
+                {
+                    Some((intern_ax_element(window), intern_ax_element(element)))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            CFRelease(window);
+            CFRelease(element);
+            identity
+        })();
+        CFRelease(application);
+        result
+    }
+}
+
+// AXUIElementRef values are retained until evicted. Only the opaque tokens cross
+// the target guard boundary; equality is checked with CFEqual, not CFHash.
+struct RetainedAxElement {
+    token: u64,
+    ptr: usize,
+}
+
+impl Drop for RetainedAxElement {
+    fn drop(&mut self) {
+        unsafe {
+            CFRelease(self.ptr as *const c_void);
+        }
+    }
+}
+
+fn ax_registry() -> &'static Mutex<VecDeque<RetainedAxElement>> {
+    static REGISTRY: OnceLock<Mutex<VecDeque<RetainedAxElement>>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Mutex::new(VecDeque::new()))
+}
+
+unsafe fn intern_ax_element(element: *const c_void) -> u64 {
+    static NEXT_TOKEN: AtomicU64 = AtomicU64::new(1);
+    let mut refs = ax_registry()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if let Some(existing) = refs
+        .iter()
+        .find(|entry| CFEqual(entry.ptr as *const c_void, element) != 0)
+    {
+        return existing.token;
+    }
+    let token = NEXT_TOKEN.fetch_add(1, Ordering::Relaxed);
+    CFRetain(element);
+    refs.push_back(RetainedAxElement {
+        token,
+        ptr: element as usize,
+    });
+    if refs.len() > 128 {
+        refs.pop_front();
+    }
+    token
+}
+
+unsafe fn ax_token_matches(token: u64, element: *const c_void) -> bool {
+    let refs = ax_registry()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    refs.iter()
+        .find(|entry| entry.token == token)
+        .is_some_and(|entry| CFEqual(entry.ptr as *const c_void, element) != 0)
+}
+
+unsafe fn raise_window(process_id: i32, expected_token: u64) -> bool {
+    let application = AXUIElementCreateApplication(process_id);
+    if application.is_null() {
+        return false;
+    }
+    let _ = AXUIElementSetMessagingTimeout(application, 0.15);
+    let windows = copy_ax_attribute(application, b"AXWindows\0");
+    CFRelease(application);
+    let Some(windows) = windows else {
+        return false;
+    };
+    let mut raised = false;
+    if CFGetTypeID(windows) == CFArrayGetTypeID() {
+        let count = CFArrayGetCount(windows).min(64);
+        for index in 0..count {
+            let window = CFArrayGetValueAtIndex(windows, index);
+            if !window.is_null()
+                && CFGetTypeID(window) == AXUIElementGetTypeID()
+                && ax_token_matches(expected_token, window)
+            {
+                let action = CFStringCreateWithCString(
+                    std::ptr::null(),
+                    b"AXRaise\0".as_ptr().cast(),
+                    0x08000100,
+                );
+                if !action.is_null() {
+                    raised = AXUIElementPerformAction(window, action) == 0;
+                    CFRelease(action);
+                }
+                break;
+            }
+        }
+    }
+    CFRelease(windows);
+    raised
 }
 
 fn frontmost_app_identity() -> Option<(String, u32, Option<String>)> {
@@ -127,6 +287,10 @@ unsafe fn ns_string(value: *mut AnyObject) -> Option<String> {
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     fn AXUIElementCreateApplication(process_id: i32) -> *const c_void;
+    fn AXUIElementGetTypeID() -> usize;
+    fn AXUIElementGetPid(element: *const c_void, process_id: *mut i32) -> i32;
+    fn AXUIElementSetMessagingTimeout(element: *const c_void, timeout: f32) -> i32;
+    fn AXUIElementPerformAction(element: *const c_void, action: *const c_void) -> i32;
     fn AXUIElementCopyAttributeValue(
         element: *const c_void,
         attribute: *const c_void,
@@ -136,6 +300,11 @@ extern "C" {
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
+    fn CFRetain(value: *const c_void) -> *const c_void;
+    fn CFEqual(left: *const c_void, right: *const c_void) -> u8;
+    fn CFArrayGetTypeID() -> usize;
+    fn CFArrayGetCount(array: *const c_void) -> isize;
+    fn CFArrayGetValueAtIndex(array: *const c_void, index: isize) -> *const c_void;
     fn CFStringCreateWithCString(
         allocator: *const c_void,
         text: *const i8,
@@ -149,11 +318,7 @@ extern "C" {
 }
 
 unsafe fn copy_ax_attribute(element: *const c_void, name: &[u8]) -> Option<*const c_void> {
-    let attribute = CFStringCreateWithCString(
-        std::ptr::null(),
-        name.as_ptr().cast(),
-        0x08000100,
-    );
+    let attribute = CFStringCreateWithCString(std::ptr::null(), name.as_ptr().cast(), 0x08000100);
     if attribute.is_null() {
         return None;
     }

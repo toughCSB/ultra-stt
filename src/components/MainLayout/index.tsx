@@ -1,15 +1,17 @@
-import { Home, Settings, History } from 'lucide-react'
+import { Home, Settings, History, ClipboardList } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { spring } from '../../lib/animations'
 import { useRoute, type Route } from '../../lib/router'
 import { BrandWordmark } from '../BrandWordmark'
+import { useAppStore } from '../../stores/appStore'
 import { AccessibilityBanner } from './AccessibilityBanner'
 
 const baseNavItems: { id: Route; labelKey: string; icon: typeof Home }[] = [
   { id: 'home', labelKey: 'nav.home', icon: Home },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings },
   { id: 'history', labelKey: 'nav.history', icon: History },
+  { id: 'recovery', labelKey: 'nav.recovery', icon: ClipboardList },
 ]
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
 export function MainLayout({ children }: Props) {
   const { route, navigate } = useRoute()
   const { t } = useTranslation()
+  const recoveryCount = useAppStore((state) => state.recoveryEntries.length)
 
   return (
     <div className="w-full h-full flex text-text-primary">
@@ -64,6 +67,11 @@ export function MainLayout({ children }: Props) {
                 <span className="relative z-10 flex items-center gap-2.5">
                   <Icon size={16} />
                   {label}
+                  {id === 'recovery' && recoveryCount > 0 && (
+                    <span className="ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] tabular-nums text-accent" aria-label={t('recovery.pendingCount', { count: recoveryCount })}>
+                      {recoveryCount}
+                    </span>
+                  )}
                 </span>
               </motion.button>
             )

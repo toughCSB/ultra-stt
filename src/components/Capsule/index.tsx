@@ -11,6 +11,7 @@ import { CapsuleProcessing } from './CapsuleProcessing'
 import { CapsulePolishing } from './CapsulePolishing'
 import { CapsuleComplete } from './CapsuleComplete'
 import { CapsuleError } from './CapsuleError'
+import { CapsuleRecovery } from './CapsuleRecovery'
 import { CapsuleContextMenu } from './CapsuleContextMenu'
 import { CapsuleAskRecording } from './CapsuleAskRecording'
 import { CapsuleAskThinking } from './CapsuleAskThinking'
@@ -19,7 +20,8 @@ import { PolishModeChip, PolishModeMenu } from './PolishModeMenu'
 
 const DRAG_THRESHOLD = 5
 
-function getCapsuleState(pipelineState: string, hasError: boolean) {
+function getCapsuleState(pipelineState: string, hasError: boolean, hasRecovery: boolean) {
+  if (pipelineState === 'idle' && hasRecovery) return 'recovery'
   if (hasError) return 'error'
   return pipelineState
 }
@@ -32,6 +34,8 @@ function getCapsuleShellSize(capsuleState: string) {
       return { width: 180, height: 36 }
     case 'outputting':
       return { width: 144, height: 36 }
+    case 'recovery':
+      return { width: 304, height: 36 }
     case 'ask_recording':
     case 'ask_thinking':
       return { width: 168, height: 36 }
@@ -48,6 +52,8 @@ function getCapsuleShellSize(capsuleState: string) {
 export function Capsule() {
   const pipelineState = useAppStore((s) => s.pipelineState)
   const pipelineError = useAppStore((s) => s.pipelineError)
+  const recoveryAlertId = useAppStore((s) => s.recoveryAlertId)
+  const recoveryEntries = useAppStore((s) => s.recoveryEntries)
   const contextMenuOpen = useAppStore((s) => s.contextMenuOpen)
   const setContextMenuOpen = useAppStore((s) => s.setContextMenuOpen)
   const contextMenuReady = useAppStore((s) => s.contextMenuReady)
@@ -64,7 +70,10 @@ export function Capsule() {
   useCapsuleResize()
 
   const hasError = pipelineError !== null
-  const capsuleState = getCapsuleState(pipelineState, hasError)
+  const recoveryEntry = pipelineState === 'idle' && !contextMenuOpen && !translationTargetMenuOpen && !polishModeMenuOpen
+    ? recoveryEntries.find((entry) => entry.id === recoveryAlertId)
+    : undefined
+  const capsuleState = getCapsuleState(pipelineState, hasError, Boolean(recoveryEntry))
   const capsuleShellSize = getCapsuleShellSize(capsuleState)
   const cancel = useCallback(() => {
     const abort = pipelineState === 'ask_recording' || pipelineState === 'ask_thinking' ? abortAskDictation : abortRecording
@@ -193,6 +202,7 @@ export function Capsule() {
             {capsuleState === 'ask_recording' && <CapsuleAskRecording />}
             {capsuleState === 'ask_thinking' && <CapsuleAskThinking />}
             {capsuleState === 'error' && <CapsuleError />}
+            {capsuleState === 'recovery' && recoveryEntry && <CapsuleRecovery entry={recoveryEntry} />}
           </motion.div>
         </AnimatePresence>
       </motion.div>
@@ -204,7 +214,7 @@ export function Capsule() {
         </div>
       )}
       <TranslateTargetMenu />
-      {!contextMenuOpen && !translationTargetMenuOpen && capsuleState !== 'idle' && (
+      {!contextMenuOpen && !translationTargetMenuOpen && capsuleState !== 'idle' && capsuleState !== 'recovery' && (
         <PolishModeChip left={capsuleShellSize.width + 20} />
       )}
       {['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) && !polishModeMenuOpen && !contextMenuOpen && !translationTargetMenuOpen && (

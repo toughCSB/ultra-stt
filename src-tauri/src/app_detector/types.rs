@@ -96,6 +96,9 @@ pub struct ContextProfileSummary {
 pub(crate) struct ContextSignals {
     pub(crate) process_id: Option<u32>,
     pub(crate) native_identity: Option<String>,
+    pub(crate) target_window: Option<u64>,
+    pub(crate) target_focus: Option<FocusIdentity>,
+    pub(crate) focus_required: bool,
     pub(crate) process_alias: Option<String>,
     pub(crate) window_title: Option<String>,
     pub(crate) browser_host: Option<String>,
@@ -104,15 +107,32 @@ pub(crate) struct ContextSignals {
     pub(crate) browser_target: Option<BrowserTarget>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FocusIdentity {
+    WindowsUiAutomation(Vec<i32>),
+    WindowsControl(u64),
+    MacAccessibility { window: u64, element: u64 },
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TargetAppGuard {
     pub process_id: Option<u32>,
     pub native_identity: Option<String>,
+    pub target_window: Option<u64>,
+    pub target_focus: Option<FocusIdentity>,
+    pub focus_required: bool,
 }
 
 impl TargetAppGuard {
     pub fn is_empty(&self) -> bool {
-        self.process_id.is_none() && self.native_identity.is_none()
+        self.process_id.is_none() && self.native_identity.is_none() && !self.focus_required
+    }
+
+    pub fn unavailable() -> Self {
+        Self {
+            focus_required: true,
+            ..Self::default()
+        }
     }
 
     pub fn matches(&self, current: &Self) -> bool {
@@ -133,6 +153,16 @@ impl TargetAppGuard {
                 return false;
             }
         }
+        if self.focus_required {
+            if self.target_window.is_none() || self.target_focus.is_none() {
+                return false;
+            }
+            if self.target_window != current.target_window
+                || self.target_focus != current.target_focus
+            {
+                return false;
+            }
+        }
         true
     }
 }
@@ -142,6 +172,9 @@ impl From<&ContextSignals> for TargetAppGuard {
         Self {
             process_id: signals.process_id,
             native_identity: signals.native_identity.clone(),
+            target_window: signals.target_window,
+            target_focus: signals.target_focus.clone(),
+            focus_required: signals.focus_required,
         }
     }
 }
@@ -307,6 +340,54 @@ pub fn is_valid_profile_id(id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn guarded(window: u64, focus: FocusIdentity) -> TargetAppGuard {
+        TargetAppGuard {
+            process_id: Some(42),
+            native_identity: Some("chrome.exe".into()),
+            target_window: Some(window),
+            target_focus: Some(focus),
+            focus_required: true,
+        }
+    }
+
+    #[test]
+    fn insertion_target_requires_the_same_window_and_control() {
+        let expected = guarded(10, FocusIdentity::WindowsUiAutomation(vec![1, 2, 3]));
+        assert!(expected.matches(&expected));
+        assert!(!expected.matches(&guarded(
+            11,
+            FocusIdentity::WindowsUiAutomation(vec![1, 2, 3])
+        )));
+        assert!(!expected.matches(&guarded(
+            10,
+            FocusIdentity::WindowsUiAutomation(vec![1, 2, 4])
+        )));
+        assert!(!expected.matches(&guarded(10, FocusIdentity::WindowsControl(99))));
+        assert!(!expected.matches(&TargetAppGuard {
+            target_focus: None,
+            ..expected.clone()
+        }));
+        assert!(!expected.matches(&TargetAppGuard::unavailable()));
+    }
+
+    #[test]
+    fn restoring_the_original_window_requires_the_original_focus_too() {
+        let expected = guarded(10, FocusIdentity::WindowsUiAutomation(vec![7, 8]));
+        let other_window = guarded(11, FocusIdentity::WindowsUiAutomation(vec![7, 8]));
+        let wrong_field = guarded(10, FocusIdentity::WindowsUiAutomation(vec![7, 9]));
+        assert!(!expected.matches(&other_window));
+        assert!(!expected.matches(&wrong_field));
+        assert!(expected.matches(&expected));
+    }
+
+    #[test]
+    fn target_unavailable_at_capture_never_authorizes_insertion() {
+        let unavailable = TargetAppGuard::unavailable();
+        assert!(!unavailable.is_empty());
+        assert!(!unavailable.matches(&unavailable));
+        assert!(!unavailable.matches(&guarded(10, FocusIdentity::WindowsUiAutomation(vec![1]))));
+    }
 
     #[test]
     fn context_types_profile_ids_are_lowercase_and_bounded() {

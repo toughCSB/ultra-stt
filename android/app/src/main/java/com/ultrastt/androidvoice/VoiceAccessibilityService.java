@@ -54,6 +54,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     private RecordingActivity recordingActivity;
     private boolean sending;
     private boolean writing;
+    private String targetLostReason;
     private boolean connectionTarget;
     private boolean keyboardSuppressed;
     private int previousKeyboardMode;
@@ -93,7 +94,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             public void onStartInput(EditorInfo info, boolean restarting) {
                 super.onStartInput(info, restarting);
                 if (guard.isActive() && !writing && !preparingKeyboard && captured != null && info != capturedEditorInfo) {
-                    cancelWork("입력창이 바뀌어 취소했습니다.");
+                    targetChanged("입력창이 바뀌었습니다.");
                 }
                 scheduleUpdate();
             }
@@ -101,7 +102,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             @Override
             public void onFinishInput() {
                 if (guard.isActive() && !writing && !preparingKeyboard) {
-                    cancelWork("입력창이 닫혀 취소했습니다.");
+                    targetChanged("입력창이 닫혔습니다.");
                 }
                 super.onFinishInput();
                 scheduleUpdate();
@@ -114,7 +115,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
                 if (guard.isActive() && !writing && original != null
                         && (TextInsertion.editorSelection(original, newStart) != selectionStart
                         || TextInsertion.editorSelection(original, newEnd) != selectionEnd)) {
-                    cancelWork("커서가 이동해 취소했습니다.");
+                    targetChanged("커서가 이동했습니다.");
                 }
             }
         };
@@ -128,7 +129,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         if (preparingKeyboard && event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             AccessibilityNodeInfo source = event.getSource();
             if (source != null && !source.equals(captured) && !samePackage(source, getPackageName())) {
-                cancelWork("입력 대상이 바뀌어 취소했습니다.");
+                targetChanged("입력 대상이 바뀌었습니다.");
             }
         }
         if (guard.isActive() && !writing && !preparingKeyboard && captured != null
@@ -136,7 +137,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
                 || event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)) {
             AccessibilityNodeInfo source = event.getSource();
             if (source != null && captured.equals(source) && !unchangedTarget()) {
-                cancelWork("입력 내용이나 커서가 바뀌어 취소했습니다.");
+                targetChanged("입력 내용이나 커서가 바뀌었습니다.");
             }
         }
         scheduleUpdate();
@@ -240,8 +241,9 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             return;
         }
         AccessibilityNodeInfo editor = preferences.floatingEnabled() ? findEditor() : null;
-        if (guard.isActive() && (editor == null || captured == null || !captured.equals(editor) || !unchangedTarget())) {
-            cancelWork("입력창이 바뀌어 취소했습니다.");
+        if (guard.isActive() && targetLostReason == null
+                && (editor == null || captured == null || !captured.equals(editor) || !unchangedTarget())) {
+            targetChanged("입력창이 바뀌었습니다.");
         }
         focused = editor;
         if (editor == null) {
@@ -383,6 +385,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             return;
         }
         session = guard.begin();
+        targetLostReason = null;
         hideBubble();
         preparingKeyboard = true;
         keyboardHideDeadline = android.os.SystemClock.uptimeMillis() + 1500;
@@ -441,7 +444,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
                         @Override
                         public void onResult(String text) {
                             if (guard.accepts(expected)) {
-                                insert(text);
+                                insert(expected, text);
                             }
                         }
 
@@ -611,10 +614,19 @@ public final class VoiceAccessibilityService extends AccessibilityService {
                 && method.getCurrentInputConnection() != null && samePackage(captured, capturedEditorInfo.packageName);
     }
 
-    private void insert(String text) {
-        AccessibilityNodeInfo current = findEditor();
-        if (!unchangedTarget() || current == null || !captured.equals(current)) {
-            cancelWork("입력창이나 커서가 바뀌어 결과를 입력하지 않았습니다.");
+    private void insert(long expected, String text) {
+        if (targetLostReason != null) {
+            recoverResult(expected, text, targetLostReason);
+            return;
+        }
+        try {
+            AccessibilityNodeInfo current = findEditor();
+            if (captured == null || !unchangedTarget() || current == null || !captured.equals(current)) {
+                recoverResult(expected, text, "입력창이나 커서가 바뀌었습니다.");
+                return;
+            }
+        } catch (RuntimeException error) {
+            recoverResult(expected, text, "입력창을 확인하지 못했습니다.");
             return;
         }
         writing = true;
@@ -639,12 +651,40 @@ public final class VoiceAccessibilityService extends AccessibilityService {
                     captured.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection);
                 }
             }
-        } catch (IllegalArgumentException error) {
+        } catch (RuntimeException error) {
             inserted = false;
         } finally {
             writing = false;
         }
-        finishWork(inserted ? "음성 입력을 전달했습니다." : "이 앱의 입력창에서 음성 입력을 지원하지 않습니다.", inserted);
+        if (inserted) {
+            finishWork("음성 입력을 전달했습니다.", true);
+        } else {
+            recoverResult(expected, text, "이 앱의 입력창에서 음성 입력을 지원하지 않습니다.");
+        }
+    }
+
+    private void recoverResult(long expected, String text, String message) {
+        if (!guard.accepts(expected)) {
+            return;
+        }
+        RecoveryResult.Snapshot saved = RecoveryResult.ACTIVE.saveIfCurrent(guard, expected, text);
+        if (saved != null) {
+            finishWork(message, false, saved);
+        } else {
+            finishWork("인식된 문장이 없어 입력하지 않았습니다.", false);
+        }
+    }
+
+    private void targetChanged(String message) {
+        if (!guard.isActive() || targetLostReason != null) {
+            return;
+        }
+        if (!sending) {
+            cancelWork(message + " 음성 입력을 취소했습니다.");
+            return;
+        }
+        targetLostReason = message;
+        releaseTarget();
     }
 
     private void releaseTarget() {
@@ -663,8 +703,13 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     private void finishWork(String message, boolean delivered) {
+        finishWork(message, delivered, null);
+    }
+
+    private void finishWork(String message, boolean delivered, RecoveryResult.Snapshot recovery) {
         boolean wasActive = guard.isActive();
         guard.invalidate();
+        targetLostReason = null;
         preparingKeyboard = false;
         keyboardHideDeadline = 0;
         if (capture != null) {
@@ -678,9 +723,12 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         sending = false;
         releaseTarget();
         RecordingActivity activity = recordingActivity;
-        boolean showingResult = delivered && activity != null;
+        boolean availableActivity = activity != null && !activity.isFinishing() && !activity.isDestroyed();
+        boolean showingResult = delivered && availableActivity;
         if (showingResult) {
             activity.delivered();
+        } else if (recovery != null && availableActivity) {
+            activity.recover(recovery);
         } else {
             recordingActivity = null;
             if (activity != null) {
@@ -690,8 +738,14 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         }
         closePalette();
         refreshBubble();
-        if (wasActive && message != null && !showingResult) {
-            notice(message);
+        if (wasActive && !showingResult) {
+            if (recovery != null) {
+                if (!availableActivity) {
+                    notice("완성문을 입력하지 못했습니다. Ultra STT 앱에서 복사해 주세요.");
+                }
+            } else if (message != null) {
+                notice(message);
+            }
         }
         if (!destroyed) {
             scheduleUpdate();
@@ -715,7 +769,13 @@ public final class VoiceAccessibilityService extends AccessibilityService {
 
     void recorderStopped(RecordingActivity activity) {
         if (recordingActivity == activity) {
-            cancelWork("화면이 바뀌어 취소했습니다.");
+            if (sending) {
+                targetChanged("화면이 바뀌었습니다.");
+                activity.complete();
+                recorderDismissed(activity);
+            } else {
+                cancelWork("화면이 바뀌어 취소했습니다.");
+            }
         }
     }
 

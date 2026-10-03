@@ -26,6 +26,7 @@ public final class SettingsActivity extends Activity implements android.content.
     private TextView status;
     private TextView connection;
     private Spinner modeSelector;
+    private RecoveryView recovery;
     private boolean probing;
 
     @Override
@@ -53,6 +54,8 @@ public final class SettingsActivity extends Activity implements android.content.
         content.addView(icon, new LinearLayout.LayoutParams(Ui.dp(this, 64), Ui.dp(this, 64)));
         content.addView(Ui.text(this, "Ultra STT", 30, true));
         content.addView(Ui.text(this, "키보드는 그대로. 말하기만 더 가볍게.", 17, false));
+        recovery = new RecoveryView(this, null);
+        content.addView(recovery, Ui.block(this));
         content.addView(Ui.text(this,
                 "입력창을 누르면 작은 마이크가 나타납니다. 터치로 녹음 시작·종료. 길게 누른 채 반원 메뉴의 아이콘으로 드래그하고 손을 떼면 모드가 바뀝니다. 버튼 전체 색상으로 현재 모드를 구분합니다.", 14, false));
         connection = Ui.text(this, "", 15, true);
@@ -136,7 +139,7 @@ public final class SettingsActivity extends Activity implements android.content.
         });
         content.addView(advanced);
         content.addView(Ui.text(this,
-                "음성은 Tailscale을 통해 개인 PC에서 인식합니다. AI 다듬기 사용 시 전사문은 PC에서 OpenAI로 전송됩니다. PC가 켜져 있어야 합니다. 녹음·전사 이력은 휴대폰에 저장하지 않습니다.", 12, false));
+                "음성은 Tailscale을 통해 개인 PC에서 인식합니다. AI 다듬기 사용 시 전사문은 PC에서 OpenAI로 전송됩니다. PC가 켜져 있어야 합니다. 녹음·전사 이력은 저장하지 않습니다. 입력하지 못한 마지막 문장만 앱이 실행되는 동안 임시 보관하며, 닫기 또는 앱 종료 시 사라집니다.", 12, false));
         setContentView(scroll);
         scroll.requestApplyInsets();
     }
@@ -219,6 +222,7 @@ public final class SettingsActivity extends Activity implements android.content.
     @Override
     protected void onResume() {
         super.onResume();
+        recovery.show(RecoveryResult.ACTIVE.latest());
         updateStatus();
         importPairing();
         probeConnection();
@@ -227,6 +231,7 @@ public final class SettingsActivity extends Activity implements android.content.
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        recovery.show(RecoveryResult.ACTIVE.latest());
         updateStatus();
         importPairing();
         probeConnection();

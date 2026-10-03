@@ -14,6 +14,10 @@ mod windows;
 pub(crate) trait ContextSignalSource: Send + Sync + 'static {
     fn collect(&self) -> Option<ContextSignals>;
 
+    fn requires_focus_guard(&self) -> bool {
+        false
+    }
+
     fn current_target_guard(&self) -> Option<TargetAppGuard> {
         None
     }

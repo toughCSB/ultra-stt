@@ -144,6 +144,16 @@ export interface InsertResult {
   message: string | null
 }
 
+export interface RecoveryEntry {
+  id: string
+  sessionId: number
+  createdAt: string
+  text: string
+  appName: string
+  reason: 'target_changed' | 'partial_insert' | 'output_failed' | 'clipboard_fallback'
+  charsInserted: number
+}
+
 export interface DictionaryEntry {
   id: number
   word: string
@@ -287,6 +297,12 @@ interface AppState {
   setLastContext: (context: ContextProfileSummary | null) => void
   lastPipelineTiming: PipelineTiming | null
   setLastPipelineTiming: (timing: PipelineTiming) => void
+
+  recoveryEntries: RecoveryEntry[]
+  recoveryAlertId: string | null
+  setRecoveryEntries: (entries: RecoveryEntry[]) => void
+  removeRecoveryEntry: (id: string) => void
+  clearRecoveryAlert: () => void
 
   // Config
   config: AppConfig
@@ -828,6 +844,24 @@ export const useAppStore = create<AppState>((set) => ({
   setLastContext: (lastContext) => set({ lastContext }),
   lastPipelineTiming: null,
   setLastPipelineTiming: (lastPipelineTiming) => set({ lastPipelineTiming }),
+
+  recoveryEntries: [],
+  recoveryAlertId: null,
+  setRecoveryEntries: (entries) => set((state) => {
+    const known = new Set(state.recoveryEntries.map((entry) => entry.id))
+    const newest = entries
+      .filter((entry) => !known.has(entry.id))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    return {
+      recoveryEntries: entries,
+      recoveryAlertId: newest?.id ?? (entries.some((entry) => entry.id === state.recoveryAlertId) ? state.recoveryAlertId : null),
+    }
+  }),
+  removeRecoveryEntry: (id) => set((state) => ({
+    recoveryEntries: state.recoveryEntries.filter((entry) => entry.id !== id),
+    recoveryAlertId: state.recoveryAlertId === id ? null : state.recoveryAlertId,
+  })),
+  clearRecoveryAlert: () => set({ recoveryAlertId: null }),
 
   config: defaultConfig,
   setConfig: (config) => set((s) => ({ config: syncHotkeyConfig(s.config, config) })),

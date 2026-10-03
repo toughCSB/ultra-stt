@@ -18,7 +18,29 @@
     "ask": "질문",
     "settings": "설정",
     "history": "기록",
+    "recovery": "입력 복구",
     "mainNavigation": "메인 내비게이션"
+  },
+  "recovery": {
+    "title": "입력 복구",
+    "pendingCount": "대기 {{count}}건",
+    "description": "입력창에 완전히 들어가지 못한 완성문입니다. 앱을 종료하기 전에 복사하고, 더 이상 필요하지 않을 때 지우세요.",
+    "empty": "복구할 문장이 없습니다",
+    "emptyHint": "완성문을 끝까지 입력하지 못하면 여기에 표시됩니다.",
+    "copy": "전체 문장 복사",
+    "copied": "복사됨",
+    "copyFailed": "복사하지 못했습니다. 다시 시도하세요.",
+    "partialHint": "일부 문장이 이미 입력되었을 수 있습니다. 전체 문장을 붙여넣기 전에 확인하세요.",
+    "dismiss": "지우기",
+    "dismissFailed": "지우지 못했습니다. 다시 시도하세요.",
+    "capsuleNotice": "복구할 문장",
+    "hideNotice": "알림 숨기기",
+    "reasons": {
+      "target_changed": "입력 위치가 바뀜",
+      "partial_insert": "일부만 입력됨",
+      "output_failed": "입력 실패",
+      "clipboard_fallback": "입력 대신 복사됨"
+    }
   },
   "ask": {
     "title": "질문",

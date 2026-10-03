@@ -19,6 +19,7 @@ pub mod output;
 pub mod pipeline;
 pub mod platform;
 pub mod recording_deadline;
+pub mod recovery;
 pub mod remote;
 pub mod selection;
 pub mod storage;
@@ -1013,6 +1014,7 @@ pub fn run() {
             app.manage(shared_client);
             app.manage(context_detector);
             app.manage(pipeline_handle);
+            app.manage(recovery::RecoveryStore::default());
             app.manage(commands::ask::AskDictationState::default());
             app.manage(HotkeyModeCache(Arc::new(Mutex::new(
                 initial_config.hotkey_mode.clone(),
@@ -1279,6 +1281,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            recovery::get_recovery_entries,
+            recovery::dismiss_recovery_entry,
+            recovery::copy_recovery_entry,
             capsule_window::raise_capsule,
             start_recording,
             stop_recording,

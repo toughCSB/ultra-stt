@@ -2,6 +2,7 @@ import React from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MainLayout } from '../index'
+import { useAppStore } from '../../../stores/appStore'
 
 const MOTION_PROPS = new Set([
   'initial',
@@ -43,6 +44,8 @@ vi.mock('react-i18next', () => ({
         'nav.ask': 'Ask',
         'nav.settings': 'Settings',
         'nav.history': 'History',
+        'nav.recovery': 'Input recovery',
+        'recovery.pendingCount': '2 waiting',
         'nav.mainNavigation': 'Main navigation',
       })[key] ?? key,
   }),
@@ -54,6 +57,18 @@ afterEach(() => {
 })
 
 describe('MainLayout', () => {
+  it('shows the recovery item and pending count independently of history', () => {
+    useAppStore.setState({
+      config: { ...useAppStore.getState().config, history_enabled: false },
+      recoveryEntries: [
+        { id: 'r1', sessionId: 1, createdAt: '2026-10-03T00:00:00Z', text: 'one', appName: '', reason: 'output_failed', charsInserted: 0 },
+        { id: 'r2', sessionId: 2, createdAt: '2026-10-03T00:00:01Z', text: 'two', appName: '', reason: 'partial_insert', charsInserted: 1 },
+      ],
+    })
+    render(<MainLayout><div>content</div></MainLayout>)
+    expect(screen.getByRole('button', { name: 'Input recovery' })).toHaveTextContent('2')
+    useAppStore.setState(useAppStore.getInitialState())
+  })
   it('does not show Ask as a first-class navigation item', () => {
     render(
       <MainLayout>

@@ -10,9 +10,10 @@ import type {
   PipelineTiming,
   PipelineState,
   RecordingDeadlineSnapshot,
+  RecoveryEntry,
   VoiceMode,
 } from '../stores/appStore'
-import { getHistory } from '../lib/tauri'
+import { getHistory, getRecoveryEntries } from '../lib/tauri'
 import { toast } from '../components/toast-service'
 import { capsuleErrorKeyFromPayload, type PipelineErrorPayload } from '../lib/capsuleError'
 import { invalidateCloudSessionOnce } from '../lib/cloud-session'
@@ -67,7 +68,9 @@ export function useTauriEvents() {
     setHistory,
     applyPersistedConfigPatch,
     setHotkeyRegistrationError,
-  } = useAppStore()
+    setRecoveryEntries,
+    clearRecoveryAlert,
+  } = useAppStore.getState()
 
   useEffect(() => {
     let cancelled = false
@@ -87,6 +90,25 @@ export function useTauriEvents() {
         })
     }
 
+    // Subscribe first, then hydrate. A live snapshot always wins over an older
+    // in-flight query when the main window or capsule is reopened.
+    let recoveryVersion = 0
+    listen<RecoveryEntry[]>('pipeline:recovery', (event) => {
+      if (cancelled) return
+      recoveryVersion += 1
+      setRecoveryEntries(event.payload)
+    }).then((unlisten) => {
+      if (cancelled) {
+        safeUnlisten(unlisten)
+        return
+      }
+      unlisteners.push(unlisten)
+      const versionAtQuery = recoveryVersion
+      getRecoveryEntries().then((entries) => {
+        if (!cancelled && recoveryVersion === versionAtQuery) setRecoveryEntries(entries)
+      }).catch((error) => console.error('Failed to load recovery entries:', error))
+    }).catch((error) => console.error('Failed to register recovery listener:', error))
+
     addListener<number>('audio:volume', setAudioVolume)
     addListener<string>('stt:partial', setPartialTranscript)
     addListener<string>('stt:final', setFinalTranscript)
@@ -99,6 +121,7 @@ export function useTauriEvents() {
       if (state === 'preparing' || state === 'recording' || state === 'ask_recording') {
         // Clear any previous error when starting a new pipeline run
         setPipelineError(null)
+        clearRecoveryAlert()
         useCloudServiceStore.getState().clearIncident()
       }
       if (state === 'idle') {
@@ -203,6 +226,8 @@ export function useTauriEvents() {
     setHistory,
     applyPersistedConfigPatch,
     setHotkeyRegistrationError,
+    setRecoveryEntries,
+    clearRecoveryAlert,
     t,
   ])
 }

@@ -55,6 +55,9 @@ impl ContextSignalSource for LinuxContextSource {
         Some(ContextSignals {
             process_id: Some(process_id),
             native_identity: process_alias.clone(),
+            target_window: None,
+            target_focus: None,
+            focus_required: false,
             process_alias,
             window_title,
             browser_host: None,

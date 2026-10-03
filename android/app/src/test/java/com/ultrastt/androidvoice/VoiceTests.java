@@ -71,6 +71,22 @@ public final class VoiceTests {
         check(!guard.accepts(second) && guard.accepts(third), "new capture rejects old result");
         guard.invalidate();
         check(!guard.accepts(third), "hidden keyboard rejects result");
+        RecoveryResult recovery = RecoveryResult.ACTIVE;
+        long current = guard.begin();
+        RecoveryResult.Snapshot saved = recovery.saveIfCurrent(guard, current, "완성된 문장");
+        check(saved != null && recovery.latest() == saved, "current failed insertion can be recovered");
+        check(recovery.saveIfCurrent(guard, current, "") == null && recovery.latest() == saved,
+                "empty response cannot overwrite recovered text");
+        guard.invalidate();
+        check(recovery.saveIfCurrent(guard, current, "늦은 응답") == null
+                && recovery.latest() == saved, "cancelled response cannot replace recovery");
+        long next = guard.begin();
+        RecoveryResult.Snapshot newer = recovery.saveIfCurrent(guard, next, "새 문장");
+        recovery.clear(saved.id);
+        check(recovery.latest() == newer, "old card cannot discard newer result");
+        recovery.clear(newer.id);
+        check(recovery.latest() == null, "user can discard recovered text");
+        guard.invalidate();
         check(TextInsertion.replaceSelection("앞 뒤", 2, 2, "음성 ").equals("앞 음성 뒤"), "cursor insertion preserves text");
         check(TextInsertion.replaceSelection("앞 선택 뒤", 2, 4, "음성").equals("앞 음성 뒤"), "selected text replaced");
         check(TextInsertion.replaceSelection("앞 선택 뒤", 4, 2, "음성").equals("앞 음성 뒤"), "reversed selection replaced");

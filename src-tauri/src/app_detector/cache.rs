@@ -200,7 +200,14 @@ impl ContextDetectorHandle {
         };
         drop(cached);
 
-        let target_guard = self.source.current_target_guard().unwrap_or(target_guard);
+        // A stale cached target must never authorize insertion after focus lookup fails.
+        let target_guard = self.source.current_target_guard().unwrap_or_else(|| {
+            if self.source.requires_focus_guard() || target_guard.focus_required {
+                TargetAppGuard::unavailable()
+            } else {
+                target_guard
+            }
+        });
 
         let generation = self.candidate_generation.fetch_add(1, Ordering::SeqCst) + 1;
         let next_candidate = candidate_template.map(|mut candidate| {
@@ -287,7 +294,9 @@ impl ContextDetectorHandle {
                 .collect()
                 .map(|signals| TargetAppGuard::from(&signals))
         });
-        let matches = current.as_ref().is_some_and(|current| expected.matches(current));
+        let matches = current
+            .as_ref()
+            .is_some_and(|current| expected.matches(current));
         if !matches {
             tracing::warn!(?expected, ?current, "Output target identity did not match");
         }
@@ -456,6 +465,7 @@ mod tests {
         signals: Mutex<Option<ContextSignals>>,
         calls: AtomicUsize,
         fast_guard: Mutex<Option<TargetAppGuard>>,
+        strict_focus: AtomicBool,
     }
 
     impl FakeSource {
@@ -464,6 +474,7 @@ mod tests {
                 signals: Mutex::new(signals),
                 calls: AtomicUsize::new(0),
                 fast_guard: Mutex::new(None),
+                strict_focus: AtomicBool::new(false),
             }
         }
 
@@ -476,6 +487,10 @@ mod tests {
     }
 
     impl ContextSignalSource for FakeSource {
+        fn requires_focus_guard(&self) -> bool {
+            self.strict_focus.load(Ordering::SeqCst)
+        }
+
         fn current_target_guard(&self) -> Option<TargetAppGuard> {
             self.fast_guard.lock().unwrap().clone()
         }
@@ -541,6 +556,7 @@ mod tests {
         let current = TargetAppGuard {
             process_id: Some(99),
             native_identity: Some("com.apple.TextEdit".to_string()),
+            ..TargetAppGuard::default()
         };
         *source.fast_guard.lock().unwrap() = Some(current.clone());
 
@@ -551,8 +567,32 @@ mod tests {
         *source.fast_guard.lock().unwrap() = Some(TargetAppGuard {
             process_id: Some(100),
             native_identity: Some("com.apple.TextEdit".to_string()),
+            ..TargetAppGuard::default()
         });
         assert!(!handle.target_still_matches_now(&snapshot.target_guard));
+    }
+
+    #[test]
+    fn lost_focus_lookup_after_capture_cannot_reuse_cached_target() {
+        use crate::app_detector::types::FocusIdentity;
+        let source = Arc::new(FakeSource::new(Some(gmail_signals())));
+        source.strict_focus.store(true, Ordering::SeqCst);
+        let expected = TargetAppGuard {
+            process_id: Some(42),
+            native_identity: Some("com.google.Chrome".into()),
+            target_window: Some(100),
+            target_focus: Some(FocusIdentity::WindowsUiAutomation(vec![1, 2])),
+            focus_required: true,
+        };
+        *source.fast_guard.lock().unwrap() = Some(expected.clone());
+        let handle = detector(source.clone());
+        assert_eq!(handle.snapshot_for_recording().target_guard, expected);
+        *source.fast_guard.lock().unwrap() = None;
+        assert!(!handle.target_still_matches_now(&expected));
+        assert_eq!(
+            handle.snapshot_for_recording().target_guard,
+            TargetAppGuard::unavailable()
+        );
     }
 
     #[test]
@@ -562,6 +602,7 @@ mod tests {
         let current = TargetAppGuard {
             process_id: Some(99),
             native_identity: Some("com.apple.TextEdit".to_string()),
+            ..TargetAppGuard::default()
         };
         *source.fast_guard.lock().unwrap() = Some(current.clone());
 
@@ -601,6 +642,7 @@ mod tests {
             TargetAppGuard {
                 process_id: Some(42),
                 native_identity: Some("com.google.Chrome".to_string()),
+                ..TargetAppGuard::default()
             },
         );
 

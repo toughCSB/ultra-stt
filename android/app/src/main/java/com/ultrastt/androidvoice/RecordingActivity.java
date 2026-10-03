@@ -8,6 +8,7 @@ import android.view.WindowManager;
 public final class RecordingActivity extends Activity {
     private VoiceAccessibilityService service;
     private RecordingPanelView panel;
+    private RecoveryView recovery;
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private boolean closing;
     private long session;
@@ -23,7 +24,8 @@ public final class RecordingActivity extends Activity {
     public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                | WindowManager.LayoutParams.FLAG_SECURE);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         setFinishOnTouchOutside(false);
         session = getIntent().getLongExtra("session", -1);
@@ -108,6 +110,20 @@ public final class RecordingActivity extends Activity {
         completed = true;
         panel.delivered();
         main.postDelayed(this::complete, 1200);
+    }
+
+    void recover(RecoveryResult.Snapshot result) {
+        completed = true;
+        main.removeCallbacksAndMessages(null);
+        if (service != null) {
+            service.recorderDismissed(this);
+        }
+        recovery = new RecoveryView(this, this::complete);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(recovery);
+        setContentView(scroll);
+        recovery.show(result);
+        position();
     }
 
     @Override
