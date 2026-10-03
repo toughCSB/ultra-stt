@@ -12,6 +12,9 @@ speaches = "speaches"
 Speaches = "Speaches"
 SPEACHES = "SPEACHES"
 visibile = "visibile"
+ine = "ine"
+Profesional = "Profesional"
+Profissional = "Profissional"
 
 [files]
 extend-exclude = [

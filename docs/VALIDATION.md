@@ -32,6 +32,8 @@ Windows 모드 전환·취소는 이전 사용자 확인과 앱 로그가 있다
 
 ## GitHub 자동 검사 상태 — 로컬 기능 검증과 별도
 
+**후속 수정:** 사용자 요청으로 Typos 오탐·Lock Threads 토큰 호환성을 수정하고, 현재 개인 비공개 저장소에서 미지원인 CodeQL은 분석 미실행을 명시하도록 정리했다. [원인·수정·지원 범위](github-actions-personal.md). 별도 CI의 서식·의존성 감사 문제는 남아 있다. 아래는 수정 전 릴리스의 역사적 기록이며 현재 결과를 덮어쓰지 않는다.
+
 아래는 **이전 개인 프리뷰 1** 소스 `df1ef499104bf4e5f89c55ee4ab7b8c025d20d22`의 GitHub 검사 기록이다. **CI 전체가 통과한 릴리스는 아니다.** 개인 프리뷰 2 역시 기존 데스크톱 소스·npm 의존성·workflow를 변경하지 않았다. 아래 결과를 새 커밋의 검사 결과로 간주하지 않는다. 최신 상태는 [GitHub Actions](https://github.com/toughCSB/ultra-stt/actions)에서 확인한다.
 
 - [CI](https://github.com/toughCSB/ultra-stt/actions/runs/37024983654): 기존 Rust `cargo fmt --check`와 frontend Prettier 서식 검사가 실패했다. `npm audit`는 4건(High 1, Moderate 3)을 보고했고, 그 뒤 Cargo audit는 건너뛰었다. 현재 High는 `brace-expansion 5.0.9`이며 lockfile에서 개발 의존성으로 확인했다. 이를 보안 검사 통과로 표시하지 않는다.
