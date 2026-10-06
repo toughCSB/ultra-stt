@@ -6,6 +6,11 @@ import { useAppStore } from '../../../stores/appStore'
 import { abortAskDictation, abortRecording, copyRecoveryEntry, setActiveTranslationTarget, setPolishStyle, stopAskFlow } from '../../../lib/tauri'
 import { Capsule } from '../index'
 
+const dragWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({ startDragging: dragWindow }),
+}))
+
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   motion: new Proxy(
@@ -54,6 +59,20 @@ afterEach(() => {
 })
 
 describe('Capsule flow states', () => {
+  it('drags the recording shell without treating release as a stop click', async () => {
+    useAppStore.setState({ pipelineState: 'recording' })
+    const { container } = render(<Capsule />)
+    const shell = container.querySelector('.jelly-capsule-active')!
+    for (const [type, clientX] of [['pointerdown', 20], ['pointermove', 40], ['pointerup', 40]] as const) {
+      const event = new Event(type, { bubbles: true })
+      Object.defineProperties(event, { button: { value: 0 }, clientX: { value: clientX }, clientY: { value: 20 } })
+      fireEvent(shell, event)
+    }
+    await waitFor(() => expect(dragWindow).toHaveBeenCalledTimes(1))
+    expect(invoke).not.toHaveBeenCalledWith('stop_recording')
+    expect(stopAskFlow).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     useAppStore.setState({
       pipelineState: 'idle',

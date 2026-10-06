@@ -445,7 +445,57 @@ describe('useCapsuleResize async updates', () => {
     })
 
     await waitFor(() => {
-      expect(windowApiMocks.setPosition).toHaveBeenCalledWith(expect.objectContaining({ y: 100 }))
+      expect(windowApiMocks.setPosition).toHaveBeenCalledWith(expect.objectContaining({ x: 803, y: 900 }))
     })
+  })
+
+  it('starts every recording on the primary monitor but preserves a drag during that session', async () => {
+    const secondary = {
+      ...monitor,
+      position: { x: -2560, y: 0 },
+      scaleFactor: 1.5,
+      workArea: { position: { x: -2560, y: 0 }, size: { width: 2560, height: 1400 } },
+    }
+    windowApiMocks.currentMonitor.mockResolvedValue(secondary)
+    windowApiMocks.availableMonitors.mockResolvedValue([secondary, monitor])
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(1))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 930, y: 900 }))
+
+    act(() => useAppStore.setState({ pipelineState: 'preparing' }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 813, y: 900 }))
+
+    windowApiMocks.outerPosition.mockResolvedValue({ x: -1700, y: 500 })
+    windowApiMocks.outerSize.mockResolvedValue({ width: 441, height: 90 })
+    act(() => useAppStore.setState({ pipelineState: 'recording' }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(2))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: -1700, y: 500 }))
+    act(() => useAppStore.setState({ pipelineState: 'transcribing' }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(3))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: -1700, y: 500 }))
+
+    act(() => useAppStore.setState({ pipelineState: 'idle' }))
+    await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(2))
+    act(() => useAppStore.setState({ pipelineState: 'ask_recording' }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(4))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 819, y: 900 }))
+    expect(windowApiMocks.setFocusable).toHaveBeenLastCalledWith(false)
+  })
+
+  it('keeps a pending reset when preparing is superseded before positioning finishes', async () => {
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalled())
+    let finishPrimary: (value: typeof monitor) => void = () => {}
+    windowApiMocks.primaryMonitor.mockImplementationOnce(() => new Promise((resolve) => { finishPrimary = resolve }))
+    windowApiMocks.primaryMonitor.mockClear()
+    act(() => useAppStore.setState({ pipelineState: 'preparing' }))
+    await waitFor(() => expect(windowApiMocks.primaryMonitor).toHaveBeenCalledTimes(1))
+    act(() => useAppStore.setState({ pipelineState: 'recording' }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 803, y: 900 }))
+    const positions = windowApiMocks.setPosition.mock.calls.length
+    await act(async () => finishPrimary(monitor))
+    expect(windowApiMocks.setPosition).toHaveBeenCalledTimes(positions)
   })
 })

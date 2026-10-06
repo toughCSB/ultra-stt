@@ -178,6 +178,8 @@ export function useCapsuleResize() {
   const setContextMenuReady = useAppStore((s) => s.setContextMenuReady)
   const capsuleAutoHide = useAppStore((s) => s.config.capsule_auto_hide)
   const initialized = useRef(false)
+  const previousPipelineState = useRef<PipelineState>('idle')
+  const resetPosition = useRef(false)
   const prevWindowSize = useRef<{ width: number; height: number } | null>(null)
   const modeMenuAnchor = useRef<PhysicalPoint | null>(null)
   const effectGeneration = useRef(0)
@@ -200,6 +202,12 @@ export function useCapsuleResize() {
 
   useEffect(() => {
     const generation = ++effectGeneration.current
+    const startingStates: PipelineState[] = ['preparing', 'recording', 'ask_recording']
+    if (startingStates.includes(pipelineState) && !startingStates.includes(previousPipelineState.current)) {
+      resetPosition.current = true
+      modeMenuAnchor.current = null
+    }
+    previousPipelineState.current = pipelineState
     let cancelled = false
     const isCurrent = () => !cancelled && effectGeneration.current === generation
     const size = polishModeMenuOpen ? { width: 324, height: 420 } : getSizeForState(
@@ -243,8 +251,7 @@ export function useCapsuleResize() {
           await win.setFocusable(getCapsuleFocusable(polishModeMenuOpen)).catch(() => {})
           if (!isCurrent()) return
 
-          if (!initialized.current) {
-            // First mount: position at bottom-center of screen, then show
+          if (!initialized.current || resetPosition.current) {
             if (!isCurrent()) return
             await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
             if (!isCurrent()) return
@@ -253,11 +260,11 @@ export function useCapsuleResize() {
               const monitors = await availableMonitors()
               if (!isCurrent()) return
 
-              let monitor = await currentMonitor().catch(() => null)
+              let monitor = await primaryMonitor().catch(() => null)
               if (!isCurrent()) return
 
               if (!monitor) {
-                monitor = await primaryMonitor().catch(() => null)
+                monitor = await currentMonitor().catch(() => null)
                 if (!isCurrent()) return
               }
               monitor ??= monitors[0]
@@ -269,6 +276,8 @@ export function useCapsuleResize() {
                 })
                 if (!isCurrent()) return
                 await win.setPosition(new PhysicalPosition(position.x, position.y)).catch(() => {})
+                if (!isCurrent()) return
+                await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
                 if (!isCurrent()) return
               }
             } catch {
@@ -285,6 +294,7 @@ export function useCapsuleResize() {
             if (!isCurrent()) return
 
             initialized.current = true
+            resetPosition.current = false
             if (!isCurrent()) return
             prevWindowSize.current = { width: windowWidth, height: windowHeight }
             return
