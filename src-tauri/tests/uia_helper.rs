@@ -82,7 +82,7 @@ async fn extra_helper_arguments_cannot_launch_main_application() {
 }
 
 #[tokio::test]
-async fn real_selection_query_with_no_target_returns_empty_without_app_startup() {
+async fn real_selection_query_with_invalid_window_returns_unavailable_without_app_startup() {
     let mut child = LocalProcess::spawn(executable(), limits(), |command| {
         command.arg("--ultra-stt-uia-helper");
     })
@@ -95,7 +95,7 @@ async fn real_selection_query_with_no_target_returns_empty_without_app_startup()
         assert_eq!(&ready, b"UIA3");
         stdin.write_all(&[1]).await.unwrap();
         stdin.write_all(&u32::MAX.to_le_bytes()).await.unwrap();
-        stdin.write_all(&0u64.to_le_bytes()).await.unwrap();
+        stdin.write_all(&u64::MAX.to_le_bytes()).await.unwrap();
         stdin.flush().await.unwrap();
         assert_eq!(stdout.read_u32_le().await.unwrap(), 0);
     })
