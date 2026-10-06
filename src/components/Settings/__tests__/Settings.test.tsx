@@ -374,7 +374,7 @@ describe('Settings tab 切换', () => {
     expect(screen.queryByText('settings.restoreClipboardAfterPaste')).toBeNull()
     expect(screen.queryByText('settings.maxRecordingDuration')).toBeNull()
     expect(screen.queryByText('settings.historyPrivacy')).toBeNull()
-    expect(screen.queryByText('settings.launchAtStartup')).toBeNull()
+    expect(screen.getByRole('switch', { name: 'settings.launchAtStartup' })).toBeVisible()
 
     fireEvent.click(screen.getByText('settings.advancedGeneral'))
 
@@ -398,6 +398,28 @@ describe('Settings tab 切换', () => {
 
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
     expect(useAppStore.getState().savedConfig?.auto_start).toBe(true)
+  })
+
+  it('saves startup from the visible General toggle without opening advanced settings', async () => {
+    useAppStore.getState().setConfig({ ...useAppStore.getState().config, auto_start: false })
+    seedSavedConfig()
+    renderSettings()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'settings.launchAtStartup' }))
+    expect(useAppStore.getState().config.auto_start).toBe(true)
+    expect(vi.mocked(setAutoStart)).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(vi.mocked(setAutoStart)).toHaveBeenCalledWith(true))
+    await waitFor(() =>
+      expect(vi.mocked(updateConfig)).toHaveBeenCalledWith(
+        expect.objectContaining({ auto_start: true }),
+      ),
+    )
+    expect(screen.getByRole('button', { name: 'settings.advancedGeneral' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
   })
 
   it('does not mark an unchanged backend config dirty when object key order differs', () => {
@@ -1459,6 +1481,19 @@ describe('DirtyBar 行为', () => {
     expect(useAppStore.getState().config.auto_start).toBe(true)
     expect(useAppStore.getState().savedConfig?.auto_start).toBe(true)
     expect(toast).toHaveBeenCalledWith('Shortcut registration failed', 'error')
+  })
+
+  it('shows the native registration error when a standalone key is already occupied', async () => {
+    const backendConfig = useAppStore.getState().config
+    vi.mocked(updateConfig).mockRejectedValueOnce('Hotkey A is already registered')
+    vi.mocked(getConfig).mockResolvedValueOnce(backendConfig)
+    renderSettings()
+    act(() => useAppStore.getState().updateConfig({ hotkey: 'A' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith('Hotkey A is already registered', 'error'),
+    )
+    expect(useAppStore.getState().config.hotkey).toBe(backendConfig.hotkey)
   })
 })
 

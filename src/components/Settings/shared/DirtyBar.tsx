@@ -53,7 +53,7 @@ export function DirtyBar() {
         setSaveResult('idle')
       }, 1500)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to save settings'
+      const msg = e instanceof Error ? e.message : String(e)
       if (autoStartApplied && savedConfig) {
         await setAutoStart(savedConfig.auto_start).catch((rollbackError) => {
           console.error('[settings] failed to roll back auto-start', rollbackError)

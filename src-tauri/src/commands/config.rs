@@ -369,18 +369,24 @@ pub async fn set_auto_start(
     enabled: bool,
 ) -> Result<(), String> {
     use tauri_plugin_autostart::ManagerExt;
-    let autolaunch = app.autolaunch();
-    if enabled {
-        autolaunch.enable().map_err(|e| e.to_string())?;
-    } else {
-        autolaunch.disable().map_err(|e| e.to_string())?;
+    if !app.state::<crate::autostart::StartupScope>().0 {
+        return Err("Launch at startup cannot be changed from an isolated test profile".to_string());
     }
     let mut config = config_state.load().await.map_err(|e| e.to_string())?;
+    let previous_enabled = app.autolaunch().is_enabled().map_err(|e| e.to_string())?;
+    if let Err(error) = crate::autostart::apply(&app, enabled) {
+        if let Err(rollback) = crate::autostart::apply(&app, previous_enabled) {
+            return Err(format!("{error}; startup rollback also failed: {rollback}"));
+        }
+        return Err(error);
+    }
     config.auto_start = enabled;
-    config_state
-        .save(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    if let Err(error) = config_state.save(&config).await {
+        if let Err(rollback) = crate::autostart::apply(&app, previous_enabled) {
+            return Err(format!("{error}; startup rollback also failed: {rollback}"));
+        }
+        return Err(error.to_string());
+    }
     Ok(())
 }
 

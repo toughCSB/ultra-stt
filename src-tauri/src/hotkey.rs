@@ -1597,6 +1597,16 @@ mod tests {
     }
 
     #[test]
+    fn standalone_bindings_round_trip_through_storage_and_registration() {
+        for value in ["A", "7", "/", "'", "\\", "Home", "Up", "F8"] {
+            let binding = storage::ShortcutBinding::from_hotkey(value).unwrap();
+            assert!(binding.modifiers.is_empty());
+            let shortcut = parse_hotkey(&binding.to_hotkey_string().unwrap()).unwrap();
+            assert!(shortcut.mods.is_empty());
+        }
+    }
+
+    #[test]
     fn test_parse_hotkey_invalid_key() {
         let s = parse_hotkey("Alt+InvalidKey");
         assert!(s.is_none());

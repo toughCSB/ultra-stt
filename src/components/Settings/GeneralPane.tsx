@@ -178,6 +178,9 @@ export function GeneralPane() {
             onChange={(bindings) => updateCoreBindings('translate', bindings)}
           />
         </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-text-tertiary">
+          {t('settings.singleKeyHotkeyHint')}
+        </p>
         {platformCapabilities && !platformCapabilities.globalHotkeyReliable && (
           <p className="mt-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] leading-relaxed text-text-secondary">
             {t('settings.waylandHotkeyLimited')}
@@ -230,6 +233,17 @@ export function GeneralPane() {
           )}
       </Section>
 
+      <Section title={t('settings.startup')}>
+        <Toggle
+          checked={config.auto_start}
+          onChange={(checked) => updateConfig({ auto_start: checked })}
+          label={t('settings.launchAtStartup')}
+        />
+        <p className="mt-2 text-[12px] leading-relaxed text-text-tertiary">
+          {t('settings.launchAtStartupHint')}
+        </p>
+      </Section>
+
       <div>
         <button
           type="button"
@@ -246,11 +260,6 @@ export function GeneralPane() {
 
         {advancedOpen && (
           <div className="mt-4 space-y-3">
-            <Toggle
-              checked={config.auto_start}
-              onChange={(checked) => updateConfig({ auto_start: checked })}
-              label={t('settings.launchAtStartup')}
-            />
             <Toggle
               checked={config.history_enabled}
               onChange={(checked) => updateConfig({ history_enabled: checked })}

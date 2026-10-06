@@ -1,5 +1,6 @@
 pub mod app_detector;
 pub mod audio;
+mod autostart;
 mod capsule_window;
 pub mod commands;
 pub mod credentials;
@@ -133,6 +134,7 @@ struct AutoStartSyncOutcome {
 fn reconcile_auto_start_preference(
     desired_enabled: bool,
     current_enabled: Result<bool, String>,
+    refresh_enabled_registration: bool,
     apply: impl FnOnce(bool) -> Result<(), String>,
 ) -> AutoStartSyncOutcome {
     let current_enabled = match current_enabled {
@@ -145,7 +147,7 @@ fn reconcile_auto_start_preference(
         }
     };
 
-    if current_enabled == desired_enabled {
+    if current_enabled == desired_enabled && !(desired_enabled && refresh_enabled_registration) {
         return AutoStartSyncOutcome {
             config_auto_start: desired_enabled,
             error: None,
@@ -178,14 +180,8 @@ fn sync_auto_start_preference(
     let outcome = reconcile_auto_start_preference(
         config.auto_start,
         autolaunch.is_enabled().map_err(|e| e.to_string()),
-        |enabled| {
-            if enabled {
-                autolaunch.enable()
-            } else {
-                autolaunch.disable()
-            }
-            .map_err(|e| e.to_string())
-        },
+        cfg!(windows),
+        |enabled| autostart::apply(app, enabled),
     );
 
     if let Some(error) = &outcome.error {
@@ -493,7 +489,7 @@ mod tests {
 
     #[test]
     fn auto_start_sync_uses_actual_state_when_enable_fails() {
-        let outcome = reconcile_auto_start_preference(true, Ok(false), |_| {
+        let outcome = reconcile_auto_start_preference(true, Ok(false), false, |_| {
             Err("Login item failed".to_string())
         });
 
@@ -506,10 +502,40 @@ mod tests {
 
     #[test]
     fn auto_start_sync_keeps_preference_when_apply_succeeds() {
-        let outcome = reconcile_auto_start_preference(true, Ok(false), |_| Ok(()));
+        let outcome = reconcile_auto_start_preference(true, Ok(false), false, |_| Ok(()));
 
         assert!(outcome.config_auto_start);
         assert_eq!(outcome.error, None);
+    }
+
+    #[test]
+    fn auto_start_refreshes_enabled_windows_registration_after_app_moves() {
+        let mut applied = false;
+        let outcome = reconcile_auto_start_preference(true, Ok(true), true, |enabled| {
+            applied = enabled;
+            Ok(())
+        });
+        assert!(applied);
+        assert!(outcome.config_auto_start);
+        assert!(outcome.error.is_none());
+    }
+
+    #[test]
+    fn auto_start_does_not_enable_an_opted_out_registration() {
+        let outcome = reconcile_auto_start_preference(false, Ok(false), true, |_| {
+            panic!("Disabled startup must not be registered")
+        });
+        assert!(!outcome.config_auto_start);
+        assert!(outcome.error.is_none());
+    }
+
+    #[test]
+    fn auto_start_keeps_enabled_state_if_path_refresh_fails() {
+        let outcome = reconcile_auto_start_preference(true, Ok(true), true, |_| {
+            Err("Access denied".to_string())
+        });
+        assert!(outcome.config_auto_start);
+        assert!(outcome.error.is_some());
     }
 
     #[test]
@@ -892,6 +918,10 @@ pub fn run() {
         )
         .init();
 
+    let startup_scope = autostart::StartupScope::from_overrides(
+        std::env::var_os("ULTRA_STT_DATA_DIR").is_some(),
+        std::env::var_os("ULTRA_STT_ROOT").is_some(),
+    );
     #[cfg(target_os = "windows")]
     if let Err(error) = windows_profile::configure() {
         tracing::error!("Cannot start personal profile: {error}");
@@ -922,6 +952,7 @@ pub fn run() {
     );
 
     builder
+        .manage(startup_scope)
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_autostart::init(
@@ -1009,7 +1040,7 @@ pub fn run() {
             let mut initial_config =
                 tauri::async_runtime::block_on(config_manager.load()).unwrap_or_default();
             // A project-local profile must not rewrite machine-wide startup registration.
-            if std::env::var_os("ULTRA_STT_DATA_DIR").is_none() {
+            if app.state::<autostart::StartupScope>().0 {
                 sync_auto_start_preference(&app_handle, &config_manager, &mut initial_config);
             }
             app.manage(config_manager);

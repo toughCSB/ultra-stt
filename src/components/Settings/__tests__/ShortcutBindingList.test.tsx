@@ -195,4 +195,73 @@ describe('ShortcutBindingList', () => {
 
     expect(tauri.resumeHotkey).toHaveBeenCalled()
   })
+
+  it.each([
+    ['a', 'KeyA', 'A'],
+    ['ㅁ', 'KeyA', 'A'],
+    ['7', 'Digit7', '7'],
+    ['/', 'Slash', '/'],
+    ["'", 'Quote', "'"],
+    ['\\', 'Backslash', '\\'],
+    ['Home', 'Home', 'Home'],
+    ['ArrowUp', 'ArrowUp', 'Up'],
+    ['F8', 'F8', 'F8'],
+  ])('records standalone %s without requiring a modifier', (key, code, primary) => {
+    const onChange = vi.fn()
+    render(
+      <ShortcutBindingList
+        role="dictation"
+        label="Dictate"
+        bindings={[ctrlSlash]}
+        otherBindings={[]}
+        required
+        specialOptions={[]}
+        onChange={onChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ctrl+/' }))
+    fireEvent.keyDown(window, { key, code })
+    fireEvent.click(screen.getByRole('button', { name: primary }))
+    expect(onChange).toHaveBeenCalledWith([{ primary, modifiers: [] }])
+    expect(tauri.resumeHotkey).toHaveBeenCalled()
+  })
+
+  it('rejects a standalone key already used by another action', () => {
+    const onChange = vi.fn()
+    render(
+      <ShortcutBindingList
+        role="dictation"
+        label="Dictate"
+        bindings={[ctrlSlash]}
+        otherBindings={[{ primary: 'A', modifiers: [] }]}
+        required
+        specialOptions={[]}
+        onChange={onChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ctrl+/' }))
+    fireEvent.keyDown(window, { key: 'a', code: 'KeyA' })
+    fireEvent.click(screen.getByRole('button', { name: 'A' }))
+    expect(screen.getByText('Shortcut conflict')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('reports unsupported keys instead of silently ignoring them', () => {
+    const onChange = vi.fn()
+    render(
+      <ShortcutBindingList
+        role="dictation"
+        label="Dictate"
+        bindings={[ctrlSlash]}
+        otherBindings={[]}
+        required
+        specialOptions={[]}
+        onChange={onChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ctrl+/' }))
+    fireEvent.keyDown(window, { key: 'Unidentified' })
+    expect(screen.getByText('settings.hotkeyInvalid')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
 })

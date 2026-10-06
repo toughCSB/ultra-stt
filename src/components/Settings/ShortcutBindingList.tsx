@@ -6,36 +6,6 @@ import type { HotkeyRole } from '../../lib/tauri'
 import type { ShortcutBinding } from '../../stores/appStore'
 import { pauseHotkey, resumeHotkey } from '../../lib/tauri'
 
-const STANDALONE_KEYS = new Set([
-  'Space',
-  'Tab',
-  'Enter',
-  'Backspace',
-  'Escape',
-  'Delete',
-  'Insert',
-  'Home',
-  'End',
-  'PageUp',
-  'PageDown',
-  'Up',
-  'Down',
-  'Left',
-  'Right',
-  'F1',
-  'F2',
-  'F3',
-  'F4',
-  'F5',
-  'F6',
-  'F7',
-  'F8',
-  'F9',
-  'F10',
-  'F11',
-  'F12',
-])
-
 const MAX_BINDINGS = 3
 
 interface HotkeyRecorderProps {
@@ -58,6 +28,7 @@ export function HotkeyRecorder({
   onCancel,
 }: HotkeyRecorderProps) {
   const { t } = useTranslation()
+  const invalidHotkeyMessage = t('settings.hotkeyInvalid')
   const isMac = isMacPlatform()
   const [recording, setRecording] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
@@ -132,6 +103,7 @@ export function HotkeyRecorder({
     (event: KeyboardEvent) => {
       event.preventDefault()
       event.stopPropagation()
+      if (event.repeat) return
 
       const parts: string[] = []
       if (isMac && event.metaKey) parts.push('Command')
@@ -166,16 +138,24 @@ export function HotkeyRecorder({
         '?': '/',
       }
       let keyName = keyMap[event.key] || event.key
+      if (/^Key[A-Z]$/.test(event.code)) keyName = event.code.slice(3)
+      if (/^Digit[0-9]$/.test(event.code)) keyName = event.code.slice(5)
       if (keyName.length === 1) keyName = keyName.toUpperCase()
-      if (parts.length === 0 && !STANDALONE_KEYS.has(keyName)) return
 
       parts.push(keyName)
       const combo = parts.join('+')
+      if (!bindingFromHotkey(combo)) {
+        clearTimer()
+        setPending(null)
+        setError(invalidHotkeyMessage)
+        return
+      }
+      setError(null)
       setPending(combo)
       if (autoConfirmTimer.current) clearTimeout(autoConfirmTimer.current)
       autoConfirmTimer.current = setTimeout(() => confirmHotkey(combo), 1500)
     },
-    [confirmHotkey, isMac],
+    [clearTimer, confirmHotkey, isMac, invalidHotkeyMessage],
   )
 
   useEffect(() => {
