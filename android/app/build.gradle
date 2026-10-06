@@ -9,8 +9,8 @@ android {
         applicationId 'com.ultrastt.androidvoice'
         minSdk 28
         targetSdk 36
-        versionCode 9
-        versionName '1.1.62-android.9'
+        versionCode 10
+        versionName '1.1.62-android.10'
         testInstrumentationRunner 'com.ultrastt.androidvoice.NetworkChecks'
     }
 
@@ -50,6 +50,8 @@ tasks.register('compileVoiceTests', JavaCompile) {
         'src/main/java/com/ultrastt/androidvoice/RecoveryResult.java',
         'src/main/java/com/ultrastt/androidvoice/TextInsertion.java',
         'src/main/java/com/ultrastt/androidvoice/RadialGeometry.java',
+        'src/main/java/com/ultrastt/androidvoice/BubblePlacement.java',
+        'src/main/java/com/ultrastt/androidvoice/BubbleGesture.java',
         'src/test/java/com/ultrastt/androidvoice/VoiceTests.java'
     )
     classpath = files()

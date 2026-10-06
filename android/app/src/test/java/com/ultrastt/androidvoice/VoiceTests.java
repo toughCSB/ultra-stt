@@ -9,6 +9,46 @@ public final class VoiceTests {
     private static int checks;
 
     public static void main(String[] args) {
+        check(BubblePlacement.defaultTop(480, 536, 550, true) + 64 <= 480 - 48,
+                "default microphone must clear composer send row by 48dp");
+        check(BubblePlacement.defaultTop(640, 704, 800, false) + 64 <= 640 - 48,
+                "without keyboard microphone must stay above composer, not below it");
+        check(BubblePlacement.defaultTop(350, 550, 550, true) + 64 <= 350 - 48,
+                "multiline composer reserves its entire height");
+        check(BubblePlacement.TOUCH_SIZE >= 64 && BubblePlacement.CIRCLE_SIZE == 56,
+                "larger touch target and visible circle");
+        check(BubblePlacement.IDLE_ALPHA < 0.8f && BubblePlacement.IDLE_ALPHA > 0.6f,
+                "idle microphone remains visible but more transparent");
+        check(BubblePlacement.highestAllowedBottom(480, 800, 550) == 432,
+                "saved or dragged position must also clear the send row");
+        check(BubblePlacement.highestAllowedBottom(700, 800, 500) == 492,
+                "manual placement stays above keyboard in constrained layouts");
+        check(BubblePlacement.clamp(-100, 8, 320) == 8, "left edge is reachable but cannot leave screen");
+        check(BubblePlacement.clamp(900, 32, 440) == 440, "keyboard bounds clamp microphone");
+        check(BubblePlacement.clamp(900, 32, 12) == 32, "small display bounds do not invert");
+        float savedPosition = BubblePlacement.fraction(232, 32, 832);
+        check(BubblePlacement.restore(savedPosition, 32, 832) == 232, "saved location survives editor refresh");
+        check(BubblePlacement.restore(savedPosition, 32, 432) == 132, "saved location scales when folding display");
+        check(BubblePlacement.restore(savedPosition, 32, 832) == 232, "temporary keyboard clamp does not overwrite saved location");
+        BubbleGesture gesture = new BubbleGesture();
+        gesture.down(200, 300);
+        check(gesture.move(204, 302, 8) == BubbleGesture.State.PRESSED, "finger jitter is still a tap");
+        check(gesture.finish() == BubbleGesture.State.PRESSED, "short touch requests recording");
+        gesture.down(200, 300);
+        check(gesture.move(220, 280, 8) == BubbleGesture.State.MOVING, "immediate drag moves bubble");
+        check(!gesture.hold(), "moving cannot turn into mode selection after timeout");
+        check(gesture.deltaX(250) == 50 && gesture.deltaY(260) == -40, "drag uses original screen anchor");
+        check(gesture.move(201, 301, 8) == BubbleGesture.State.MOVING, "dragging back to origin cannot record");
+        check(gesture.finish() == BubbleGesture.State.MOVING && gesture.state() == BubbleGesture.State.IDLE,
+                "release persists movement without recording");
+        gesture.down(200, 300);
+        check(gesture.hold(), "stationary long press starts mode selection");
+        check(gesture.move(80, 300, 8) == BubbleGesture.State.SELECTING, "drag after vibration selects mode, not position");
+        check(gesture.finish() == BubbleGesture.State.SELECTING, "mode release cannot record");
+        gesture.down(200, 300);
+        gesture.finish();
+        check(!gesture.hold() && gesture.move(20, 30, 8) == BubbleGesture.State.IDLE,
+                "cancelled or multi-touch gesture cannot restart from late events");
         byte[] pcm = {0, 0, -1, 127, 0, -128};
         byte[] wav = WavCodec.encode(pcm);
         ByteBuffer header = ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN);
@@ -106,6 +146,8 @@ public final class VoiceTests {
         reject(() -> TextInsertion.replaceSelection("실제 입력",
                 TextInsertion.editorSelection("실제 입력", -1), 0, "음성"), "unknown nonempty cursor still rejected");
         for (int index = 0; index < 5; index++) {
+            check(RadialGeometry.pick(RadialGeometry.x(index, true), RadialGeometry.y(index), true) == index,
+                    "left-edge inward menu selects " + Modes.IDS[index]);
             check(RadialGeometry.pick(RadialGeometry.x(index), RadialGeometry.y(index)) == index,
                     "radial drag selects " + Modes.IDS[index]);
             check(RadialGeometry.pick(RadialGeometry.x(index) * 1.2, RadialGeometry.y(index) * 1.2) == index,

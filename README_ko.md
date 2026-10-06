@@ -30,7 +30,7 @@
 | :---: | :---: | :---: |
 | <a href="docs/images/android-radial-modes.png"><img src="docs/images/android-radial-modes.png" width="240" alt="기존 키보드 위 마이크 주변에 다섯 색상·아이콘의 반원 메뉴가 펼쳐진 실제 화면" /></a> | <a href="docs/images/android-mode-drag.png"><img src="docs/images/android-mode-drag.png" width="240" alt="구조화 아이콘으로 드래그하면 파란 목록 아이콘에 흰 선택 테두리가 표시됩니다" /></a> | <a href="docs/images/android-recording-chatgpt.png"><img src="docs/images/android-recording-chatgpt.png" width="240" alt="키보드가 숨겨지고 현재 모드·녹음 시간·종료·취소가 표시되는 녹색 녹음창" /></a> |
 
-**꾹 누르기 → 원하는 아이콘 쪽으로 밀기 → 손 떼기.** 흰 테두리가 생긴 모드가 선택되고, 마이크 버튼 전체 색상도 바뀝니다. 이 드래그는 **모드 선택용**이며 버튼 위치 이동 기능은 아닙니다.
+**꾹 누르기 → 원하는 아이콘 쪽으로 밀기 → 손 떼기.** 흰 테두리가 생긴 모드가 선택되고, 마이크 버튼 전체 색상도 바뀝니다. 아래 사진은 .9의 모드 선택입니다. 후속 **.10은 누른 뒤 바로 드래그하면 위치 이동**, 가만히 길게 눌러 진동 후 드래그하면 모드 선택으로 구분합니다. 버튼도 더 크고 투명하며 기본 위치를 입력칸 위로 높였습니다. [변경·검증 범위](docs/2026-10-04-bubble-usability-review.md). 기존 릴리스 다운로드는 아직 .9입니다.
 
 <details>
 <summary>대기 중 마이크와 녹음 중 모드 선택 화면 더 보기</summary>

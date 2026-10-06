@@ -23,6 +23,8 @@ final class BubbleView extends FrameLayout {
         void drag(float screenX, float screenY);
         void release(float screenX, float screenY);
         void cancel();
+        void move(float deltaX, float deltaY);
+        void finishMove(boolean cancelled);
     }
 
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -35,11 +37,12 @@ final class BubbleView extends FrameLayout {
     private boolean recording;
     private boolean processing;
     private final Gestures gestures;
-    private boolean held;
-    private boolean moved;
-    private float downX;
-    private float downY;
-    private final Runnable longPress = this::performLongClick;
+    private final BubbleGesture gesture = new BubbleGesture();
+    private final Runnable longPress = () -> {
+        if (gesture.state() == BubbleGesture.State.PRESSED) {
+            performLongClick();
+        }
+    };
 
     BubbleView(Context context, Gestures gestures) {
         super(context);
@@ -48,12 +51,13 @@ final class BubbleView extends FrameLayout {
         setLongClickable(true);
         setFocusable(true);
         circle = new FrameLayout(context);
-        addView(circle, new LayoutParams(Ui.dp(context, 48), Ui.dp(context, 48), Gravity.CENTER));
+        addView(circle, new LayoutParams(Ui.dp(context, BubblePlacement.CIRCLE_SIZE),
+                Ui.dp(context, BubblePlacement.CIRCLE_SIZE), Gravity.CENTER));
         microphone = new ImageView(context);
         microphone.setImageDrawable(ModeArtwork.load(context, R.drawable.mic_glyph));
         microphone.setColorFilter(Color.WHITE);
         microphone.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        circle.addView(microphone, new LayoutParams(Ui.dp(context, 34), Ui.dp(context, 34), Gravity.CENTER));
+        circle.addView(microphone, new LayoutParams(Ui.dp(context, 38), Ui.dp(context, 38), Gravity.CENTER));
         stop = new View(context);
         GradientDrawable stopShape = new GradientDrawable();
         stopShape.setColor(Color.WHITE);
@@ -82,36 +86,33 @@ final class BubbleView extends FrameLayout {
     public boolean onTouchEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                held = false;
-                moved = false;
-                downX = event.getRawX();
-                downY = event.getRawY();
+                gesture.down(event.getRawX(), event.getRawY());
                 main.postDelayed(longPress, ViewConfiguration.getLongPressTimeout());
                 return true;
             case MotionEvent.ACTION_MOVE:
-                if (held) {
+                BubbleGesture.State state = gesture.move(event.getRawX(), event.getRawY(),
+                        ViewConfiguration.get(getContext()).getScaledTouchSlop());
+                if (state == BubbleGesture.State.SELECTING) {
                     gestures.drag(event.getRawX(), event.getRawY());
-                } else if (Math.hypot(event.getRawX() - downX, event.getRawY() - downY)
-                        > ViewConfiguration.get(getContext()).getScaledTouchSlop()) {
-                    moved = true;
+                } else if (state == BubbleGesture.State.MOVING) {
                     main.removeCallbacks(longPress);
+                    gestures.move(gesture.deltaX(event.getRawX()), gesture.deltaY(event.getRawY()));
                 }
                 return true;
             case MotionEvent.ACTION_UP:
                 main.removeCallbacks(longPress);
-                if (held) {
+                BubbleGesture.State finished = gesture.finish();
+                if (finished == BubbleGesture.State.SELECTING) {
                     gestures.release(event.getRawX(), event.getRawY());
-                } else if (!moved) {
+                } else if (finished == BubbleGesture.State.MOVING) {
+                    gestures.finishMove(false);
+                } else if (finished == BubbleGesture.State.PRESSED) {
                     performClick();
                 }
-                held = false;
                 return true;
             case MotionEvent.ACTION_CANCEL:
-                main.removeCallbacks(longPress);
-                if (held) {
-                    gestures.cancel();
-                }
-                held = false;
+            case MotionEvent.ACTION_POINTER_DOWN:
+                cancelGesture();
                 return true;
             default:
                 return true;
@@ -127,10 +128,27 @@ final class BubbleView extends FrameLayout {
 
     @Override
     public boolean performLongClick() {
-        held = true;
+        if (gesture.state() == BubbleGesture.State.IDLE) {
+            gesture.down(0, 0);
+        }
+        if (!gesture.hold()) {
+            return false;
+        }
         performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
         gestures.hold();
         return true;
+    }
+
+    boolean isInteracting() {
+        return gesture.state() != BubbleGesture.State.IDLE;
+    }
+
+    void cancelGesture() {
+        main.removeCallbacks(longPress);
+        if (gesture.finish() == BubbleGesture.State.MOVING) {
+            gestures.finishMove(true);
+        }
+        gestures.cancel();
     }
 
     void update(boolean recording, boolean processing, String mode) {
@@ -163,14 +181,14 @@ final class BubbleView extends FrameLayout {
         background.setColor(ModeArtwork.color(mode));
         background.setStroke(Ui.dp(getContext(), recording || processing ? 2 : 0), Color.WHITE);
         circle.setBackground(background);
-        circle.setAlpha(recording || processing ? 1f : 0.9f);
+        circle.setAlpha(recording || processing ? 1f : BubblePlacement.IDLE_ALPHA);
         microphone.setVisibility(recording || processing ? GONE : VISIBLE);
         stop.setVisibility(startPulse ? VISIBLE : GONE);
         timer.setVisibility(startPulse ? VISIBLE : GONE);
         spinner.setVisibility(processing ? VISIBLE : GONE);
         String state = processing ? "음성 처리 중 · 잠시 기다려 주세요 · 길게 누른 채 드래그해 모드 변경"
                 : recording ? "녹음 중 · 눌러 녹음 종료 · 길게 누른 채 드래그해 모드 변경"
-                : "Ultra STT · 눌러 녹음 시작 · 길게 누른 채 드래그해 모드 변경";
+                : "Ultra STT · 눌러 녹음 시작 · 바로 드래그해 위치 이동 · 길게 누르면 진동 후 모드 선택";
         setContentDescription(Modes.LABELS[Modes.index(mode)] + " · " + state);
     }
 
@@ -183,7 +201,7 @@ final class BubbleView extends FrameLayout {
 
     @Override
     protected void onDetachedFromWindow() {
-        main.removeCallbacks(longPress);
+        cancelGesture();
         if (pulse != null) {
             pulse.cancel();
             pulse = null;

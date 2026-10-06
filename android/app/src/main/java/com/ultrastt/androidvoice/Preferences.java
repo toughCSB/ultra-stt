@@ -29,6 +29,22 @@ final class Preferences {
         return store.getBoolean("floating-enabled", true);
     }
 
+    float bubbleX() {
+        return store.getFloat("bubble-x", Float.NaN);
+    }
+
+    float bubbleY() {
+        return store.getFloat("bubble-y", Float.NaN);
+    }
+
+    void bubblePosition(float x, float y) {
+        store.edit().putFloat("bubble-x", x).putFloat("bubble-y", y).apply();
+    }
+
+    void resetBubblePosition() {
+        store.edit().remove("bubble-x").remove("bubble-y").apply();
+    }
+
     void floatingEnabled(boolean enabled) {
         store.edit().putBoolean("floating-enabled", enabled).apply();
     }

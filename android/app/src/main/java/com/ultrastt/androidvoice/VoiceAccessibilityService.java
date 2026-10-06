@@ -60,11 +60,18 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     private int previousKeyboardMode;
     private long keyboardHideDeadline;
     private boolean preparingKeyboard;
+    private boolean launchingRecorder;
     private boolean destroyed;
     private long session;
     private int anchorX;
     private int anchorY;
-    private int displayHeight;
+    private final Rect safeDisplay = new Rect();
+    private final Rect dragBounds = new Rect();
+    private boolean movingAnchor;
+    private int moveOriginX;
+    private int moveOriginY;
+    private boolean radialRight;
+    private int radialSelection = -1;
     private float radialCenterX;
     private float radialCenterY;
 
@@ -237,7 +244,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     private void updateTarget() {
-        if (destroyed || preferences == null || preparingKeyboard) {
+        if (destroyed || preferences == null || preparingKeyboard || launchingRecorder) {
             return;
         }
         AccessibilityNodeInfo editor = preferences.floatingEnabled() ? findEditor() : null;
@@ -258,35 +265,114 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     private void position(AccessibilityNodeInfo editor) {
+        if ((bubble != null && bubble.isInteracting()) || palette != null) {
+            return;
+        }
         Rect display;
         if (Build.VERSION.SDK_INT >= 30) {
-            display = windows.getCurrentWindowMetrics().getBounds();
+            android.view.WindowMetrics metrics = windows.getCurrentWindowMetrics();
+            display = new Rect(metrics.getBounds());
+            android.graphics.Insets insets = metrics.getWindowInsets().getInsetsIgnoringVisibility(
+                    android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+            display.left += insets.left;
+            display.top += insets.top;
+            display.right -= insets.right;
+            display.bottom -= insets.bottom;
         } else {
             android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
             windows.getDefaultDisplay().getRealMetrics(metrics);
-            display = new Rect(0, 0, metrics.widthPixels, metrics.heightPixels);
+            display = new Rect(0, Ui.dp(this, 32), metrics.widthPixels, metrics.heightPixels - Ui.dp(this, 32));
         }
+        int margin = Ui.dp(this, 8);
+        int size = Ui.dp(this, BubblePlacement.TOUCH_SIZE);
+        safeDisplay.set(display);
+        safeDisplay.inset(margin, margin);
+        Rect available = new Rect(safeDisplay);
         Rect field = new Rect();
-        displayHeight = display.height();
         editor.getBoundsInScreen(field);
-        int keyboardTop = display.height();
+        int keyboardTop = safeDisplay.bottom;
         boolean keyboardVisible = false;
         for (AccessibilityWindowInfo window : getWindows()) {
+            if (window.getId() == editor.getWindowId()) {
+                Rect bounds = new Rect();
+                window.getBoundsInScreen(bounds);
+                available.intersect(bounds);
+            }
             if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
                 Rect bounds = new Rect();
                 window.getBoundsInScreen(bounds);
-                if (!bounds.isEmpty()) {
+                if (!bounds.isEmpty() && bounds.bottom > field.top) {
                     keyboardTop = Math.min(keyboardTop, bounds.top);
                     keyboardVisible = true;
                 }
             }
         }
-        anchorX = Math.max(Ui.dp(this, 8), display.width() - Ui.dp(this, 64));
-        int desired = keyboardVisible ? keyboardTop - Ui.dp(this, 64) : field.bottom + Ui.dp(this, 8);
-        anchorY = Math.max(Ui.dp(this, 32), Math.min(desired, display.height() - Ui.dp(this, 96)));
-        if (bubble != null) {
-            windows.updateViewLayout(bubble, overlayParams(Ui.dp(this, 56), Ui.dp(this, 56), anchorX, anchorY));
+        float density = getResources().getDisplayMetrics().density;
+        int safeBottom = Math.round(BubblePlacement.highestAllowedBottom(field.top / density,
+                available.bottom / density, keyboardTop / density) * density);
+        dragBounds.set(available.left, available.top,
+                Math.max(available.left, available.right - size),
+                Math.max(available.top, safeBottom - size));
+        int desired = Math.round(BubblePlacement.defaultTop(field.top / density, field.bottom / density,
+                keyboardTop / density, keyboardVisible) * density);
+        float savedX = preferences.bubbleX();
+        float savedY = preferences.bubbleY();
+        if (Float.isFinite(savedX) && Float.isFinite(savedY)) {
+            anchorX = Math.round(BubblePlacement.restore(savedX, safeDisplay.left, safeDisplay.right - size));
+            anchorY = Math.round(BubblePlacement.restore(savedY, safeDisplay.top, safeDisplay.bottom - size));
+        } else {
+            anchorX = dragBounds.right;
+            anchorY = desired;
         }
+        anchorX = Math.round(BubblePlacement.clamp(anchorX, dragBounds.left, dragBounds.right));
+        anchorY = Math.round(BubblePlacement.clamp(anchorY, dragBounds.top, dragBounds.bottom));
+        updateBubblePosition();
+    }
+
+    private void updateBubblePosition() {
+        if (bubble != null) {
+            int size = Ui.dp(this, BubblePlacement.TOUCH_SIZE);
+            windows.updateViewLayout(bubble, overlayParams(size, size, anchorX, anchorY));
+        }
+    }
+
+    private void moveBubble(float deltaX, float deltaY) {
+        if (!movingAnchor) {
+            movingAnchor = true;
+            moveOriginX = anchorX;
+            moveOriginY = anchorY;
+        }
+        anchorX = Math.round(BubblePlacement.clamp(moveOriginX + deltaX, dragBounds.left, dragBounds.right));
+        anchorY = Math.round(BubblePlacement.clamp(moveOriginY + deltaY, dragBounds.top, dragBounds.bottom));
+        updateBubblePosition();
+    }
+
+    private void finishMoving(boolean cancelled) {
+        if (!movingAnchor) {
+            return;
+        }
+        movingAnchor = false;
+        if (cancelled) {
+            anchorX = moveOriginX;
+            anchorY = moveOriginY;
+        } else {
+            int size = Ui.dp(this, BubblePlacement.TOUCH_SIZE);
+            preferences.bubblePosition(
+                    BubblePlacement.fraction(anchorX, safeDisplay.left, safeDisplay.right - size),
+                    BubblePlacement.fraction(anchorY, safeDisplay.top, safeDisplay.bottom - size));
+        }
+        updateBubblePosition();
+        scheduleUpdate();
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        if (bubble != null) {
+            bubble.cancelGesture();
+        }
+        closePalette();
+        scheduleUpdate();
     }
 
     private WindowManager.LayoutParams overlayParams(int width, int height, int x, int y) {
@@ -311,7 +397,8 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         }
         bubble = new BubbleView(this, gestures());
         try {
-            windows.addView(bubble, overlayParams(Ui.dp(this, 56), Ui.dp(this, 56), anchorX, anchorY));
+            int size = Ui.dp(this, BubblePlacement.TOUCH_SIZE);
+            windows.addView(bubble, overlayParams(size, size, anchorX, anchorY));
             refreshBubble();
         } catch (WindowManager.BadTokenException error) {
             bubble = null;
@@ -320,8 +407,10 @@ public final class VoiceAccessibilityService extends AccessibilityService {
 
     private void hideBubble() {
         if (bubble != null) {
-            windows.removeView(bubble);
+            BubbleView previous = bubble;
+            previous.cancelGesture();
             bubble = null;
+            windows.removeView(previous);
         }
     }
 
@@ -396,6 +485,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
 
     private void launchRecorder() {
         preparingKeyboard = false;
+        launchingRecorder = true;
         keyboardHideDeadline = 0;
         Intent recorder = new Intent(this, RecordingActivity.class);
         recorder.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
@@ -404,7 +494,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             startActivity(recorder);
             long expected = session;
             main.postDelayed(() -> {
-                if (guard.accepts(expected) && recordingActivity == null) {
+                if (guard.accepts(expected) && launchingRecorder) {
                     cancelWork("녹음 창을 열지 못했습니다. 앱을 한 번 열고 다시 시도해 주세요.");
                 }
             }, 2500);
@@ -425,6 +515,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         if (!guard.accepts(expected) || capture != null || sending) {
             return;
         }
+        launchingRecorder = false;
         if (!unchangedTarget()) {
             cancelWork("입력창이 바뀌어 취소했습니다.");
             return;
@@ -711,6 +802,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         guard.invalidate();
         targetLostReason = null;
         preparingKeyboard = false;
+        launchingRecorder = false;
         keyboardHideDeadline = 0;
         if (capture != null) {
             capture.cancel();
@@ -799,13 +891,19 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             closePalette();
             return;
         }
-        radialCenterX = anchorX + Ui.dp(this, 28);
-        radialCenterY = anchorY + Ui.dp(this, 28);
+        radialCenterX = anchorX + Ui.dp(this, BubblePlacement.TOUCH_SIZE / 2);
+        radialCenterY = anchorY + Ui.dp(this, BubblePlacement.TOUCH_SIZE / 2);
+        radialRight = radialCenterX < safeDisplay.exactCenterX();
+        radialSelection = -1;
         int width = Ui.dp(this, 176);
         int height = Ui.dp(this, 292);
-        int x = Math.max(0, Math.round(radialCenterX) - Ui.dp(this, 146));
-        int y = Math.max(0, Math.min(Math.round(radialCenterY) - Ui.dp(this, 146), displayHeight - height));
-        palette = new RadialModeView(this, radialCenterX - x, radialCenterY - y, preferences.mode(), this::chooseMode);
+        int x = Math.round(BubblePlacement.clamp(radialCenterX - Ui.dp(this, radialRight ? 30 : 146),
+                safeDisplay.left, safeDisplay.right - width));
+        int y = Math.round(BubblePlacement.clamp(radialCenterY - Ui.dp(this, 146),
+                safeDisplay.top, safeDisplay.bottom - height));
+        radialCenterY = y + Ui.dp(this, 146);
+        palette = new RadialModeView(this, radialCenterX - x, radialCenterY - y,
+                radialRight, preferences.mode(), this::chooseMode);
         try {
             windows.addView(palette, overlayParams(width, height, x, y));
         } catch (WindowManager.BadTokenException error) {
@@ -823,7 +921,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
 
     private int radialPick(float screenX, float screenY) {
         float density = getResources().getDisplayMetrics().density;
-        return RadialGeometry.pick((screenX - radialCenterX) / density, (screenY - radialCenterY) / density);
+        return RadialGeometry.pick((screenX - radialCenterX) / density, (screenY - radialCenterY) / density, radialRight);
     }
 
     BubbleView.Gestures gestures() {
@@ -841,20 +939,31 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             @Override
             public void drag(float screenX, float screenY) {
                 if (palette != null) {
-                    palette.highlight(radialPick(screenX, screenY));
+                    radialSelection = radialPick(screenX, screenY);
+                    palette.highlight(radialSelection);
                 }
             }
 
             @Override
             public void release(float screenX, float screenY) {
                 if (palette != null) {
-                    chooseMode(radialPick(screenX, screenY));
+                    chooseMode(radialSelection < 0 ? -1 : radialPick(screenX, screenY));
                 }
             }
 
             @Override
             public void cancel() {
                 closePalette();
+            }
+
+            @Override
+            public void move(float deltaX, float deltaY) {
+                moveBubble(deltaX, deltaY);
+            }
+
+            @Override
+            public void finishMove(boolean cancelled) {
+                finishMoving(cancelled);
             }
         };
     }
@@ -863,6 +972,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         if (palette != null) {
             windows.removeView(palette);
             palette = null;
+            scheduleUpdate();
         }
     }
 

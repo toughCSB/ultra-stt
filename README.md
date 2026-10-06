@@ -32,7 +32,7 @@
 | :---: | :---: | :---: |
 | <a href="docs/images/android-radial-modes.png"><img src="docs/images/android-radial-modes.png" width="240" alt="Five differently colored mode icons unfold around the microphone over an existing Android keyboard" /></a> | <a href="docs/images/android-mode-drag.png"><img src="docs/images/android-mode-drag.png" width="240" alt="Dragging toward Structured highlights its blue list icon with a white ring" /></a> | <a href="docs/images/android-recording-chatgpt.png"><img src="docs/images/android-recording-chatgpt.png" width="240" alt="The keyboard is hidden and the green recording panel displays Structured mode, timer, stop and cancel" /></a> |
 
-**Press and hold → slide toward an icon → release.** The highlighted icon selects the cleanup style; the microphone's full color reflects the selection. This gesture changes **mode**, not the button's screen position.
+**Press and hold → slide toward an icon → release.** The highlighted icon selects the cleanup style; the microphone's full color reflects the selection. These screenshots show .9. The .10 follow-up adds **immediate drag to reposition**; holding still until haptic feedback opens the mode picker instead. The button is larger, more transparent, and higher above the composer. [Changes and verification](docs/2026-10-04-bubble-usability-review.md). Published release downloads are still .9.
 
 <details>
 <summary>See the idle microphone and the in-recording mode picker</summary>

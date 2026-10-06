@@ -34,6 +34,7 @@
         <activity
             android:name=".RecordingActivity"
             android:exported="false"
+            android:taskAffinity=""
             android:excludeFromRecents="true"
             android:theme="@style/RecordingTheme"
             android:configChanges="orientation|screenSize|keyboardHidden"

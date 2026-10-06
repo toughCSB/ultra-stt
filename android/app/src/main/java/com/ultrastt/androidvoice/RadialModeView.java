@@ -16,7 +16,7 @@ final class RadialModeView extends FrameLayout {
     private final int selected;
     private int highlighted = -1;
 
-    RadialModeView(Context context, float originX, float originY, String mode, IntConsumer choose) {
+    RadialModeView(Context context, float originX, float originY, boolean opensRight, String mode, IntConsumer choose) {
         super(context);
         selected = Modes.index(mode);
         setClipChildren(false);
@@ -32,7 +32,7 @@ final class RadialModeView extends FrameLayout {
             button.setContentDescription(Modes.LABELS[index] + (index == selected ? " · 현재 선택" : ""));
             button.setOnClickListener(view -> choose.accept(position));
             float density = context.getResources().getDisplayMetrics().density;
-            float centerX = originX + (float) RadialGeometry.x(index) * density;
+            float centerX = originX + (float) RadialGeometry.x(index, opensRight) * density;
             float centerY = originY + (float) RadialGeometry.y(index) * density;
             LayoutParams params = new LayoutParams(Ui.dp(context, 48), Ui.dp(context, 48));
             params.leftMargin = Math.round(centerX - Ui.dp(context, 24));
@@ -47,7 +47,7 @@ final class RadialModeView extends FrameLayout {
         label = Ui.text(context, Modes.LABELS[selected], 13, true);
         label.setGravity(Gravity.CENTER);
         LayoutParams textParams = new LayoutParams(Ui.dp(context, 88), Ui.dp(context, 42));
-        textParams.leftMargin = Math.round(originX - Ui.dp(context, 96));
+        textParams.leftMargin = Math.round(originX + Ui.dp(context, opensRight ? 8 : -96));
         textParams.topMargin = Math.round(originY - Ui.dp(context, 21));
         addView(label, textParams);
         highlight(-1);

@@ -23,6 +23,12 @@ public final class EditorActivity extends Activity {
     @Override
     protected void onPause() {
         paused = true;
+        if (getIntent().getBooleanExtra("launchEdit", false)) {
+            EditText editor = activeEditor.get();
+            if (editor != null) {
+                editor.setText("녹음창 전환 중 사용자가 바꾼 문장");
+            }
+        }
         super.onPause();
     }
 
@@ -131,6 +137,9 @@ public final class EditorActivity extends Activity {
             editor.setSelection(2);
         }
         activeEditor = new java.lang.ref.WeakReference<>(editor);
+        if (getIntent().getBooleanExtra("bubbleGestures", false)) {
+            content.addView(new android.view.View(this), new LinearLayout.LayoutParams(1, 0, 1));
+        }
         content.addView(editor, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 240));
         setContentView(content);
         if (android.os.Build.VERSION.SDK_INT >= 30 && getIntent().getBooleanExtra("keyboardBlur", false)) {

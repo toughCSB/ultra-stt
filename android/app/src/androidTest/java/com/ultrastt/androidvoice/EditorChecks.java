@@ -14,6 +14,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 public final class EditorChecks extends Instrumentation {
     private Bundle arguments;
     private UiAutomation automation;
+    private volatile String voiceNotice = "none";
 
     @Override
     public void onCreate(Bundle options) {
@@ -27,6 +28,12 @@ public final class EditorChecks extends Instrumentation {
         Bundle result = new Bundle();
         try {
             automation = getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
+            automation.setOnAccessibilityEventListener(event -> {
+                if (event.getEventType() == android.view.accessibility.AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED
+                        && event.getPackageName() != null && "com.ultrastt.androidvoice".contentEquals(event.getPackageName())) {
+                    voiceNotice = event.getText().toString();
+                }
+            });
             android.accessibilityservice.AccessibilityServiceInfo automationInfo = automation.getServiceInfo();
             automationInfo.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
             automation.setServiceInfo(automationInfo);
@@ -43,9 +50,27 @@ public final class EditorChecks extends Instrumentation {
                 finish(Activity.RESULT_OK, result);
                 return;
             }
+            if ("recovery-states".equals(arguments.getString("scenario"))) {
+                runOnMainSync(this::checkRecoveryStates);
+                result.putString("stream", "PASS: recovery full text, stale copy rejection, discard and empty state; no clipboard overwritten or audio uploaded\n");
+                finish(Activity.RESULT_OK, result);
+                return;
+            }
             if (!"current".equals(arguments.getString("scenario"))) {
+                if ("bubble-gestures".equals(arguments.getString("scenario"))) {
+                    Intent settings = new Intent();
+                    settings.setClassName("com.ultrastt.androidvoice", "com.ultrastt.androidvoice.SettingsActivity");
+                    settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(settings);
+                    SystemClock.sleep(700);
+                    AccessibilityNodeInfo reset = findLabel(automation.getRootInActiveWindow(), "마이크 위치 초기화");
+                    require(reset != null && reset.performAction(AccessibilityNodeInfo.ACTION_CLICK),
+                            "Default-position test must reset the previously saved drag position");
+                }
                 Intent editor = new Intent(getContext(), EditorActivity.class);
                 editor.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                editor.putExtra("bubbleGestures", "bubble-gestures".equals(arguments.getString("scenario")));
+                editor.putExtra("launchEdit", "launch-edit".equals(arguments.getString("scenario")));
                 editor.putExtra("busy", "busy".equals(arguments.getString("scenario")));
                 editor.putExtra("staleFocus", arguments.getString("scenario", "").startsWith("stale-focus"));
                 editor.putExtra("password", "stale-focus-password".equals(arguments.getString("scenario")));
@@ -85,6 +110,13 @@ public final class EditorChecks extends Instrumentation {
             }
             Rect bounds = waitForOverlay(5000);
             require(bounds != null, "Voice button missing for active external editor");
+            if ("bubble-gestures".equals(arguments.getString("scenario"))) {
+                checkBubbleGestures(bounds);
+                automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME);
+                result.putString("stream", "PASS: composer clearance, larger target, immediate drag, persistence, cancel, inward mode fan, tap recording; no audio uploaded\n");
+                finish(Activity.RESULT_OK, result);
+                return;
+            }
             if ("late-visible".equals(arguments.getString("scenario"))) {
                 automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME);
                 result.putString("stream", "PASS: button appears after editor becomes visible without new focus event\n");
@@ -96,6 +128,18 @@ public final class EditorChecks extends Instrumentation {
                 require(waitForKeyboard(true, 3000), "Keyboard must be visible before recording");
             }
             tap(bounds.centerX(), bounds.centerY());
+            if ("launch-edit".equals(arguments.getString("scenario"))) {
+                SystemClock.sleep(1500);
+                require(waitForRecording(false, 1000), "Changed editor during recorder launch must not record");
+                runOnMainSync(() -> require("녹음창 전환 중 사용자가 바꾼 문장".contentEquals(
+                        EditorActivity.activeEditor.get().getText()), "Launch fixture must change text and preserve it"));
+                require(normalizedMode(initialKeyboardMode) == normalizedMode(shell("settings get secure accessibility_soft_keyboard_mode").trim()),
+                        "Launch cancellation must restore keyboard policy");
+                automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME);
+                result.putString("stream", "PASS: actual content change during recorder handoff still cancels safely; no audio uploaded\n");
+                finish(Activity.RESULT_OK, result);
+                return;
+            }
             if ("keyboard-cancel".equals(arguments.getString("scenario"))
                     || "keyboard-blur-content".equals(arguments.getString("scenario"))
                     || "keyboard-edit".equals(arguments.getString("scenario"))) {
@@ -117,7 +161,7 @@ public final class EditorChecks extends Instrumentation {
                 finish(Activity.RESULT_OK, result);
                 return;
             }
-            require(waitForRecording(true, 4000), "Recording cancelled instead of starting");
+            require(waitForRecording(true, 4000), "Recording cancelled instead of starting; app notice: " + voiceNotice);
             require(waitForKeyboard(false, 3000), "Keyboard must hide while recording");
             SystemClock.sleep(700);
             require(waitForRecording(true, 500), "Recording cancelled after external Activity transition");
@@ -185,6 +229,68 @@ public final class EditorChecks extends Instrumentation {
         }
     }
 
+    private void checkBubbleGestures(Rect original) {
+        float density = getContext().getResources().getDisplayMetrics().density;
+        Rect field = new Rect();
+        AccessibilityNodeInfo editor = findEditable();
+        require(editor != null, "Composer missing");
+        editor.getBoundsInScreen(field);
+        require(Math.abs(original.width() - 64 * density) < 3, "Touch target must be 64dp");
+        require(original.bottom <= field.top - 47 * density, "Microphone must clear composer row");
+        drag(original.centerX(), original.centerY(), 44 * density, original.centerY() - 70 * density, 0, false);
+        Rect moved = waitForOverlay(2000);
+        require(moved != null && moved.centerX() < original.centerX() - 80 * density, "Immediate drag must move microphone");
+        require(waitForRecording(false, 300), "Dragging must never start recording");
+        runOnMainSync(() -> EditorActivity.activeEditor.get().sendAccessibilityEvent(
+                android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED));
+        SystemClock.sleep(300);
+        require(moved.equals(waitForOverlay(1500)), "Editor refresh must not reset dragged location");
+        drag(moved.centerX(), moved.centerY(), moved.centerX() + 90 * density, moved.centerY(), 0, true);
+        require(moved.equals(waitForOverlay(1500)), "Cancelled drag must restore position");
+        long time = SystemClock.uptimeMillis();
+        inject(time, MotionEvent.ACTION_DOWN, moved.centerX(), moved.centerY());
+        SystemClock.sleep(android.view.ViewConfiguration.getLongPressTimeout() + 250);
+        Rect fan = waitForOverlay(1500);
+        require(fan != null && fan.width() > moved.width() * 2, "Long press must open mode menu");
+        require(fan.right > moved.right + 90 * density, "Left-edge mode menu must open inward");
+        inject(time, MotionEvent.ACTION_MOVE, moved.centerX() + 108 * density, moved.centerY());
+        SystemClock.sleep(120);
+        inject(time, MotionEvent.ACTION_UP, moved.centerX() + 108 * density, moved.centerY());
+        Rect afterMode = waitForOverlay(1500);
+        require(moved.equals(afterMode), "Mode selection must not move microphone");
+        require(waitForRecording(false, 300), "Mode selection must not record");
+        drag(moved.centerX(), moved.centerY(), original.centerX(), original.centerY(), 0, false);
+        Rect restored = waitForOverlay(1500);
+        require(restored != null, "Microphone must remain after moving back");
+        tap(restored.centerX(), restored.centerY());
+        require(waitForRecording(true, 4000), "Tap after drag must still record");
+        require(waitForKeyboard(false, 3000), "Recording must still hide keyboard");
+        automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME);
+        require(waitForRecording(false, 2000), "Home must cancel recording");
+    }
+
+    private void drag(float fromX, float fromY, float toX, float toY, long hold, boolean cancel) {
+        long time = SystemClock.uptimeMillis();
+        inject(time, MotionEvent.ACTION_DOWN, fromX, fromY);
+        SystemClock.sleep(hold);
+        for (int step = 1; step <= 6; step++) {
+            inject(time, MotionEvent.ACTION_MOVE, fromX + (toX - fromX) * step / 6,
+                    fromY + (toY - fromY) * step / 6);
+            SystemClock.sleep(25);
+        }
+        inject(time, cancel ? MotionEvent.ACTION_CANCEL : MotionEvent.ACTION_UP, toX, toY);
+    }
+
+    private void inject(long downTime, int action, float screenX, float screenY) {
+        MotionEvent event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, screenX, screenY, 0);
+        event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        try {
+            require(automation.injectInputEvent(event, true), "Touch injection failed");
+        } finally {
+            event.recycle();
+        }
+    }
+
     private Rect recordingPanelBounds() {
         java.util.regex.Matcher bounds = java.util.regex.Pattern.compile(
                 "com\\.ultrastt\\.androidvoice/com\\.ultrastt\\.androidvoice\\.RecordingActivity, frame=\\[Rect\\((\\d+), (\\d+) - (\\d+), (\\d+)\\)\\]")
@@ -240,6 +346,28 @@ public final class EditorChecks extends Instrumentation {
             }
         }
         return null;
+    }
+
+    private void checkRecoveryStates() {
+        EditorGuard guard = new EditorGuard();
+        long session = guard.begin();
+        RecoveryResult.Snapshot snapshot = RecoveryResult.ACTIVE.saveIfCurrent(guard, session, "QA 복구 문장\n두 번째 줄");
+        int[] dismissed = {0};
+        RecoveryView view = new RecoveryView(getContext(), () -> dismissed[0]++);
+        view.show(snapshot);
+        require(view.getVisibility() == android.view.View.VISIBLE, "Recovery must be visible");
+        require(findText(view, snapshot.text) != null, "Recovery must display complete multiline text");
+        RecoveryResult.Snapshot newer = RecoveryResult.ACTIVE.saveIfCurrent(guard, session, "더 최근 QA 문장");
+        findText(view, "문장 복사").performClick();
+        require(findText(view, "문장이 더 이상 남아 있지 않습니다.") != null, "Old recovery cannot copy a different result");
+        findText(view, "닫기 · 문장 지우기").performClick();
+        require(RecoveryResult.ACTIVE.latest() == newer, "Old close cannot remove newer recovery");
+        view.show(newer);
+        findText(view, "닫기 · 문장 지우기").performClick();
+        require(RecoveryResult.ACTIVE.latest() == null && view.getVisibility() == android.view.View.GONE,
+                "Current recovery must clear and hide");
+        require(dismissed[0] == 2, "Close callback must run once per tap");
+        guard.invalidate();
     }
 
     private boolean waitForRecording(boolean expected, long timeout) {
@@ -300,6 +428,22 @@ public final class EditorChecks extends Instrumentation {
     private AccessibilityNodeInfo findEditable() {
         AccessibilityNodeInfo root = automation.getRootInActiveWindow();
         return root == null ? null : findEditable(root);
+    }
+
+    private AccessibilityNodeInfo findLabel(AccessibilityNodeInfo node, String label) {
+        if (node == null) {
+            return null;
+        }
+        if (node.getText() != null && label.contentEquals(node.getText())) {
+            return node;
+        }
+        for (int index = 0; index < node.getChildCount(); index++) {
+            AccessibilityNodeInfo found = findLabel(node.getChild(index), label);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
 

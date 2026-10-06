@@ -9,6 +9,14 @@ final class RadialGeometry {
         return RADIUS * Math.cos(Math.toRadians(270 - index * 45));
     }
 
+    static double x(int index, boolean opensRight) {
+        return opensRight ? -x(index) : x(index);
+    }
+
+    static int pick(double deltaX, double deltaY, boolean opensRight) {
+        return pick(opensRight ? -deltaX : deltaX, deltaY);
+    }
+
     static double y(int index) {
         return RADIUS * Math.sin(Math.toRadians(270 - index * 45));
     }

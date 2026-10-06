@@ -57,7 +57,12 @@ public final class SettingsActivity extends Activity implements android.content.
         recovery = new RecoveryView(this, null);
         content.addView(recovery, Ui.block(this));
         content.addView(Ui.text(this,
-                "입력창을 누르면 작은 마이크가 나타납니다. 터치로 녹음 시작·종료. 길게 누른 채 반원 메뉴의 아이콘으로 드래그하고 손을 떼면 모드가 바뀝니다. 버튼 전체 색상으로 현재 모드를 구분합니다.", 14, false));
+                "입력창 위에 반투명 마이크가 나타납니다. 짧게 누르면 녹음, 누른 뒤 바로 움직이면 위치 이동입니다. 가만히 길게 누르면 진동 후 반원 모드 메뉴가 열립니다. 원하는 아이콘으로 밀고 손을 떼세요. 이동한 위치는 기억합니다.", 14, false));
+        addButton(content, "마이크 위치 초기화", () -> {
+            preferences.resetBubblePosition();
+            refreshService();
+            android.widget.Toast.makeText(this, "마이크를 입력창 위 기본 위치로 되돌렸습니다.", android.widget.Toast.LENGTH_SHORT).show();
+        });
         connection = Ui.text(this, "", 15, true);
         content.addView(connection);
         status = Ui.text(this, "", 13, false);

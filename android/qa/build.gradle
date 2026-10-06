@@ -24,7 +24,7 @@ android {
 
     sourceSets {
         main.java.srcDirs = ['../app/src/androidTest/java', layout.buildDirectory.dir('generated/panel-sources')]
-        main.java.includes = ['**/EditorChecks.java', '**/EditorActivity.java', '**/RecordingPanelView.java', '**/Ui.java', '**/Modes.java']
+        main.java.includes = ['**/EditorChecks.java', '**/EditorActivity.java', '**/RecordingPanelView.java', '**/Ui.java', '**/Modes.java', '**/RecoveryView.java', '**/RecoveryResult.java', '**/EditorGuard.java']
     }
 
     compileOptions {
@@ -35,7 +35,7 @@ android {
 
 def syncPanelSources = tasks.register('syncPanelSources', Sync) {
     from('../app/src/main/java') {
-        include '**/RecordingPanelView.java', '**/Ui.java', '**/Modes.java'
+        include '**/RecordingPanelView.java', '**/Ui.java', '**/Modes.java', '**/RecoveryView.java', '**/RecoveryResult.java', '**/EditorGuard.java'
     }
     into layout.buildDirectory.dir('generated/panel-sources')
 }
