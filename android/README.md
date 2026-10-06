@@ -1,6 +1,6 @@
 # Ultra STT Android 작은 음성 버튼
 
-현재 소스/개인 설치 후속 버전: **1.1.62-android.10**, 패키지 `com.ultrastt.androidvoice`.
+현재 소스 버전: **1.1.64-android.11** (`versionCode=11`), 패키지 `com.ultrastt.androidvoice`. .10의 기능을 유지하면서 프로젝트 버전 번호를 맞췄다. 기존 갤럭시 설치는 **1.1.62-android.10**이며 이 소스 업데이트만으로 앱이 교체되지 않는다.
 GitHub `v1.1.62-personal.2`의 다운로드는 아직 **.9**이며 .10 파일로 교체하지 않았다. 이전 릴리스 파일·태그는 그대로 보존한다. [버튼 수정·성능 검토·검증 범위](../docs/2026-10-04-bubble-usability-review.md).
 
 [APK 다운로드: 개인 프리뷰 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2) · [왜 이런 구조인지 쉬운 설명](../README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기)
@@ -114,7 +114,7 @@ pwsh -NoProfile -File scripts/build-android.ps1 -Offline
 ```
 
 다른 도구 위치는 `-ToolRoot 'D:\path\android-tools'`로 지정한다.
-APK: `output/android/Ultra-STT-1.1.62-android.9-debug.apk`.
+APK: `output/android/Ultra-STT-1.1.64-android.11-debug.apk`.
 개인용 debug 서명 키 `android/.local/debug.keystore`를 유지해야 기존 설치 위에 업데이트할 수 있다.
 이 빌드는 Play Store 릴리스가 아니다. min SDK 28/target SDK 36이며 현재 실기기 대상은 갤럭시 SM-F966N이다.
 Android 9–12 fallback과 다른 제조사/특수 편집기는 이번 실기기 검증 대상이 아니다.

@@ -9,7 +9,7 @@
   Local Whisper recognition, optional AI cleanup, and direct text insertion.
 </p>
 <p align="center">
-  <strong>v1.1.62</strong> · Windows x64 · macOS Apple Silicon · MIT
+  <strong>Source v1.1.64</strong> · Windows x64 · macOS Apple Silicon · MIT
 </p>
 <p align="center">
   English · <a href="README_ko.md">한국어</a> ·
@@ -25,6 +25,34 @@
 > **Current release:** [Personal Preview 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2) includes Android **1.1.62-android.9** and unchanged Windows/Mac 1.1.62 installers. This is the user-owned **private** repository [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt); repository access is required to download. Android keeps your existing keyboard. Linux and Intel Mac are not validated release targets; iOS remains a browser recorder. [Android setup](android/README.md) · [Korean guide](README_ko.md).
 
 > **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
+
+## Update history
+
+### October 6–7, 2026 · v1.1.64 / Android 1.1.64-android.11
+
+This source version collects the recent reliability and usability work. Version 1.1.64 avoids reusing the separate Mac 1.1.63 build number. **Source versions, installed apps, and published release downloads are distinct.**
+
+| Change | What it does |
+| --- | --- |
+| Recording position | Every new recording starts at the **primary monitor's bottom center**. Dragging moves the capsule for the current recording, transcription and cleanup only. |
+| Single-key shortcuts | Letters, digits and punctuation can be assigned without Ctrl. Duplicate and failed OS registrations are handled. Choose unused keys: global single-key shortcuts can intercept normal typing. |
+| Windows startup | Use **Settings → General → Launch at startup → Save**. Enabled registrations follow the installed executable; existing opt-outs are preserved. |
+| Safer selection queries | UI Automation runs in an isolated helper that can recover from provider stalls. Windows selection lookup no longer sends Ctrl+C to terminals. Unsupported editors still have selection compatibility limits. |
+| Failed-input recovery | A changed target blocks stale insertion and offers manual copying. Desktop keeps the latest 20 results; Android keeps one, in memory only until exit. No automatic reinsertion. |
+| Android button movement | Keeps .10's **immediate drag to move / stationary long-press, vibration, then drag to choose a mode**. A 56dp circle, 64dp touch area, 74% opacity and higher default placement reduce overlap with the composer. .11 aligns the package version only. |
+
+**Deployment boundary:** SB and Home already received these desktop fixes in a 1.1.62 executable. The new 1.1.64 package is a separate build, not another installation or login-startup test. The Galaxy remains on .10; it is not automatically updated to .11. The separately installed Mac 1.1.63 still needs unlocked voice/input and selection validation, and its additional isolated-source changes are not merged into this shared source update. Existing screenshots retain their original capture versions.
+
+[Shortcuts, startup and position evidence](docs/2026-10-06-single-key-startup.md) · [Selection and terminal safety](docs/2026-10-06-terminal-selection-safety.md) · [Android usability checks](docs/2026-10-04-bubble-usability-review.md) · [Input recovery](docs/2026-10-03-input-recovery-target-protection.md)
+
+<details>
+<summary>Earlier updates</summary>
+
+- **October 4 · Android .10:** higher placement, immediate drag, larger touch area and recording-transition fixes.
+- **October 3 · Desktop hotfix:** restore the recording capsule above other windows without stealing editor focus.
+- **October 3 · Personal Preview 2:** Android .9's compact recording panel, original wordmark, mode selection and widget-entry fixes. Published release downloads still point to this preview.
+
+</details>
 
 ## Android: your keyboard, a smaller voice panel
 
