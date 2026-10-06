@@ -10,6 +10,8 @@ mod linux;
 mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
+#[cfg(target_os = "windows")]
+pub(crate) mod uia_worker;
 
 pub(crate) trait ContextSignalSource: Send + Sync + 'static {
     fn collect(&self) -> Option<ContextSignals>;
@@ -30,6 +32,7 @@ pub(crate) fn default_source() -> Arc<dyn ContextSignalSource> {
     }
     #[cfg(target_os = "windows")]
     {
+        uia_worker::warm_up();
         Arc::new(windows::WindowsContextSource)
     }
     #[cfg(target_os = "linux")]
@@ -40,6 +43,11 @@ pub(crate) fn default_source() -> Arc<dyn ContextSignalSource> {
     {
         Arc::new(UnsupportedContextSource)
     }
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn capture_selected_text() -> Option<String> {
+    windows::capture_selected_text()
 }
 
 pub(crate) fn restore_target_application(target: &TargetAppGuard) -> bool {

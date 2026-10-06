@@ -872,6 +872,11 @@ fn dispatch_cli_action(app: &tauri::AppHandle, action: CliAction) {
 }
 
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    if app_detector::platform::uia_worker::run_if_requested() {
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     let xinitthreads_status = linux_x11::init_xlib_threads();
 

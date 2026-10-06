@@ -1,8 +1,5 @@
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
-use std::sync::mpsc::{self, SyncSender};
-use std::sync::OnceLock;
-use std::time::Duration;
 
 use super::ContextSignalSource;
 use crate::app_detector::types::{
@@ -10,6 +7,154 @@ use crate::app_detector::types::{
 };
 
 pub struct WindowsContextSource;
+
+pub(crate) fn capture_selected_text() -> Option<String> {
+    use windows_sys::Win32::UI::WindowsAndMessaging as wm;
+    unsafe {
+        let window = wm::GetForegroundWindow();
+        if window.is_null() {
+            return None;
+        }
+        let mut process_id = 0;
+        wm::GetWindowThreadProcessId(window, &mut process_id);
+        if process_id == 0 {
+            return None;
+        }
+        let text = super::uia_worker::selected_text(process_id, window as usize as u64)?;
+        (wm::GetForegroundWindow() == window).then_some(text)
+    }
+}
+
+pub(super) unsafe fn uia_selected_text(process_id: u32, window: u64) -> Option<String> {
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
+    use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
+    use windows_sys::Win32::UI::WindowsAndMessaging as wm;
+    let expected_window = window as usize as _;
+    if wm::GetForegroundWindow() != expected_window {
+        return None;
+    }
+    let automation: IUIAutomation =
+        CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok()?;
+    let focused = automation.GetFocusedElement().ok()?;
+    if focused.CurrentProcessId().ok()? != process_id as i32
+        || focused.CurrentIsPassword().ok()?.as_bool()
+    {
+        return Some(String::new());
+    }
+    let text = uia_element_selection(&automation, &focused, process_id)?;
+    let current = automation.GetFocusedElement().ok()?;
+    if wm::GetForegroundWindow() != expected_window
+        || !automation
+            .CompareElements(&focused, &current)
+            .ok()?
+            .as_bool()
+    {
+        return None;
+    }
+    Some(text)
+}
+
+unsafe fn uia_element_selection(
+    automation: &windows::Win32::UI::Accessibility::IUIAutomation,
+    focused: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+    process_id: u32,
+) -> Option<String> {
+    use windows::Win32::UI::Accessibility::{IUIAutomationTextPattern, UIA_TextPatternId};
+    let walker = automation.ControlViewWalker().ok()?;
+    let mut element = focused.clone();
+    // 브라우저 등은 부모 요소에서 선택 영역의 TextPattern을 제공할 수 있다.
+    // 다른 프로세스나 비밀번호 입력란으로는 조회를 확장하지 않는다.
+    for _ in 0..8 {
+        if element.CurrentProcessId().ok()? != process_id as i32
+            || element.CurrentIsPassword().ok()?.as_bool()
+        {
+            return Some(String::new());
+        }
+        if let Ok(window) = element.CurrentNativeWindowHandle() {
+            if is_native_edit_control(window.0 as usize as u64) {
+                return native_edit_selection(window.0 as _, process_id);
+            }
+        }
+        if let Ok(pattern) =
+            element.GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
+        {
+            let ranges = pattern.GetSelection().ok()?;
+            let count = ranges.Length().ok()?;
+            if count == 0 {
+                return Some(String::new());
+            }
+            if !(1..=16).contains(&count) {
+                return None;
+            }
+            let mut selection = String::new();
+            for index in 0..count {
+                let range = ranges.GetElement(index).ok()?;
+                let text = range.GetText(16_385).ok()?.to_string();
+                if text.is_empty() {
+                    continue;
+                }
+                if !selection.is_empty() {
+                    selection.push('\n');
+                }
+                selection.push_str(&text);
+                if selection.encode_utf16().count() > 16_384 {
+                    return None;
+                }
+            }
+            return Some(selection);
+        }
+        element = walker.GetParentElement(&element).ok()?;
+    }
+    None
+}
+
+unsafe fn native_edit_selection(
+    window: windows_sys::Win32::Foundation::HWND,
+    process_id: u32,
+) -> Option<String> {
+    use windows_sys::Win32::UI::WindowsAndMessaging as wm;
+    let mut owner = 0;
+    wm::GetWindowThreadProcessId(window, &mut owner);
+    if owner != process_id
+        || wm::GetWindowLongPtrW(window, wm::GWL_STYLE) & wm::ES_PASSWORD as isize != 0
+    {
+        return None;
+    }
+    let read_message = |message, wparam, lparam| {
+        let mut result = 0usize;
+        (wm::SendMessageTimeoutW(
+            window,
+            message,
+            wparam,
+            lparam,
+            wm::SMTO_ABORTIFHUNG,
+            40,
+            &mut result,
+        ) != 0)
+            .then_some(result)
+    };
+    let mut start = 0u32;
+    let mut end = 0u32;
+    read_message(
+        0x00B0,
+        (&mut start as *mut u32) as usize,
+        (&mut end as *mut u32) as isize,
+    )?;
+    if start == end {
+        return Some(String::new());
+    }
+    let length = read_message(wm::WM_GETTEXTLENGTH, 0, 0)?;
+    if length > 16_384 || start > end || end as usize > length {
+        return None;
+    }
+    let mut buffer = vec![0u16; length + 1];
+    let copied = read_message(wm::WM_GETTEXT, buffer.len(), buffer.as_mut_ptr() as isize)?;
+    if copied != length {
+        return None;
+    }
+    let text = String::from_utf16(&buffer[start as usize..end as usize]).ok()?;
+    Some(text)
+}
 
 pub(crate) fn restore_target_application(target: &TargetAppGuard) -> bool {
     let Some(process_id) = target.process_id else {
@@ -69,7 +214,7 @@ unsafe fn foreground_target_guard() -> Option<TargetAppGuard> {
     }
     let focus_window = focused_child_window(window, thread_id);
     let alias = process_name(process_id);
-    let focus = uia_focused_runtime_id(process_id)
+    let focus = super::uia_worker::focused_runtime_id(process_id)
         .map(FocusIdentity::WindowsUiAutomation)
         .or_else(|| {
             focus_window
@@ -121,52 +266,16 @@ unsafe fn is_native_edit_control(hwnd: u64) -> bool {
     if len <= 0 {
         return false;
     }
-    let class = String::from_utf16_lossy(&class_name[..len as usize]);
-    matches!(
-        class.to_ascii_lowercase().as_str(),
-        "edit" | "richedit20w" | "richedit50w"
-    )
+    let class = String::from_utf16_lossy(&class_name[..len as usize]).to_ascii_lowercase();
+    // WinForms는 기본 Edit/RichEdit의 윈도우 클래스를 이 이름으로 감싼다.
+    // 동일한 선택 조회 메시지를 지원하므로 복사 키 없이 읽을 수 있다.
+    matches!(class.as_str(), "edit" | "richedit20w" | "richedit50w")
+        || class.starts_with("windowsforms10.edit.")
+        || class.starts_with("windowsforms10.richedit20w.")
+        || class.starts_with("windowsforms10.richedit50w.")
 }
 
-type UiRequest = (u32, mpsc::Sender<Option<Vec<i32>>>);
-
-fn uia_focused_runtime_id(process_id: u32) -> Option<Vec<i32>> {
-    static WORKER: OnceLock<SyncSender<UiRequest>> = OnceLock::new();
-    let worker = WORKER.get_or_init(|| {
-        let (tx, rx) = mpsc::sync_channel::<UiRequest>(1);
-        std::thread::Builder::new()
-            .name("target-focus-uia".into())
-            .spawn(move || {
-                use windows::Win32::System::Com::{
-                    CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED,
-                };
-                let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
-                for (pid, reply) in rx {
-                    let result = if initialized {
-                        unsafe { uia_runtime_id(pid) }
-                    } else {
-                        None
-                    };
-                    let _ = reply.send(result);
-                }
-                if initialized {
-                    unsafe {
-                        CoUninitialize();
-                    }
-                }
-            })
-            .expect("UI Automation worker thread");
-        tx
-    });
-    let (reply_tx, reply_rx) = mpsc::channel();
-    worker.try_send((process_id, reply_tx)).ok()?;
-    reply_rx
-        .recv_timeout(Duration::from_millis(150))
-        .ok()
-        .flatten()
-}
-
-unsafe fn uia_runtime_id(process_id: u32) -> Option<Vec<i32>> {
+pub(super) unsafe fn uia_runtime_id(process_id: u32) -> Option<Vec<i32>> {
     use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
     use windows::Win32::System::Ole::{
         SafeArrayDestroy, SafeArrayGetDim, SafeArrayGetElement, SafeArrayGetLBound,
@@ -190,10 +299,11 @@ unsafe fn uia_runtime_id(process_id: u32) -> Option<Vec<i32>> {
         }
         let first = SafeArrayGetLBound(array, 1).ok()?;
         let last = SafeArrayGetUBound(array, 1).ok()?;
-        if last < first || last - first > 63 {
+        let length = last.checked_sub(first)?.checked_add(1)?;
+        if !(1..=64).contains(&length) {
             return None;
         }
-        let mut id = Vec::with_capacity((last - first + 1) as usize);
+        let mut id = Vec::with_capacity(length as usize);
         for index in first..=last {
             let mut value = 0i32;
             SafeArrayGetElement(array, &index, (&mut value as *mut i32).cast()).ok()?;
@@ -280,4 +390,91 @@ fn is_supported_browser(process_name: &str) -> bool {
         process_name.to_ascii_lowercase().as_str(),
         "chrome.exe" | "msedge.exe" | "brave.exe" | "arc.exe"
     )
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use super::*;
+
+    #[test]
+    fn native_edit_selection_is_read_without_copy_keys_or_clipboard() {
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+            COINIT_MULTITHREADED,
+        };
+        use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
+        use windows_sys::Win32::UI::WindowsAndMessaging as wm;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let host = std::thread::spawn(move || unsafe {
+            let class: Vec<u16> = "EDIT\0".encode_utf16().collect();
+            let text: Vec<u16> = "hello world\0".encode_utf16().collect();
+            let window = wm::CreateWindowExW(
+                0,
+                class.as_ptr(),
+                text.as_ptr(),
+                wm::WS_OVERLAPPEDWINDOW,
+                0,
+                0,
+                200,
+                100,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+            );
+            sender.send(window as usize).unwrap();
+            if window.is_null() {
+                return;
+            }
+            let mut message = std::mem::zeroed();
+            while wm::GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) > 0 {
+                if message.message == wm::WM_APP {
+                    break;
+                }
+                wm::TranslateMessage(&message);
+                wm::DispatchMessageW(&message);
+            }
+            wm::DestroyWindow(window);
+        });
+        let window = receiver.recv().unwrap();
+        assert_ne!(window, 0, "native test Edit must be created");
+        let result = std::thread::spawn(move || unsafe {
+            CoInitializeEx(None, COINIT_MULTITHREADED).ok().unwrap();
+            let automation: IUIAutomation =
+                CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).unwrap();
+            let element = automation
+                .ElementFromHandle(windows::Win32::Foundation::HWND(window as *mut _))
+                .unwrap();
+            let hwnd = window as windows_sys::Win32::Foundation::HWND;
+            wm::SendMessageW(hwnd, 0x00B1, 6, 11); // EM_SETSEL은 테스트 전용 창에만 보낸다.
+            let selected = uia_element_selection(&automation, &element, std::process::id());
+            wm::SendMessageW(hwnd, 0x00B1, 0, 0);
+            let empty = uia_element_selection(&automation, &element, std::process::id());
+            assert_eq!(native_edit_selection(hwnd, u32::MAX), None);
+            let unicode: Vec<u16> = "안녕 세계\0".encode_utf16().collect();
+            wm::SendMessageW(hwnd, wm::WM_SETTEXT, 0, unicode.as_ptr() as isize);
+            wm::SendMessageW(hwnd, 0x00B1, 3, 5);
+            assert_eq!(
+                native_edit_selection(hwnd, std::process::id()).as_deref(),
+                Some("세계")
+            );
+            let style = wm::GetWindowLongPtrW(hwnd, wm::GWL_STYLE);
+            wm::SetWindowLongPtrW(hwnd, wm::GWL_STYLE, style | wm::ES_PASSWORD as isize);
+            assert_eq!(native_edit_selection(hwnd, std::process::id()), None);
+            wm::SetWindowLongPtrW(hwnd, wm::GWL_STYLE, style);
+            drop(element);
+            drop(automation);
+            CoUninitialize();
+            (selected, empty)
+        })
+        .join();
+        unsafe {
+            wm::PostMessageW(window as _, wm::WM_APP, 0, 0);
+        }
+        host.join().unwrap();
+        let (selected, empty) = result.unwrap();
+        assert_eq!(selected.as_deref(), Some("world"));
+        assert_eq!(empty, Some(String::new()));
+    }
 }

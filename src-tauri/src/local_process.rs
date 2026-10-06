@@ -107,6 +107,8 @@ impl LocalProcess {
 
     pub fn take_stdout(&mut self) -> Option<ChildStdout> { self.stdout.take() }
 
+    pub fn take_stdin(&mut self) -> Option<ChildStdin> { self.stdin.take() }
+
     /// Terminates the entire owned tree, then reaps it within the supplied deadline.
     pub async fn kill(&mut self, deadline: Duration) -> io::Result<()> {
         self.child.start_kill()?;

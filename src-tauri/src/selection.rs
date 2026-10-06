@@ -57,13 +57,49 @@ fn copy_selected_text_to_clipboard() -> bool {
 
     let pressed = enigo.key(Key::Control, Direction::Press).is_ok();
     if pressed {
-        let _ = enigo.key(Key::Unicode('c'), Direction::Click);
-        let _ = enigo.key(Key::Control, Direction::Release);
+        // Windows의 표준 대체 복사 키를 사용한다. 선택이 없는 터미널에도
+        // Ctrl+C 중단 입력을 보내지 않으면서 클립보드 기반 조회를 유지한다.
+        #[cfg(target_os = "windows")]
+        let copy_key = Key::Insert;
+        #[cfg(not(target_os = "windows"))]
+        let copy_key = Key::Unicode('c');
+        let copied = enigo.key(copy_key, Direction::Click).is_ok();
+        let released = enigo.key(Key::Control, Direction::Release).is_ok();
+        return copied && released;
     }
     pressed
 }
 
+#[cfg(target_os = "windows")]
 pub fn capture_selected_text() -> Option<String> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    let window = unsafe { GetForegroundWindow() };
+    if window.is_null() {
+        return None;
+    }
+    if let Some(text) = crate::app_detector::platform::capture_selected_text() {
+        // Some("")는 선택 없음 또는 조회 금지로 확인된 결과이다.
+        // None(UIA 미지원/조회 실패)과 구분하여 불필요한 복사 키를 보내지 않는다.
+        return (unsafe { GetForegroundWindow() } == window)
+            .then_some(text)
+            .filter(|text| !text.trim().is_empty());
+    }
+    // UIA 미지원 앱의 선택 조회도 유지하되, 조회 중 바뀐 창에는 키를 보내지 않는다.
+    if unsafe { GetForegroundWindow() } != window {
+        return None;
+    }
+    let text = capture_selected_text_from_clipboard();
+    (unsafe { GetForegroundWindow() } == window)
+        .then_some(text)
+        .flatten()
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn capture_selected_text() -> Option<String> {
+    capture_selected_text_from_clipboard()
+}
+
+fn capture_selected_text_from_clipboard() -> Option<String> {
     let mut clipboard = arboard::Clipboard::new().ok()?;
     let backup = clipboard.get_text().ok();
     let sentinel = clipboard_copy_sentinel();
