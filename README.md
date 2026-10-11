@@ -28,6 +28,13 @@
 
 ## Update history
 
+### October 11, 2026 · Long-recording safeguards (personal desktop deployment)
+
+- Processing budgets now follow audio duration; failed AI cleanup returns the successful raw transcript.
+- **Input Recovery → Original audio recovery** temporarily journals WAV audio on this device. Successful insertion or explicit cancellation removes it; failures survive restarts and support retranscription, copying and explicit deletion. Limits: 20 recordings / 512 MB; a full store blocks new recordings rather than deleting failures. Retranscription uses the configured Local / Custom Whisper provider without automatic insertion.
+- Added capsule-focus restoration, stable native Windows field identity and tray-only `--autostart` launches without disabling target protection.
+- **Installed the updated 1.1.64 build on SB, Home and Mac**, preserving settings, authentication and history. Windows background/duplicate startup and Mac-to-SB transcription/cleanup passed. Real reboot, human ten-minute dictation and locked-Mac cursor insertion remain unverified. Past recordings without saved original audio cannot be recovered. [Deployment and validation](docs/2026-10-11-desktop-update.md) · [Diagnosis](docs/2026-10-11-long-recording-diagnosis.md).
+
 ### October 6–7, 2026 · v1.1.64 / Android 1.1.64-android.11
 
 This source version collects the recent reliability and usability work. Version 1.1.64 avoids reusing the separate Mac 1.1.63 build number. **Source versions, installed apps, and published release downloads are distinct.**
@@ -41,7 +48,7 @@ This source version collects the recent reliability and usability work. Version 
 | Failed-input recovery | A changed target blocks stale insertion and offers manual copying. Desktop keeps the latest 20 results; Android keeps one, in memory only until exit. No automatic reinsertion. |
 | Android button movement | Keeps .10's **immediate drag to move / stationary long-press, vibration, then drag to choose a mode**. A 56dp circle, 64dp touch area, 74% opacity and higher default placement reduce overlap with the composer. .11 aligns the package version only. |
 
-**Deployment boundary:** SB and Home already received these desktop fixes in a 1.1.62 executable. The new 1.1.64 package is a separate build, not another installation or login-startup test. The Galaxy remains on .10; it is not automatically updated to .11. The separately installed Mac 1.1.63 still needs unlocked voice/input and selection validation, and its additional isolated-source changes are not merged into this shared source update. Existing screenshots retain their original capture versions.
+**Historical deployment boundary:** The October 7 packages were not installed then. On **October 11, SB, Home and Mac received the updated 1.1.64 build**, including the previously isolated Mac fixes. This update does not replace the Galaxy app or published release downloads. Existing screenshots retain their original capture versions.
 
 [Shortcuts, startup and position evidence](docs/2026-10-06-single-key-startup.md) · [Selection and terminal safety](docs/2026-10-06-terminal-selection-safety.md) · [Android usability checks](docs/2026-10-04-bubble-usability-review.md) · [Input recovery](docs/2026-10-03-input-recovery-target-protection.md)
 
@@ -245,6 +252,17 @@ npm run tauri dev
 ```
 
 Requirements: Node `20.19+` on the 20.x line or `22.12+`, Rust 1.87+ stable, and the platform toolchain (Windows Visual Studio C++ Build Tools/WebView2; macOS Xcode Command Line Tools). The personal Python recognizer requires Python 3.11 and the dependencies declared in `local_stt/pyproject.toml`.
+
+### Pre-push verification
+
+```sh
+npm run verify
+npm run hooks:install
+```
+
+`verify` runs formatting, type checking, lint, frontend/native tests, the frontend build, and npm security checks. It stops on the first failure without rewriting source or stopping the installed app. Run `npm ci` and prepare the platform build tools first.
+
+Run `hooks:install` once per clone to enable the repository-local Git `pre-push` check. It refuses to overwrite existing user hooks. Uncommitted tracked changes or a failed check then block the push. CI uses the same verification command. [Failure analysis, security patches, and verification limits](docs/2026-10-07-ci-reliability.md).
 
 ### Standard desktop bundle
 
