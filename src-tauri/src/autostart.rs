@@ -2,6 +2,16 @@ use tauri_plugin_autostart::ManagerExt;
 
 pub(crate) struct StartupScope(pub bool);
 
+pub(crate) const STARTUP_ARGUMENT: &str = "--autostart";
+
+pub(crate) fn is_background_launch(args: &[String]) -> bool {
+    args.iter().any(|argument| argument == STARTUP_ARGUMENT)
+}
+
+pub(crate) fn should_show_main(start_minimized: bool, args: &[String]) -> bool {
+    !start_minimized && !is_background_launch(args)
+}
+
 impl StartupScope {
     pub(crate) fn from_overrides(data_override: bool, root_override: bool) -> Self {
         Self(!data_override && !root_override)
@@ -33,7 +43,7 @@ fn quoted_executable(path: &std::path::Path) -> Result<String, String> {
     if path.is_empty() || path.contains(['"', '\0', '\r', '\n']) {
         return Err("Invalid startup executable path".to_string());
     }
-    Ok(format!("\"{path}\""))
+    Ok(format!("\"{path}\" {STARTUP_ARGUMENT}"))
 }
 
 #[cfg(windows)]
@@ -107,6 +117,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn login_launch_stays_hidden_but_manual_launch_still_opens() {
+        assert!(!should_show_main(
+            false,
+            &["app".into(), STARTUP_ARGUMENT.into()]
+        ));
+        assert!(!should_show_main(true, &["app".into()]));
+        assert!(should_show_main(false, &["app".into()]));
+        assert!(!is_background_launch(&[
+            "app".into(),
+            "--autostart-other".into()
+        ]));
+    }
+
+    #[test]
     fn installed_profiles_allow_startup_but_external_test_overrides_do_not() {
         assert!(StartupScope::from_overrides(false, false).0);
         assert!(!StartupScope::from_overrides(true, false).0);
@@ -119,7 +143,7 @@ mod tests {
         assert_eq!(
             quoted_executable(std::path::Path::new(r"C:\Users\떡배\My Apps\Ultra_STT.exe"))
                 .unwrap(),
-            "\"C:\\Users\\떡배\\My Apps\\Ultra_STT.exe\""
+            "\"C:\\Users\\떡배\\My Apps\\Ultra_STT.exe\" --autostart"
         );
     }
 
