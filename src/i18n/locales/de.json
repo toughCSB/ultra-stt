@@ -1,4 +1,17 @@
 {
+  "audioRecovery": {
+    "title": "Originalaudio wiederherstellen",
+    "description": "Audio wird lokal zwischengespeichert. Nach erfolgreicher Eingabe oder ausdrücklichem Abbruch wird es gelöscht; fehlgeschlagene Aufnahmen bleiben auch nach einem Neustart erhalten. Maximal 20 Aufnahmen / 512 MB. Bei vollem Speicher zuerst Aufnahmen löschen. Erneute Transkription verwendet Local / Custom Whisper, ohne KI-Bearbeitung oder automatische Eingabe.",
+    "folder": "Audioordner öffnen",
+    "empty": "Keine gespeicherten Aufnahmen",
+    "active": "Aufnahme / Verarbeitung",
+    "retry": "Erneut transkribieren",
+    "working": "Verarbeitung…",
+    "delete": "Originalaudio löschen",
+    "confirmDelete": "Audio und Text wirklich löschen",
+    "loadFailed": "Gespeicherte Aufnahmen konnten nicht geladen werden",
+    "failed": "Vorgang fehlgeschlagen. Das Originalaudio bleibt erhalten."
+  },
   "ultra": {
     "localSpeech": "This PC - Whisper large-v3 (GPU)",
     "localSpeechHint": "Audio stays on this PC. Uses full large-v3 with speech detection; no STT API key is needed.",

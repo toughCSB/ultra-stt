@@ -234,11 +234,8 @@ unsafe fn raise_window(process_id: i32, expected_token: u64) -> bool {
                 && CFGetTypeID(window) == AXUIElementGetTypeID()
                 && ax_token_matches(expected_token, window)
             {
-                let action = CFStringCreateWithCString(
-                    std::ptr::null(),
-                    b"AXRaise\0".as_ptr().cast(),
-                    0x08000100,
-                );
+                let action =
+                    CFStringCreateWithCString(std::ptr::null(), c"AXRaise".as_ptr(), 0x08000100);
                 if !action.is_null() {
                     raised = AXUIElementPerformAction(window, action) == 0;
                     CFRelease(action);

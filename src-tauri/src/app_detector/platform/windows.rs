@@ -214,13 +214,10 @@ unsafe fn foreground_target_guard() -> Option<TargetAppGuard> {
     }
     let focus_window = focused_child_window(window, thread_id);
     let alias = process_name(process_id);
-    let focus = super::uia_worker::focused_runtime_id(process_id)
-        .map(FocusIdentity::WindowsUiAutomation)
-        .or_else(|| {
-            focus_window
-                .filter(|hwnd| is_native_edit_control(*hwnd))
-                .map(FocusIdentity::WindowsControl)
-        });
+    let focus = stable_focus_identity(
+        focus_window.filter(|hwnd| is_native_edit_control(*hwnd)),
+        || super::uia_worker::focused_runtime_id(process_id),
+    );
     // UIA may have blocked on a provider while the user changed windows/fields.
     let still_same = wm::GetForegroundWindow() == window
         && focused_child_window(window, thread_id) == focus_window;
@@ -235,6 +232,36 @@ unsafe fn foreground_target_guard() -> Option<TargetAppGuard> {
         },
         focus_required: true,
     })
+}
+
+fn stable_focus_identity(
+    native_edit: Option<u64>,
+    automation: impl FnOnce() -> Option<Vec<i32>>,
+) -> Option<FocusIdentity> {
+    native_edit
+        .map(FocusIdentity::WindowsControl)
+        .or_else(|| automation().map(FocusIdentity::WindowsUiAutomation))
+}
+
+#[cfg(test)]
+mod focus_tests {
+    use super::*;
+
+    #[test]
+    fn native_edit_identity_does_not_depend_on_uia_availability() {
+        let focus = stable_focus_identity(Some(42), || panic!("Native edit must not query UIA"));
+        assert_eq!(focus, Some(FocusIdentity::WindowsControl(42)));
+        assert_ne!(focus, stable_focus_identity(Some(43), || None));
+    }
+
+    #[test]
+    fn web_controls_require_their_exact_uia_identity() {
+        assert_eq!(stable_focus_identity(None, || None), None);
+        assert_ne!(
+            stable_focus_identity(None, || Some(vec![1, 2])),
+            stable_focus_identity(None, || Some(vec![1, 3])),
+        );
+    }
 }
 
 unsafe fn focused_child_window(

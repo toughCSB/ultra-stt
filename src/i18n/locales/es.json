@@ -1,4 +1,17 @@
 {
+  "audioRecovery": {
+    "title": "Recuperar audio original",
+    "description": "El audio se guarda temporalmente en este dispositivo. Se elimina tras una entrada correcta o cancelación explícita; las grabaciones fallidas se conservan al reiniciar. Máximo 20 grabaciones / 512 MB. Si se llena, elimina grabaciones antes de grabar de nuevo. La retranscripción usa Local / Custom Whisper, sin edición por IA ni inserción automática.",
+    "folder": "Abrir carpeta de audio",
+    "empty": "No hay grabaciones guardadas",
+    "active": "Grabando / procesando",
+    "retry": "Transcribir de nuevo",
+    "working": "Procesando…",
+    "delete": "Eliminar audio original",
+    "confirmDelete": "Confirmar eliminación de audio y texto",
+    "loadFailed": "No se pudieron cargar las grabaciones",
+    "failed": "No se completó la operación. Se conserva el audio original."
+  },
   "ultra": {
     "localSpeech": "This PC - Whisper large-v3 (GPU)",
     "localSpeechHint": "Audio stays on this PC. Uses full large-v3 with speech detection; no STT API key is needed.",

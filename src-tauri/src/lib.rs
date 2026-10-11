@@ -15,10 +15,13 @@ pub mod local_process;
 mod macos_capsule;
 #[cfg(target_os = "macos")]
 mod macos_diagnostics;
+#[cfg(target_os = "macos")]
+mod macos_selection;
 pub mod native_hotkey;
 pub mod output;
 pub mod pipeline;
 pub mod platform;
+mod recording_archive;
 pub mod recording_deadline;
 pub mod recovery;
 pub mod remote;
@@ -27,10 +30,10 @@ pub mod storage;
 pub mod stt;
 pub mod tray;
 pub mod voice_intent;
-#[cfg(any(target_os = "windows", test))]
-mod windows_profile;
 #[cfg(target_os = "windows")]
 mod windows_brand;
+#[cfg(any(target_os = "windows", test))]
+mod windows_profile;
 
 pub use hotkey::{default_ask_shortcut, default_shortcut, parse_hotkey};
 pub use tray::{refresh_tray, TrayHandle};
@@ -898,6 +901,10 @@ fn dispatch_cli_action(app: &tauri::AppHandle, action: CliAction) {
 }
 
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    if macos_selection::run_if_requested() {
+        return;
+    }
     #[cfg(target_os = "windows")]
     if app_detector::platform::uia_worker::run_if_requested() {
         return;
@@ -957,12 +964,15 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            None,
+            Some(vec![autostart::STARTUP_ARGUMENT]),
         ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if autostart::is_background_launch(&args) {
+                return;
+            }
             if let Some(action) = parse_cli_action(&args) {
                 let app_handle = app.clone();
                 if let Err(error) = app.run_on_main_thread(move || {
@@ -1006,11 +1016,16 @@ pub fn run() {
             );
 
             // Initialize data directory and database
-            if std::env::var_os("ULTRA_STT_DATA_DIR").is_some_and(|value| !std::path::Path::new(&value).is_absolute()) {
+            if std::env::var_os("ULTRA_STT_DATA_DIR")
+                .is_some_and(|value| !std::path::Path::new(&value).is_absolute())
+            {
                 return Err(anyhow::anyhow!("ULTRA_STT_DATA_DIR must be absolute").into());
             }
             let data_dir = storage::profile_data_dir(app.path().app_data_dir()?);
             std::fs::create_dir_all(&data_dir)?;
+            app.manage(recording_archive::RecordingArchive::new(
+                data_dir.join("recording-recovery"),
+            ));
             let db_path = data_dir.join("opentypeless.db");
 
             // Initialize stores
@@ -1119,7 +1134,9 @@ pub fn run() {
                         let handle = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let state = handle.state::<storage::ConfigManager>();
-                            if let Err(error) = commands::config::save_polish_style(&handle, &state, &style).await {
+                            if let Err(error) =
+                                commands::config::save_polish_style(&handle, &state, &style).await
+                            {
                                 tracing::error!("Tray polish mode change failed: {error}");
                             }
                         });
@@ -1216,7 +1233,9 @@ pub fn run() {
             if let Some(main_window) = app.get_webview_window("main") {
                 #[cfg(target_os = "windows")]
                 {
-                    if let Some(icon) = app.default_window_icon() { main_window.set_icon(icon.clone())?; }
+                    if let Some(icon) = app.default_window_icon() {
+                        main_window.set_icon(icon.clone())?;
+                    }
                     windows_brand::set_taskbar_icon(&main_window, windows_brand::TASKBAR_APP_ID)?;
                 }
                 let handle = app.handle().clone();
@@ -1243,7 +1262,9 @@ pub fn run() {
                                             width: size.width,
                                             height: size.height,
                                         };
-                                        if let Ok(store) = handle.store(storage::profile_store_path("settings.json")) {
+                                        if let Ok(store) = handle
+                                            .store(storage::profile_store_path("settings.json"))
+                                        {
                                             if let Ok(val) = serde_json::to_value(&ws) {
                                                 store.set("window_state", val);
                                                 let _ = store.save();
@@ -1264,7 +1285,10 @@ pub fn run() {
             }
 
             // Restore window state from previous session
-            if let Ok(store) = app.handle().store(storage::profile_store_path("settings.json")) {
+            if let Ok(store) = app
+                .handle()
+                .store(storage::profile_store_path("settings.json"))
+            {
                 if let Some(val) = store.get("window_state") {
                     if let Ok(ws) = serde_json::from_value::<WindowState>(val.clone()) {
                         // Validate: skip if coordinates are off-screen (e.g. -32000 from minimized state)
@@ -1283,7 +1307,10 @@ pub fn run() {
             }
 
             // Start minimized: only show window if not configured to start minimized
-            if !initial_config.start_minimized {
+            if autostart::should_show_main(
+                initial_config.start_minimized,
+                &std::env::args().collect::<Vec<_>>(),
+            ) {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
@@ -1318,6 +1345,11 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             recovery::get_recovery_entries,
+            recording_archive::list_recording_archives,
+            recording_archive::retry_recording_archive,
+            recording_archive::delete_recording_archive,
+            recording_archive::copy_recording_transcript,
+            recording_archive::open_recording_archive_folder,
             recovery::dismiss_recovery_entry,
             recovery::copy_recovery_entry,
             capsule_window::raise_capsule,

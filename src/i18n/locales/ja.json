@@ -1,4 +1,17 @@
 {
+  "audioRecovery": {
+    "title": "元の音声を復元",
+    "description": "元の音声をこの端末に一時保存します。入力成功・明示的なキャンセル時に削除し、失敗した録音は再起動後も保持します。最大20件・512MBです。容量が一杯の場合は削除するまで新規録音を開始できません。再文字起こしは現在の Local / Custom Whisper を使用し、AI整形・自動入力は行いません。",
+    "folder": "音声フォルダーを開く",
+    "empty": "保存された音声はありません",
+    "active": "録音・処理中",
+    "retry": "元の音声を再文字起こし",
+    "working": "処理中…",
+    "delete": "元の音声を削除",
+    "confirmDelete": "音声と原文を削除する",
+    "loadFailed": "保存された音声を読み込めません",
+    "failed": "処理できませんでした。元の音声は保持されます。"
+  },
   "ultra": {
     "localSpeech": "This PC - Whisper large-v3 (GPU)",
     "localSpeechHint": "Audio stays on this PC. Uses full large-v3 with speech detection; no STT API key is needed.",

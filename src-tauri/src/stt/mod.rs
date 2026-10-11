@@ -6,9 +6,10 @@ pub mod cloud;
 pub mod config;
 pub mod deepgram;
 pub mod managed_audio;
+pub mod processing_budget;
+pub mod ultra_local;
 pub mod volcengine;
 pub mod whisper_compat;
-pub mod ultra_local;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,10 @@ pub struct RemotePolishOptions {
 
 impl Default for RemotePolishOptions {
     fn default() -> Self {
-        Self { style: "clean".to_string(), enabled: true }
+        Self {
+            style: "clean".to_string(),
+            enabled: true,
+        }
     }
 }
 
@@ -73,6 +77,9 @@ pub trait SttProvider: Send + Sync {
     /// Disconnect and optionally return a final transcript (for file-based providers).
     async fn disconnect(&mut self) -> Result<Option<String>, AppError>;
     fn set_remote_polish(&mut self, _options: &RemotePolishOptions) {}
+    fn raw_transcript(&self) -> Option<String> {
+        None
+    }
     fn recording_limit_override_seconds(&self) -> Option<u32> {
         None
     }
@@ -114,7 +121,8 @@ pub fn create_provider(
                 AppError::Config("Local / Custom Whisper is missing base URL or model".to_string())
             })?;
             if wc.endpoint == format!("{}/audio/transcriptions", ultra_local::BASE)
-                && wc.model == ultra_local::MODEL {
+                && wc.model == ultra_local::MODEL
+            {
                 return Ok(Box::new(ultra_local::UltraLocalProvider::new()));
             }
             Ok(match client {

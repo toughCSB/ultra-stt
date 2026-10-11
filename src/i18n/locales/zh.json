@@ -1,4 +1,17 @@
 {
+  "audioRecovery": {
+    "title": "恢复原始音频",
+    "description": "原始音频暂存在此设备上。成功输入或明确取消后删除；失败的录音在重启后仍保留。最多20条、512MB。存储已满时，须删除录音后才能再次录制。重新转写使用当前 Local / Custom Whisper 设置，不进行 AI 润色或自动输入。",
+    "folder": "打开音频文件夹",
+    "empty": "没有保存的录音",
+    "active": "录音或处理中",
+    "retry": "重新转写原文",
+    "working": "处理中…",
+    "delete": "删除原始音频",
+    "confirmDelete": "确认删除音频和原文",
+    "loadFailed": "无法读取保存的录音",
+    "failed": "操作未完成。原始音频已保留。"
+  },
   "ultra": {
     "localSpeech": "本机 Whisper large-v3（GPU）",
     "localSpeechHint": "音频仅在本机处理。使用完整 large-v3 模型及语音检测，无需 STT API 密钥。",

@@ -1,4 +1,17 @@
 {
+  "audioRecovery": {
+    "title": "Original audio recovery",
+    "description": "Audio is temporarily saved on this device. Confirmed input or explicit cancellation removes it; failed recordings survive app restarts. Up to 20 recordings / 512 MB; a full archive blocks new recordings until reviewed. Retry uses the current Local / Custom Whisper settings without AI cleanup or automatic insertion.",
+    "folder": "Open audio folder",
+    "empty": "No saved audio",
+    "active": "Recording / processing",
+    "retry": "Transcribe original again",
+    "working": "Working…",
+    "delete": "Delete original audio",
+    "confirmDelete": "Confirm audio and text deletion",
+    "loadFailed": "Could not load saved audio",
+    "failed": "Could not complete this action. Original audio is preserved."
+  },
   "ultra": {
     "localSpeech": "This PC - Whisper large-v3 (GPU)",
     "localSpeechHint": "Audio stays on this PC. Uses full large-v3 with speech detection; no STT API key is needed.",

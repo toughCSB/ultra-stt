@@ -121,8 +121,6 @@ fn request_accessibility_permission_prompt() -> bool {
 const SELECTED_TEXT_CAPTURE_DELAY_MS: u64 = 60;
 /// Interval for polling audio volume during recording.
 const VOLUME_POLL_INTERVAL_MS: u64 = 50;
-/// Timeout for STT finalization after recording stops.
-const STT_FINALIZE_TIMEOUT_SECS: u64 = 120;
 
 fn generate_cloud_operation_id() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -190,6 +188,8 @@ struct SttTaskControl {
     done: Arc<Notify>,
     abort: Arc<Notify>,
     remote_polish: Arc<Mutex<Option<stt::RemotePolishOptions>>>,
+    raw_transcript: Arc<Mutex<Option<String>>>,
+    journal: Arc<Mutex<crate::recording_archive::RecordingJournal>>,
 }
 
 fn remote_polish_options(config: &storage::AppConfig) -> Option<stt::RemotePolishOptions> {
@@ -292,6 +292,68 @@ fn streaming_insert_user_error(details: Option<String>) -> crate::error::UserErr
 
 fn selected_text_has_content(selected_text: Option<&str>) -> bool {
     selected_text.is_some_and(|text| !text.trim().is_empty())
+}
+
+fn remote_output_is_final(
+    config: &storage::AppConfig,
+    mode: crate::voice_intent::VoiceMode,
+    kind: crate::voice_intent::VoiceIntentKind,
+    selected: Option<&str>,
+) -> bool {
+    config.stt_provider == crate::stt::config::CUSTOM_WHISPER_PROVIDER
+        && config.stt_custom_preset == crate::stt::config::ULTRA_REMOTE_STT_PRESET
+        && mode == crate::voice_intent::VoiceMode::Dictate
+        && kind == crate::voice_intent::VoiceIntentKind::DictateInsert
+        && !selected_text_has_content(selected)
+        && !config.translate_enabled
+}
+
+#[cfg(test)]
+mod remote_command_regression {
+    use super::*;
+    use crate::voice_intent::{VoiceIntentKind, VoiceMode};
+    #[test]
+    fn remote_dictation_keeps_its_fast_path_but_commands_reach_the_llm() {
+        let mut config = storage::AppConfig::default();
+        config.stt_provider = crate::stt::config::CUSTOM_WHISPER_PROVIDER.into();
+        config.stt_custom_preset = crate::stt::config::ULTRA_REMOTE_STT_PRESET.into();
+        config.translate_enabled = false;
+        assert!(remote_output_is_final(
+            &config,
+            VoiceMode::Dictate,
+            VoiceIntentKind::DictateInsert,
+            None
+        ));
+        for (mode, kind, selected) in [
+            (
+                VoiceMode::Dictate,
+                VoiceIntentKind::RewriteSelection,
+                Some("Original"),
+            ),
+            (
+                VoiceMode::Translate,
+                VoiceIntentKind::TranslateSelection,
+                Some("Original"),
+            ),
+            (VoiceMode::Translate, VoiceIntentKind::TranslateInsert, None),
+            (
+                VoiceMode::Ask,
+                VoiceIntentKind::AskSelection,
+                Some("Original"),
+            ),
+            (VoiceMode::Ask, VoiceIntentKind::OpenQuestion, None),
+            (VoiceMode::Dictate, VoiceIntentKind::OpenQuestion, None),
+        ] {
+            assert!(!remote_output_is_final(&config, mode, kind, selected));
+        }
+        config.translate_enabled = true;
+        assert!(!remote_output_is_final(
+            &config,
+            VoiceMode::Dictate,
+            VoiceIntentKind::DictateInsert,
+            None
+        ));
+    }
 }
 
 fn selected_text_command_requires_llm(selected_text: Option<&str>) -> bool {
@@ -552,7 +614,9 @@ async fn run_streaming_insert_worker(
 
     while let Some(chunk) = receiver.recv().await {
         if abort_flag.load(Ordering::SeqCst)
-            || (expected_generation != 0 && generation.load(Ordering::SeqCst) != expected_generation) {
+            || (expected_generation != 0
+                && generation.load(Ordering::SeqCst) != expected_generation)
+        {
             break;
         }
         if chunk.is_empty() {
@@ -852,7 +916,13 @@ impl crate::voice_intent::executor::VoiceExecutionBackend for PipelineVoiceExecu
     async fn insert_at_cursor(&mut self, text: &str) -> std::result::Result<(), String> {
         let result = self
             .pipeline
-            .output_text(text, self.app_name, self.target_guard, self.config, self.session_generation)
+            .output_text(
+                text,
+                self.app_name,
+                self.target_guard,
+                self.config,
+                self.session_generation,
+            )
             .await
             .map_err(|error| error.to_string())?;
         if result.status == output::InsertStatus::Inserted {
@@ -1014,45 +1084,64 @@ impl PipelineHandle {
                         tracing::warn!("Failed to release recording Escape shortcut: {error}");
                     }
                 }
-            } else if should_register_escape(new_state, self.escape_registered.load(Ordering::SeqCst)) {
-                let registered = self.app_handle.global_shortcut().on_shortcut(
-                    escape,
-                    |app, _, event| {
-                        let pipeline = app.state::<PipelineHandle>();
-                        // The plugin calls its global handler after this per-shortcut handler.
-                        pipeline.escape_event_pending.store(true, Ordering::SeqCst);
-                        if event.state != ShortcutState::Pressed {
-                            return;
-                        }
-                        let ask_busy = app.try_state::<crate::commands::ask::AskDictationState>().is_some_and(|state| state.is_busy());
-                        if pipeline.current_state() == PipelineState::Idle && !ask_busy {
-                            return;
-                        }
-                        let generation = pipeline.session_generation.load(Ordering::SeqCst);
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move {
+            } else if should_register_escape(
+                new_state,
+                self.escape_registered.load(Ordering::SeqCst),
+            ) {
+                let registered =
+                    self.app_handle
+                        .global_shortcut()
+                        .on_shortcut(escape, |app, _, event| {
                             let pipeline = app.state::<PipelineHandle>();
-                            if let Some(ask) = app.try_state::<crate::commands::ask::AskDictationState>().filter(|state| state.is_busy()) {
-                                let _ = crate::commands::ask::abort_ask_dictation(app.clone(), ask);
-                            } else if pipeline.session_generation.load(Ordering::SeqCst) == generation {
-                                pipeline.abort();
+                            // The plugin calls its global handler after this per-shortcut handler.
+                            pipeline.escape_event_pending.store(true, Ordering::SeqCst);
+                            if event.state != ShortcutState::Pressed {
+                                return;
                             }
+                            let ask_busy = app
+                                .try_state::<crate::commands::ask::AskDictationState>()
+                                .is_some_and(|state| state.is_busy());
+                            if pipeline.current_state() == PipelineState::Idle && !ask_busy {
+                                return;
+                            }
+                            let generation = pipeline.session_generation.load(Ordering::SeqCst);
+                            let app = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let pipeline = app.state::<PipelineHandle>();
+                                if let Some(ask) = app
+                                    .try_state::<crate::commands::ask::AskDictationState>()
+                                    .filter(|state| state.is_busy())
+                                {
+                                    let _ =
+                                        crate::commands::ask::abort_ask_dictation(app.clone(), ask);
+                                } else if pipeline.session_generation.load(Ordering::SeqCst)
+                                    == generation
+                                {
+                                    pipeline.abort();
+                                }
+                            });
                         });
-                    },
-                );
                 match registered {
                     Ok(()) => {
                         self.escape_registered.store(true, Ordering::SeqCst);
                         if self.current_state() == PipelineState::Idle
-                            && !self.app_handle.try_state::<crate::commands::ask::AskDictationState>().is_some_and(|state| state.is_busy())
+                            && !self
+                                .app_handle
+                                .try_state::<crate::commands::ask::AskDictationState>()
+                                .is_some_and(|state| state.is_busy())
                             && self.escape_registered.swap(false, Ordering::SeqCst)
                         {
-                            if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
-                                tracing::warn!("Failed to release recording Escape shortcut: {error}");
+                            if let Err(error) = self.app_handle.global_shortcut().unregister(escape)
+                            {
+                                tracing::warn!(
+                                    "Failed to release recording Escape shortcut: {error}"
+                                );
                             }
                         }
                     }
-                    Err(error) => tracing::warn!("Recording Escape shortcut is unavailable: {error}"),
+                    Err(error) => {
+                        tracing::warn!("Recording Escape shortcut is unavailable: {error}")
+                    }
                 }
             }
         }
@@ -1149,6 +1238,14 @@ impl PipelineHandle {
         {
             control.abort.notify_one();
             control.done.notify_one();
+            if let Err(error) = control
+                .journal
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .discard()
+            {
+                tracing::error!("Could not remove cancelled recording backup: {error}");
+            }
         }
 
         // Clear accumulated text
@@ -1280,7 +1377,8 @@ impl PipelineHandle {
             .unwrap_or_else(|e| e.into_inner()) = Some(correction_rules);
 
         let stt_api_key = if config_data.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
-            && config_data.stt_custom_preset == "ultra-local" {
+            && config_data.stt_custom_preset == "ultra-local"
+        {
             String::new()
         } else if config_data.stt_provider == "cloud" {
             self.app_handle
@@ -1678,11 +1776,31 @@ impl PipelineHandle {
         // STT streaming task — provider is already connected
         let app_handle = self.app_handle.clone();
         let accumulated = self.accumulated_text.clone();
+        let journal = match self
+            .app_handle
+            .state::<crate::recording_archive::RecordingArchive>()
+            .begin()
+        {
+            Ok(journal) => Arc::new(Mutex::new(journal)),
+            Err(error) => {
+                self.abort();
+                let _ = self.app_handle.emit(
+                    "pipeline:error",
+                    crate::error::AppError::Config(format!(
+                        "Recording backup unavailable: {error}"
+                    ))
+                    .to_user_error(),
+                );
+                return Err(error.into());
+            }
+        };
         let stt_control = SttTaskControl {
             id: session_id,
             done: Arc::new(Notify::new()),
             abort: Arc::new(Notify::new()),
             remote_polish: Arc::new(Mutex::new(remote_polish_options(&config_data))),
+            raw_transcript: Arc::new(Mutex::new(None)),
+            journal,
         };
         *self.stt_session.lock().unwrap_or_else(|e| e.into_inner()) = Some(stt_control.clone());
         let abort_flag_ref = self.abort_flag.clone();
@@ -1708,7 +1826,12 @@ impl PipelineHandle {
                     chunk = audio_rx.recv() => {
                         match chunk {
                             Some(data) => {
-                                if let Err(error) = provider.send_audio(&data).await {
+                                let backed_up = stt_control.journal.lock().unwrap_or_else(|error| error.into_inner()).append(&data);
+                                let sent = match backed_up {
+                                    Ok(()) => provider.send_audio(&data).await,
+                                    Err(error) => Err(crate::error::AppError::Config(format!("Recording backup failed: {error}"))),
+                                };
+                                if let Err(error) = sent {
                                     tracing::error!("STT send audio error: {}", error);
                                     crate::error::emit_cloud_session_invalid(&app_handle, &error);
                                     if let Some(user_error) = latch_stt_task_error_if_active(
@@ -1737,6 +1860,20 @@ impl PipelineHandle {
                                 if let Some(options) = options {
                                     provider.set_remote_polish(&options);
                                 }
+                                if let Err(error) = stt_control.journal.lock().unwrap_or_else(|error| error.into_inner()).finish_audio() {
+                                    tracing::error!("Recording checkpoint failed: {error}");
+                                    let error = crate::error::AppError::Config(format!("Recording backup failed: {error}"));
+                                    if let Some(user_error) = latch_stt_task_error_if_active(
+                                        abort_flag_ref.as_ref(),
+                                        active_session_id_ref.as_ref(),
+                                        stt_error_ref.as_ref(),
+                                        stt_control.id,
+                                        &error,
+                                    ) {
+                                        let _ = app_handle.emit("pipeline:error", user_error);
+                                    }
+                                    break;
+                                }
                                 let disconnect_result = tokio::select! {
                                     _ = stt_control.abort.notified() => None,
                                     result = provider.disconnect() => Some(result),
@@ -1749,6 +1886,11 @@ impl PipelineHandle {
                                             active_session_id_ref.as_ref(),
                                             stt_control.id,
                                         ) {
+                                            *stt_control.raw_transcript.lock().unwrap_or_else(|error| error.into_inner()) = provider.raw_transcript();
+                                            let original = provider.raw_transcript().unwrap_or_else(|| text.clone());
+                                            if let Err(error) = stt_control.journal.lock().unwrap_or_else(|error| error.into_inner()).save_transcript(&original) {
+                                                tracing::error!("Transcript checkpoint failed; original audio remains: {error}");
+                                            }
                                             let mut acc = accumulated.lock().unwrap_or_else(|e| e.into_inner());
                                             acc.push_str(&text);
                                             let current = acc.clone();
@@ -1939,6 +2081,16 @@ impl PipelineHandle {
 
         let stop_start = std::time::Instant::now();
 
+        let original_target = self
+            .preloaded_app_ctx
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .as_ref()
+            .map(|context| context.target_guard.clone());
+        if let Some(target) = original_target {
+            self.restore_after_capsule_interaction(&target).await;
+        }
+
         // Capture selected text now — hotkey is released so Ctrl+C won't conflict.
         // Small delay to ensure hotkey modifiers are fully released (especially in toggle mode).
         let config_data = self
@@ -1971,7 +2123,11 @@ impl PipelineHandle {
             .unwrap_or_else(|error| error.into_inner())
             .clone();
         if let Some(control) = &stt_control {
-            *control.remote_polish.lock().unwrap_or_else(|error| error.into_inner()) = remote_polish_options(&current_config);
+            *control
+                .remote_polish
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) =
+                remote_polish_options(&current_config);
         }
 
         // Stop audio capture (this drops the channel, signaling STT task to stop)
@@ -2069,6 +2225,22 @@ impl PipelineHandle {
         };
         let voice_intent =
             route_pipeline_voice_intent(voice_mode, &raw_text, selected_text.as_deref(), &config);
+        if let Some(control) = &stt_control {
+            let original = control
+                .raw_transcript
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone()
+                .unwrap_or_else(|| raw_text.clone());
+            if let Err(error) = control
+                .journal
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .save_transcript(&original)
+            {
+                tracing::error!("Transcript checkpoint failed; original audio remains: {error}");
+            }
+        }
         let stt_elapsed = stop_start.elapsed();
         tracing::info!(
             "[Pipeline Timing] STT finalize: {}ms",
@@ -2116,7 +2288,9 @@ impl PipelineHandle {
                 session_generation: generation,
             }) => outcome,
         };
-        if !self.is_current_session(generation) { return Ok(()); }
+        if !self.is_current_session(generation) {
+            return Ok(());
+        }
         let final_text = polish_outcome.final_text;
         let llm_elapsed = polish_outcome.llm_elapsed;
 
@@ -2140,7 +2314,9 @@ impl PipelineHandle {
         );
 
         // A new recording may have superseded this stop during output.
-        if !self.is_current_session(generation) { return Ok(()); }
+        if !self.is_current_session(generation) {
+            return Ok(());
+        }
         // Emit timing to frontend
         let _ = self.app_handle.emit(
             "pipeline:timing",
@@ -2155,9 +2331,25 @@ impl PipelineHandle {
         let _ = self.app_handle.emit("pipeline:context", app_ctx.summary());
 
         // Save to history
-        if !self.is_current_session(generation) { return Ok(()); }
+        if !self.is_current_session(generation) {
+            return Ok(());
+        }
+        let history_raw = stt_control
+            .as_ref()
+            .and_then(|control| {
+                control
+                    .raw_transcript
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .clone()
+            })
+            .unwrap_or_else(|| raw_text.clone());
+        let confirmed_output = matches!(
+            polish_outcome.history_output_status.as_deref(),
+            Some("inserted" | "copied")
+        );
         self.save_history(
-            &raw_text,
+            &history_raw,
             &final_text,
             &app_ctx,
             duration_ms,
@@ -2170,23 +2362,53 @@ impl PipelineHandle {
         .await;
 
         if let Some(control) = &stt_control {
+            if confirmed_output {
+                if let Err(error) = control
+                    .journal
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .discard()
+                {
+                    tracing::error!("Could not clean completed recording backup: {error}");
+                }
+            }
             self.clear_stt_session(control.id);
         }
-        if self.is_current_session(generation) { self.set_state(PipelineState::Idle); }
+        if self.is_current_session(generation) {
+            self.set_state(PipelineState::Idle);
+        }
         Ok(())
     }
 
     /// Wait for the STT task to complete and return the transcribed text.
     /// Returns `Ok(Some(text))` on success, `Ok(None)` if aborted or no speech,
     /// or `Err` on failure.
-    async fn wait_for_stt(&self, stt_control: Option<SttTaskControl>, generation: u64) -> Result<Option<String>> {
+    async fn wait_for_stt(
+        &self,
+        stt_control: Option<SttTaskControl>,
+        generation: u64,
+    ) -> Result<Option<String>> {
         if let Some(control) = &stt_control {
+            let recorded_seconds = self
+                .recording_start
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .as_ref()
+                .map(|start| start.elapsed().as_secs())
+                .unwrap_or(600);
+            let budget = crate::stt::processing_budget::finalize(recorded_seconds);
             tokio::select! {
                 _ = control.done.notified() => {
                     tracing::debug!("STT task completed");
                 }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(STT_FINALIZE_TIMEOUT_SECS)) => {
-                    tracing::warn!("STT timed out after {}s", STT_FINALIZE_TIMEOUT_SECS);
+                _ = tokio::time::sleep(budget) => {
+                    control.abort.notify_one();
+                    tracing::warn!("STT finalization timed out after {}s", budget.as_secs());
+                    if self.is_current_session(generation) {
+                        let _ = self.app_handle.emit("pipeline:error", crate::error::AppError::Timeout(budget).to_user_error());
+                        self.set_state(PipelineState::Idle);
+                    }
+                    return Ok(None);
                 }
             }
 
@@ -2199,7 +2421,9 @@ impl PipelineHandle {
                 return Ok(None);
             }
             if take_matching_stt_error(&self.stt_error, control.id).is_some() {
-                if self.is_current_session(generation) { self.set_state(PipelineState::Idle); }
+                if self.is_current_session(generation) {
+                    self.set_state(PipelineState::Idle);
+                }
                 return Ok(None);
             }
         } else {
@@ -2220,7 +2444,9 @@ impl PipelineHandle {
 
         if raw_text.is_empty() {
             if self.is_current_session(generation) {
-                let _ = self.app_handle.emit("pipeline:error", no_speech_user_error());
+                let _ = self
+                    .app_handle
+                    .emit("pipeline:error", no_speech_user_error());
                 self.set_state(PipelineState::Idle);
             }
             return Ok(None);
@@ -2246,9 +2472,12 @@ impl PipelineHandle {
             popup_fallback_enabled,
             session_generation,
         } = input;
-        if config.stt_provider == crate::stt::config::CUSTOM_WHISPER_PROVIDER
-            && config.stt_custom_preset == crate::stt::config::ULTRA_REMOTE_STT_PRESET
-        {
+        if remote_output_is_final(
+            config,
+            voice_mode,
+            voice_intent.kind,
+            selected_text.as_deref(),
+        ) {
             let output_result = self
                 .output_text(
                     raw_text,
@@ -2277,7 +2506,7 @@ impl PipelineHandle {
                 voice_execution: None,
             };
         }
-let provider_plan =
+        let provider_plan =
             crate::voice_intent::plan_voice_provider_work(voice_mode, raw_text, &voice_intent);
         let Some(provider_text) = provider_plan.provider_input.as_deref() else {
             let message = "Search must bypass the language model and use the safe search executor.";
@@ -2387,7 +2616,8 @@ let provider_plan =
         };
         let provider = llm::create_provider(&config.llm_provider, Some(self.shared_client.clone()));
 
-        let streaming_strategy = (config.llm_provider != "codex-cli" && provider_plan.allow_streaming)
+        let streaming_strategy = (config.llm_provider != "codex-cli"
+            && provider_plan.allow_streaming)
             .then(|| streaming_insert_strategy_for_runtime(config, selected_text.as_deref()))
             .flatten();
         let mut streaming_worker = streaming_strategy.map(|strategy| {
@@ -2417,7 +2647,11 @@ let provider_plan =
         let app_handle = self.app_handle.clone();
         let chunk_generation = self.session_generation.clone();
         let on_chunk: llm::ChunkCallback = Box::new(move |chunk: &str| {
-            if session_generation != 0 && chunk_generation.load(Ordering::SeqCst) != session_generation { return; }
+            if session_generation != 0
+                && chunk_generation.load(Ordering::SeqCst) != session_generation
+            {
+                return;
+            }
             let _ = app_handle.emit("llm:chunk", chunk);
             if let Some(sender) = streaming_sender.as_ref() {
                 let _ = sender.send(chunk.to_string());
@@ -2451,8 +2685,13 @@ let provider_plan =
             voice_intent: voice_intent.clone(),
         };
 
-        let polish_result = provider.polish(&llm_config, &req,
-            (config.llm_provider != "codex-cli").then_some(&on_chunk)).await;
+        let polish_result = provider
+            .polish(
+                &llm_config,
+                &req,
+                (config.llm_provider != "codex-cli").then_some(&on_chunk),
+            )
+            .await;
         drop(on_chunk);
         let streaming_report = match streaming_worker.take() {
             Some(worker) => worker.finish().await,
@@ -2483,7 +2722,10 @@ let provider_plan =
                             StreamingRecoveryAction::InsertSuffix { suffix } => {
                                 let mut recovered_report = report.clone();
                                 if !suffix.is_empty() {
-                                    if !self.context_detector.target_still_matches_now(&app_ctx.target_guard) {
+                                    if !self
+                                        .context_detector
+                                        .target_still_matches_now(&app_ctx.target_guard)
+                                    {
                                         recovered_report.target_lost = true;
                                         self.copy_streaming_recovery_to_clipboard(
                                             &response.polished_text,
@@ -2493,7 +2735,12 @@ let provider_plan =
                                             session_generation,
                                             &recovered_report,
                                         ).await;
-                                        return PolishTextOutcome::with_history_status(response.polished_text, elapsed, "clipboard_fallback", "Target changed before final streaming suffix");
+                                        return PolishTextOutcome::with_history_status(
+                                            response.polished_text,
+                                            elapsed,
+                                            "clipboard_fallback",
+                                            "Target changed before final streaming suffix",
+                                        );
                                     }
                                     match output::output_stream_chunk(
                                         &self.app_handle,
@@ -2656,7 +2903,8 @@ let provider_plan =
 
                 // Check abort after LLM returns — skip output if cancelled during polish.
                 if (session_generation != 0 && !self.is_current_session(session_generation))
-                    || self.abort_flag.load(Ordering::SeqCst) {
+                    || self.abort_flag.load(Ordering::SeqCst)
+                {
                     tracing::info!("Pipeline aborted after LLM polish, skipping output");
                     return PolishTextOutcome::normal(raw_text.to_string(), elapsed);
                 }
@@ -2780,7 +3028,8 @@ let provider_plan =
 
                 // Check abort after LLM error — skip fallback output if cancelled.
                 if (session_generation != 0 && !self.is_current_session(session_generation))
-                    || self.abort_flag.load(Ordering::SeqCst) {
+                    || self.abort_flag.load(Ordering::SeqCst)
+                {
                     tracing::info!("Pipeline aborted after LLM error, skipping output");
                     return PolishTextOutcome::normal(String::new(), elapsed);
                 }
@@ -2899,7 +3148,9 @@ let provider_plan =
                 session_generation: generation,
             }) => outcome,
         };
-        if !self.is_current_session(generation) { return Err("Draft cancelled".into()); }
+        if !self.is_current_session(generation) {
+            return Err("Draft cancelled".into());
+        }
         self.set_state(PipelineState::Idle);
 
         let execution = outcome.voice_execution.ok_or_else(|| {
@@ -2993,9 +3244,23 @@ let provider_plan =
         let _ = self.app_handle.emit("pipeline:target_app", app_name);
     }
 
-    fn retain_recovery(&self, text: &str, app_name: &str, generation: u64, reason: crate::recovery::RecoveryReason, chars_inserted: usize) {
+    fn retain_recovery(
+        &self,
+        text: &str,
+        app_name: &str,
+        generation: u64,
+        reason: crate::recovery::RecoveryReason,
+        chars_inserted: usize,
+    ) {
         if self.is_current_session(generation) && !self.abort_flag.load(Ordering::SeqCst) {
-            crate::recovery::retain(&self.app_handle, generation, text, app_name, reason, chars_inserted);
+            crate::recovery::retain(
+                &self.app_handle,
+                generation,
+                text,
+                app_name,
+                reason,
+                chars_inserted,
+            );
         }
     }
 
@@ -3008,7 +3273,9 @@ let provider_plan =
         generation: u64,
         report: &StreamingInsertReport,
     ) {
-        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) { return; }
+        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) {
+            return;
+        }
         let recovery_reason = if report.target_lost {
             crate::recovery::RecoveryReason::TargetChanged
         } else if report.has_inserted_text() {
@@ -3017,7 +3284,13 @@ let provider_plan =
             crate::recovery::RecoveryReason::OutputFailed
         };
         // Save before copying, so a clipboard failure cannot lose the result.
-        self.retain_recovery(text, app_name, generation, recovery_reason, report.inserted_text.chars().count());
+        self.retain_recovery(
+            text,
+            app_name,
+            generation,
+            recovery_reason,
+            report.inserted_text.chars().count(),
+        );
         self.copy_text_to_clipboard_with_warning(
             text,
             app_name,
@@ -3074,6 +3347,23 @@ let provider_plan =
         }
     }
 
+    async fn restore_after_capsule_interaction(&self, target: &TargetAppGuard) {
+        let Some(capsule) = self.app_handle.get_webview_window("capsule") else {
+            return;
+        };
+        if !capsule.is_focused().unwrap_or(false) {
+            return;
+        }
+        let detector = self.context_detector.clone();
+        let target = target.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            if capsule.is_focused().unwrap_or(false) {
+                detector.restore_target_application(&target);
+            }
+        })
+        .await;
+    }
+
     async fn output_text(
         &self,
         text: &str,
@@ -3086,6 +3376,11 @@ let provider_plan =
             anyhow::bail!("Output session was cancelled");
         }
         self.set_state(PipelineState::Outputting);
+
+        self.restore_after_capsule_interaction(target_guard).await;
+        if !self.is_current_session(session_generation) || self.abort_flag.load(Ordering::SeqCst) {
+            anyhow::bail!("Output session was cancelled");
+        }
 
         let configured_strategy =
             output::InsertionStrategy::from_config_value(&config.insertion_strategy);
@@ -3156,10 +3451,19 @@ let provider_plan =
         {
             Ok(outcome) => outcome,
             Err(e) => {
-                self.retain_recovery(text, app_name, session_generation,
-                    if target_warning.is_some() { crate::recovery::RecoveryReason::TargetChanged } else { crate::recovery::RecoveryReason::OutputFailed }, 0);
+                self.retain_recovery(
+                    text,
+                    app_name,
+                    session_generation,
+                    if target_warning.is_some() {
+                        crate::recovery::RecoveryReason::TargetChanged
+                    } else {
+                        crate::recovery::RecoveryReason::OutputFailed
+                    },
+                    0,
+                );
                 anyhow::bail!("{}", e)
-            },
+            }
         };
 
         if let Some(user_error) = target_warning.or(accessibility_warning) {
@@ -3174,8 +3478,17 @@ let provider_plan =
             output_outcome.insert_result.chars_inserted
         );
         let insert_result = output_outcome.insert_result.clone();
-        if let Some(reason) = crate::recovery::reason_for_result(&insert_result, configured_strategy == output::InsertionStrategy::ClipboardCopyOnly) {
-            self.retain_recovery(text, app_name, session_generation, reason, insert_result.chars_inserted);
+        if let Some(reason) = crate::recovery::reason_for_result(
+            &insert_result,
+            configured_strategy == output::InsertionStrategy::ClipboardCopyOnly,
+        ) {
+            self.retain_recovery(
+                text,
+                app_name,
+                session_generation,
+                reason,
+                insert_result.chars_inserted,
+            );
         }
         let _ = self
             .app_handle
@@ -3332,7 +3645,10 @@ mod tests {
     fn escape_cancel_event_is_consumed_before_the_global_dictation_handler() {
         let pending = AtomicBool::new(false);
         let escape = Shortcut::new(None, Code::Escape);
-        let dictation = Shortcut::new(Some(tauri_plugin_global_shortcut::Modifiers::CONTROL), Code::KeyR);
+        let dictation = Shortcut::new(
+            Some(tauri_plugin_global_shortcut::Modifiers::CONTROL),
+            Code::KeyR,
+        );
 
         assert!(!consume_escape_event(&pending, &escape));
         pending.store(true, Ordering::SeqCst);
@@ -3344,7 +3660,14 @@ mod tests {
     #[test]
     fn escape_is_registered_after_start_has_already_claimed_preparing_state() {
         let state = AtomicU8::new(PipelineState::Idle.as_u8());
-        state.compare_exchange(PipelineState::Idle.as_u8(), PipelineState::Preparing.as_u8(), Ordering::SeqCst, Ordering::SeqCst).unwrap();
+        state
+            .compare_exchange(
+                PipelineState::Idle.as_u8(),
+                PipelineState::Preparing.as_u8(),
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .unwrap();
         let current = PipelineState::from_u8(state.load(Ordering::SeqCst));
         assert!(should_register_escape(current, false));
         assert!(!should_register_escape(current, true));
@@ -3360,7 +3683,13 @@ mod tests {
         assert!(remote_polish_options(&config).is_none());
         config.stt_provider = stt::config::CUSTOM_WHISPER_PROVIDER.to_string();
         config.stt_custom_preset = stt::config::ULTRA_REMOTE_STT_PRESET.to_string();
-        assert_eq!(remote_polish_options(&config), Some(stt::RemotePolishOptions { style: "original".to_string(), enabled: false }));
+        assert_eq!(
+            remote_polish_options(&config),
+            Some(stt::RemotePolishOptions {
+                style: "original".to_string(),
+                enabled: false
+            })
+        );
         config.stt_custom_preset = "custom".to_string();
         assert!(remote_polish_options(&config).is_none());
     }
@@ -3906,8 +4235,11 @@ mod tests {
             abort_flag.store(false, Ordering::SeqCst);
             tx.send_replace(9);
         };
-        tokio::time::timeout(std::time::Duration::from_secs(2), async { tokio::join!(old_stop, switch); })
-            .await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            tokio::join!(old_stop, switch);
+        })
+        .await
+        .unwrap();
     }
 
     #[test]

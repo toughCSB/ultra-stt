@@ -1,6 +1,6 @@
 //! Personal tailnet input. Tailscale Serve authenticates the caller and proxies
 //! WebSockets to this loopback-only listener; no cloud API credentials leave the PC.
-use std::{path::PathBuf, process::Command, sync::Arc, time::{Duration, Instant}};
+use std::{path::PathBuf, process::Command, sync::Arc, time::Instant};
 
 use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
@@ -29,7 +29,10 @@ mod http_upload;
 const MAX_WAV: usize = MAX_PCM + 44;
 
 fn tailnet_identity(status: &serde_json::Value) -> Result<(String, String)> {
-    anyhow::ensure!(status["BackendState"] == "Running", "Tailscale is not connected");
+    anyhow::ensure!(
+        status["BackendState"] == "Running",
+        "Tailscale is not connected"
+    );
     let id = status["Self"]["UserID"]
         .as_u64()
         .context("Tailscale owner is missing")?
@@ -121,7 +124,10 @@ impl Callback for AuthorizedClient {
 }
 
 fn pcm_from_wav(wav: &[u8]) -> Result<&[u8]> {
-    anyhow::ensure!(wav.len() >= 46 && wav.len() <= MAX_WAV, "WAV size is invalid");
+    anyhow::ensure!(
+        wav.len() >= 46 && wav.len() <= MAX_WAV,
+        "WAV size is invalid"
+    );
     let riff_size = u32::from_le_bytes([wav[4], wav[5], wav[6], wav[7]]) as usize;
     let data_size = u32::from_le_bytes([wav[40], wav[41], wav[42], wav[43]]) as usize;
     anyhow::ensure!(
@@ -147,13 +153,35 @@ async fn dictate(pcm: &[u8]) -> Result<serde_json::Value> {
     dictate_with_options(pcm, &crate::stt::RemotePolishOptions::default()).await
 }
 
-async fn dictate_with_options(pcm: &[u8], options: &crate::stt::RemotePolishOptions) -> Result<serde_json::Value> {
+fn polish_result_or_raw(
+    raw: &str,
+    result: std::result::Result<llm::PolishResponse, crate::error::AppError>,
+) -> String {
+    match result {
+        Ok(response) if !response.polished_text.trim().is_empty() => response.polished_text,
+        Ok(_) | Err(_) => {
+            tracing::warn!(
+                "Remote AI cleanup failed or returned empty text; preserving the raw transcript"
+            );
+            raw.to_string()
+        }
+    }
+}
+
+async fn dictate_with_options(
+    pcm: &[u8],
+    options: &crate::stt::RemotePolishOptions,
+) -> Result<serde_json::Value> {
     let started = Instant::now();
     let raw = ultra_local::transcribe(pcm, Some("ko"))
         .await?
         .context("No speech was recognized")?;
     let stt_elapsed = started.elapsed();
-    tracing::info!(stt_ms = stt_elapsed.as_millis() as u64, audio_ms = pcm.len() / 32, "Remote transcription completed");
+    tracing::info!(
+        stt_ms = stt_elapsed.as_millis() as u64,
+        audio_ms = pcm.len() / 32,
+        "Remote transcription completed"
+    );
     let voice_intent = VoiceIntent::from_parts(
         VoiceIntentKind::DictateInsert,
         VoiceOutputPlacement::InsertAtCursor,
@@ -184,10 +212,12 @@ async fn dictate_with_options(pcm: &[u8], options: &crate::stt::RemotePolishOpti
         ..Default::default()
     };
     let polished = if options.enabled {
-        llm::codex::CodexProvider
-            .polish(&config, &request, None)
-            .await?
-            .polished_text
+        polish_result_or_raw(
+            &raw,
+            llm::codex::CodexProvider
+                .polish(&config, &request, None)
+                .await,
+        )
     } else {
         raw.clone()
     };
@@ -212,11 +242,7 @@ async fn acknowledge_close(
     }
 }
 
-async fn handle(
-    mut stream: tokio::net::TcpStream,
-    owner: String,
-    origin: String,
-) -> Result<()> {
+async fn handle(stream: tokio::net::TcpStream, owner: String, origin: String) -> Result<()> {
     let mut peeked = [0u8; 4];
     // The first four bytes may not have arrived yet, and a short peek would
     // misroute a POST into the WebSocket handshake, so wait for all four.
@@ -256,7 +282,12 @@ async fn handle(
                         continue;
                     }
                 };
-                let work = tokio::time::timeout(Duration::from_secs(120), dictate(pcm));
+                let work = tokio::time::timeout(
+                    crate::stt::processing_budget::remote(
+                        crate::stt::processing_budget::pcm_seconds(pcm.len(), 16000),
+                    ),
+                    dictate(pcm),
+                );
                 tokio::pin!(work);
                 loop {
                     tokio::select! {
@@ -294,11 +325,13 @@ async fn handle(
                 return Ok(());
             }
             Message::Ping(_) | Message::Pong(_) => {}
-            _ => websocket
-                .send(Message::Text(
-                    r#"{"type":"error","message":"Send one WAV recording"}"#.to_string(),
-                ))
-                .await?,
+            _ => {
+                websocket
+                    .send(Message::Text(
+                        r#"{"type":"error","message":"Send one WAV recording"}"#.to_string(),
+                    ))
+                    .await?
+            }
         }
     }
     Ok(())
@@ -332,8 +365,39 @@ pub async fn serve() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
     use tokio_tungstenite::tungstenite::http::Request as HttpRequest;
+
+    #[test]
+    fn cleanup_failure_preserves_the_complete_transcript() {
+        let raw = "긴 녹음 원문입니다. ".repeat(300);
+        assert_eq!(
+            polish_result_or_raw(
+                &raw,
+                Err(crate::error::AppError::Timeout(Duration::from_secs(60)))
+            ),
+            raw
+        );
+        assert_eq!(
+            polish_result_or_raw(
+                &raw,
+                Ok(llm::PolishResponse {
+                    polished_text: "  ".into()
+                })
+            ),
+            raw
+        );
+        assert_eq!(
+            polish_result_or_raw(
+                &raw,
+                Ok(llm::PolishResponse {
+                    polished_text: "정리된 결과".into()
+                })
+            ),
+            "정리된 결과"
+        );
+    }
 
     #[test]
     fn tailnet_identity_requires_the_running_owner_and_dns_name() {
@@ -344,7 +408,10 @@ mod tests {
         });
         assert_eq!(
             tailnet_identity(&status).unwrap(),
-            ("owner@example.test".to_string(), "https://server.example.ts.net:10443".to_string())
+            (
+                "owner@example.test".to_string(),
+                "https://server.example.ts.net:10443".to_string()
+            )
         );
         assert!(tailnet_identity(&serde_json::json!({"BackendState":"Stopped"})).is_err());
     }
@@ -382,6 +449,7 @@ mod tests {
         // SAFETY: restoring the previous state for any later test.
         unsafe { std::env::remove_var("ULTRA_STT_ROOT") };
     }
+    #[test]
     fn websocket_rejects_other_users_and_cross_origin_browsers() {
         let make = |identity: Option<&str>, origin: Option<&str>| {
             let mut builder = HttpRequest::builder().uri("/ws");
@@ -398,8 +466,16 @@ mod tests {
         assert!(allowed(&make(Some(owner), Some(origin)), owner, origin));
         assert!(allowed(&make(Some(owner), None), owner, origin));
         assert!(!allowed(&make(None, Some(origin)), owner, origin));
-        assert!(!allowed(&make(Some("stranger@example.test"), None), owner, origin));
-        assert!(!allowed(&make(Some(owner), Some("https://evil.example")), owner, origin));
+        assert!(!allowed(
+            &make(Some("stranger@example.test"), None),
+            owner,
+            origin
+        ));
+        assert!(!allowed(
+            &make(Some(owner), Some("https://evil.example")),
+            owner,
+            origin
+        ));
         let non_utf8 = HttpRequest::builder()
             .uri("/ws")
             .header("Tailscale-User-Login", owner)
@@ -440,12 +516,14 @@ mod tests {
             .await
         });
         let mut request = format!("ws://{address}/ws").into_client_request().unwrap();
-        request
-            .headers_mut()
-            .insert("Tailscale-User-Login", "owner@example.test".parse().unwrap());
-        request
-            .headers_mut()
-            .insert("Origin", "https://server.example.ts.net:10443".parse().unwrap());
+        request.headers_mut().insert(
+            "Tailscale-User-Login",
+            "owner@example.test".parse().unwrap(),
+        );
+        request.headers_mut().insert(
+            "Origin",
+            "https://server.example.ts.net:10443".parse().unwrap(),
+        );
         let (mut websocket, _) = tokio_tungstenite::connect_async(request).await.unwrap();
         websocket.send(Message::Binary(vec![0; 46])).await.unwrap();
         let response = tokio::time::timeout(Duration::from_secs(2), websocket.next())

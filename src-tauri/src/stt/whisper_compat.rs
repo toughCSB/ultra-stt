@@ -28,6 +28,7 @@ pub struct WhisperCompatProvider {
     audio_buffer: Vec<u8>,
     client: reqwest::Client,
     remote_polish: Option<RemotePolishOptions>,
+    raw_transcript: Option<String>,
 }
 
 impl WhisperCompatProvider {
@@ -38,6 +39,7 @@ impl WhisperCompatProvider {
             audio_buffer: Vec::new(),
             client: reqwest::Client::new(),
             remote_polish: None,
+            raw_transcript: None,
         }
     }
 
@@ -48,9 +50,9 @@ impl WhisperCompatProvider {
             audio_buffer: Vec::new(),
             client,
             remote_polish: None,
+            raw_transcript: None,
         }
     }
-
 
     /// Peak sample and root mean square of a mono PCM16 buffer, on a 0..32767 scale.
     fn measure_level(pcm: &[u8]) -> (f64, f64) {
@@ -63,7 +65,11 @@ impl WhisperCompatProvider {
             sum += sample * sample;
             count += 1.0;
         }
-        let rms = if count > 0.0 { (sum / count).sqrt() } else { 0.0 };
+        let rms = if count > 0.0 {
+            (sum / count).sqrt()
+        } else {
+            0.0
+        };
         (peak, rms)
     }
     /// Build a WAV file from raw PCM 16-bit mono audio. Public so test helpers can reuse it.
@@ -108,6 +114,7 @@ impl SttProvider for WhisperCompatProvider {
             )));
         }
         self.stt_config = Some(config.clone());
+        self.raw_transcript = None;
         self.audio_buffer.clear();
         tracing::info!(
             "{} provider ready (buffering mode)",
@@ -162,8 +169,18 @@ impl SttProvider for WhisperCompatProvider {
             rms
         );
 
+        let request_budget =
+            super::processing_budget::upload(super::processing_budget::pcm_seconds(
+                wav_data.len().saturating_sub(44),
+                config.sample_rate,
+            ));
+        let deadline = tokio::time::Instant::now() + request_budget;
         let mut attempt = 0u32;
         loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return Err(AppError::Timeout(request_budget));
+            }
             let file_part = reqwest::multipart::Part::bytes(wav_data.clone())
                 .file_name("audio.wav")
                 .mime_str("audio/wav")
@@ -189,7 +206,7 @@ impl SttProvider for WhisperCompatProvider {
                 .client
                 .post(&self.provider_config.endpoint)
                 .multipart(form)
-                .timeout(std::time::Duration::from_secs(60));
+                .timeout(remaining);
 
             if !config.api_key.trim().is_empty() {
                 request = request.header("Authorization", format!("Bearer {}", config.api_key));
@@ -227,6 +244,13 @@ impl SttProvider for WhisperCompatProvider {
                             })?
                             .trim()
                             .to_string();
+
+                        self.raw_transcript = self.remote_polish.as_ref().and_then(|_| {
+                            v.get("raw")
+                                .and_then(|value| value.as_str())
+                                .filter(|raw| !raw.trim().is_empty())
+                                .map(str::to_string)
+                        });
 
                         tracing::info!(
                             "{} transcription: {} chars",
@@ -276,19 +300,7 @@ impl SttProvider for WhisperCompatProvider {
                         });
                     }
                 }
-                Err(e) if e.is_timeout() && attempt < 2 => {
-                    tracing::warn!(
-                        "{} timeout (attempt {}/3)",
-                        self.provider_config.provider_name,
-                        attempt + 1
-                    );
-                    attempt += 1;
-                    tokio::time::sleep(std::time::Duration::from_millis(
-                        1000 * 2u64.pow(attempt - 1),
-                    ))
-                    .await;
-                    continue;
-                }
+                Err(e) if e.is_timeout() => return Err(AppError::Timeout(request_budget)),
                 Err(e) => return Err(e.into()),
             }
         }
@@ -296,6 +308,10 @@ impl SttProvider for WhisperCompatProvider {
 
     fn name(&self) -> &str {
         &self.provider_config.provider_name
+    }
+
+    fn raw_transcript(&self) -> Option<String> {
+        self.raw_transcript.clone()
     }
 }
 
@@ -308,7 +324,18 @@ mod tests {
         transcribe_http_reply_with_options(body, None).await
     }
 
-    async fn transcribe_http_reply_with_options(body: &'static str, options: Option<RemotePolishOptions>) -> Result<Option<String>, AppError> {
+    async fn transcribe_http_reply_with_options(
+        body: &'static str,
+        options: Option<RemotePolishOptions>,
+    ) -> Result<Option<String>, AppError> {
+        transcribe_audio_reply(body, options, 2).await
+    }
+
+    async fn transcribe_audio_reply(
+        body: &'static str,
+        options: Option<RemotePolishOptions>,
+        audio_bytes: usize,
+    ) -> Result<Option<String>, AppError> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}/transcriptions", listener.local_addr().unwrap());
         let expected_options = options.clone();
@@ -331,10 +358,26 @@ mod tests {
                         })
                         .unwrap();
                     if request.len() >= head_end + 4 + length {
+                        let wav_start =
+                            request.windows(4).position(|part| part == b"RIFF").unwrap();
+                        let pcm_length = u32::from_le_bytes(
+                            request[wav_start + 40..wav_start + 44].try_into().unwrap(),
+                        ) as usize;
+                        assert_eq!(pcm_length, audio_bytes);
+                        assert_eq!(
+                            request[wav_start + 44..wav_start + 44 + pcm_length],
+                            vec![0; audio_bytes]
+                        );
                         match &expected_options {
                             Some(options) => {
-                                assert!(head.contains(&format!("x-ultra-stt-polish-style: {}", options.style)));
-                                assert!(head.contains(&format!("x-ultra-stt-polish-enabled: {}", options.enabled)));
+                                assert!(head.contains(&format!(
+                                    "x-ultra-stt-polish-style: {}",
+                                    options.style
+                                )));
+                                assert!(head.contains(&format!(
+                                    "x-ultra-stt-polish-enabled: {}",
+                                    options.enabled
+                                )));
                             }
                             None => assert!(!head.contains("x-ultra-stt-polish-")),
                         }
@@ -372,7 +415,7 @@ mod tests {
             })
             .await
             .unwrap();
-        provider.send_audio(&[0, 0]).await.unwrap();
+        provider.send_audio(&vec![0; audio_bytes]).await.unwrap();
         if let Some(options) = &options {
             provider.set_remote_polish(&RemotePolishOptions::default());
             provider.set_remote_polish(options);
@@ -380,17 +423,67 @@ mod tests {
         let result = tokio::time::timeout(std::time::Duration::from_secs(3), provider.disconnect())
             .await
             .unwrap();
+        let response: serde_json::Value = serde_json::from_str(body).unwrap();
+        let expected_raw = options
+            .as_ref()
+            .and_then(|_| response.get("raw").and_then(|value| value.as_str()))
+            .map(str::to_string);
+        assert_eq!(provider.raw_transcript(), expected_raw);
         server.await.unwrap();
         result
     }
 
     #[tokio::test]
+    async fn ten_minute_recording_upload_preserves_every_pcm_byte() {
+        assert_eq!(
+            transcribe_audio_reply(
+                r#"{"text":"complete ten minute transcript"}"#,
+                None,
+                600 * 32_000
+            )
+            .await
+            .unwrap(),
+            Some("complete ten minute transcript".to_string())
+        );
+    }
+
+    #[tokio::test]
     async fn remote_headers_use_the_final_mode_and_do_not_leak_to_other_requests() {
         for style in crate::storage::POLISH_STYLES {
-            let options = RemotePolishOptions { style: style.to_string(), enabled: false };
-            assert_eq!(transcribe_http_reply_with_options(r#"{"text":"원문"}"#, Some(options)).await.unwrap(), Some("원문".to_string()));
+            let options = RemotePolishOptions {
+                style: style.to_string(),
+                enabled: false,
+            };
+            assert_eq!(
+                transcribe_http_reply_with_options(r#"{"text":"원문"}"#, Some(options))
+                    .await
+                    .unwrap(),
+                Some("원문".to_string())
+            );
         }
-        assert_eq!(transcribe_http_reply(r#"{"text":"일반"}"#).await.unwrap(), Some("일반".to_string()));
+        assert_eq!(
+            transcribe_http_reply(r#"{"text":"일반"}"#).await.unwrap(),
+            Some("일반".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_original_is_kept_separate_from_the_polished_result() {
+        assert_eq!(
+            transcribe_http_reply_with_options(
+                r#"{"raw":"정확한 전사 원문","text":"다듬은 결과"}"#,
+                Some(RemotePolishOptions::default())
+            )
+            .await
+            .unwrap(),
+            Some("다듬은 결과".to_string())
+        );
+        assert_eq!(
+            transcribe_http_reply(r#"{"raw":"not a remote response","text":"일반 결과"}"#)
+                .await
+                .unwrap(),
+            Some("일반 결과".to_string())
+        );
     }
 
     #[tokio::test]

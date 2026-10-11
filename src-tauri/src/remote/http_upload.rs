@@ -51,13 +51,23 @@ pub(super) fn bearer_token(head: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn legacy_requests_keep_clean_and_accept_only_valid_optional_modes() {
-        assert_eq!(request_polish_options("POST / HTTP/1.1\r\nHost: test\r\n").unwrap(), crate::stt::RemotePolishOptions::default());
+        assert_eq!(
+            request_polish_options("POST / HTTP/1.1\r\nHost: test\r\n").unwrap(),
+            crate::stt::RemotePolishOptions::default()
+        );
         for style in crate::storage::POLISH_STYLES {
             let head = format!("POST / HTTP/1.1\r\nX-Ultra-STT-Polish-Style: {style}\r\nx-ultra-stt-polish-enabled: false\r\n");
-            assert_eq!(request_polish_options(&head).unwrap(), crate::stt::RemotePolishOptions { style: style.to_string(), enabled: false });
+            assert_eq!(
+                request_polish_options(&head).unwrap(),
+                crate::stt::RemotePolishOptions {
+                    style: style.to_string(),
+                    enabled: false
+                }
+            );
         }
         for head in [
             "x-ultra-stt-polish-style: unknown",
@@ -72,11 +82,19 @@ mod tests {
     #[tokio::test]
     async fn disconnect_monitor_waits_for_a_live_client_and_detects_cancellation() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let mut client = tokio::net::TcpStream::connect(listener.local_addr().unwrap()).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(listener.local_addr().unwrap())
+            .await
+            .unwrap();
         let (mut server, _) = listener.accept().await.unwrap();
-        assert!(tokio::time::timeout(Duration::from_millis(20), wait_for_disconnect(&mut server)).await.is_err());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), wait_for_disconnect(&mut server))
+                .await
+                .is_err()
+        );
         client.shutdown().await.unwrap();
-        tokio::time::timeout(Duration::from_secs(1), wait_for_disconnect(&mut server)).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), wait_for_disconnect(&mut server))
+            .await
+            .unwrap();
     }
 
     fn wav() -> Vec<u8> {
@@ -93,7 +111,9 @@ mod tests {
     fn extracts_wav_from_a_multipart_body() {
         let audio = wav();
         let mut body = Vec::new();
-        body.extend_from_slice(b"--b\r\nContent-Disposition: form-data; name=model\r\n\r\nlarge-v3\r\n");
+        body.extend_from_slice(
+            b"--b\r\nContent-Disposition: form-data; name=model\r\n\r\nlarge-v3\r\n",
+        );
         body.extend_from_slice(b"--b\r\nContent-Disposition: form-data; name=file; filename=a.wav\r\nContent-Type: audio/wav\r\n\r\n");
         body.extend_from_slice(&audio);
         body.extend_from_slice(b"\r\n--b--\r\n");
@@ -128,7 +148,7 @@ mod tests {
 pub(super) async fn handle(
     mut stream: tokio::net::TcpStream,
     _owner: &str,
-    origin: &str,
+    _origin: &str,
 ) -> Result<()> {
     let mut buffer: Vec<u8> = Vec::with_capacity(16 * 1024);
     let mut chunk = [0u8; 16 * 1024];
@@ -153,22 +173,48 @@ pub(super) async fn handle(
         .zip(presented)
         .is_some_and(|(want, got)| constant_time_eq(want.as_bytes(), got.as_bytes()));
     if !authorized {
-        return respond(&mut stream, 403, "application/json", br#"{"error":"forbidden"}"#).await;
+        return respond(
+            &mut stream,
+            403,
+            "application/json",
+            br#"{"error":"forbidden"}"#,
+        )
+        .await;
     }
     let options = match request_polish_options(&head) {
         Ok(options) => options,
-        Err(_) => return respond(&mut stream, 400, "application/json", br#"{"error":"invalid polish options"}"#).await,
+        Err(_) => {
+            return respond(
+                &mut stream,
+                400,
+                "application/json",
+                br#"{"error":"invalid polish options"}"#,
+            )
+            .await
+        }
     };
     // Tailscale Serve strips the configured path prefix before forwarding, so the
     // same request arrives as /audio/transcriptions when it came through /v1.
     let is_transcription = head.starts_with("POST /v1/audio/transcriptions")
         || head.starts_with("POST /audio/transcriptions");
     if !is_transcription {
-        return respond(&mut stream, 404, "application/json", br#"{"error":"not found"}"#).await;
+        return respond(
+            &mut stream,
+            404,
+            "application/json",
+            br#"{"error":"not found"}"#,
+        )
+        .await;
     }
     let length = content_length(&head).unwrap_or(0);
     if length == 0 || length > MAX_WAV {
-        return respond(&mut stream, 413, "application/json", br#"{"error":"audio too large"}"#).await;
+        return respond(
+            &mut stream,
+            413,
+            "application/json",
+            br#"{"error":"audio too large"}"#,
+        )
+        .await;
     }
     let mut body = buffer.split_off(head_end + 4);
     while body.len() < length {
@@ -180,7 +226,13 @@ pub(super) async fn handle(
     }
     body.truncate(length);
     let Some(wav) = wav_from_multipart(&body) else {
-        return respond(&mut stream, 400, "application/json", br#"{"error":"expected a wav file part"}"#).await;
+        return respond(
+            &mut stream,
+            400,
+            "application/json",
+            br#"{"error":"expected a wav file part"}"#,
+        )
+        .await;
     };
     let pcm = match pcm_from_wav(&wav.0) {
         Ok(pcm) => pcm.to_vec(),
@@ -194,7 +246,13 @@ pub(super) async fn handle(
             .await;
         }
     };
-    let work = tokio::time::timeout(Duration::from_secs(120), dictate_with_options(&pcm, &options));
+    let work = tokio::time::timeout(
+        crate::stt::processing_budget::remote(crate::stt::processing_budget::pcm_seconds(
+            pcm.len(),
+            16000,
+        )),
+        dictate_with_options(&pcm, &options),
+    );
     let result = tokio::select! {
         result = work => result,
         _ = wait_for_disconnect(&mut stream) => {
@@ -219,16 +277,26 @@ fn request_polish_options(head: &str) -> std::result::Result<crate::stt::RemoteP
     let mut style_seen = false;
     let mut enabled_seen = false;
     for line in head.lines() {
-        let Some((name, value)) = line.split_once(':') else { continue };
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
         let value = value.trim();
         if name.eq_ignore_ascii_case("x-ultra-stt-polish-style") {
-            if style_seen || !crate::storage::POLISH_STYLES.contains(&value) { return Err(()) }
+            if style_seen || !crate::storage::POLISH_STYLES.contains(&value) {
+                return Err(());
+            }
             style_seen = true;
             options.style = value.to_string();
         } else if name.eq_ignore_ascii_case("x-ultra-stt-polish-enabled") {
-            if enabled_seen { return Err(()) }
+            if enabled_seen {
+                return Err(());
+            }
             enabled_seen = true;
-            options.enabled = match value { "true" => true, "false" => false, _ => return Err(()) };
+            options.enabled = match value {
+                "true" => true,
+                "false" => false,
+                _ => return Err(()),
+            };
         }
     }
     Ok(options)

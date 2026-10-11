@@ -15,6 +15,25 @@ import type {
 } from '../stores/appStore'
 
 // Pipeline commands
+export interface ArchivedRecording {
+  id: string
+  createdAt: string
+  durationSeconds: number
+  transcript: string
+  active: boolean
+}
+
+export const listRecordingArchives = (): Promise<ArchivedRecording[]> =>
+  invoke('list_recording_archives')
+export const retryRecordingArchive = (id: string): Promise<string> =>
+  invoke('retry_recording_archive', { id })
+export const deleteRecordingArchive = (id: string): Promise<void> =>
+  invoke('delete_recording_archive', { id })
+export const copyRecordingTranscript = (id: string): Promise<void> =>
+  invoke('copy_recording_transcript', { id })
+export const openRecordingArchiveFolder = (): Promise<void> =>
+  invoke('open_recording_archive_folder')
+
 export async function getRecoveryEntries(): Promise<RecoveryEntry[]> {
   return invoke('get_recovery_entries')
 }
@@ -132,7 +151,9 @@ export async function updateConfig(config: AppConfig): Promise<void> {
   return invoke('update_config', { config })
 }
 
-export async function setPolishStyle(style: PolishStyle): Promise<Pick<AppConfig, 'polish_style' | 'polish_enabled'>> {
+export async function setPolishStyle(
+  style: PolishStyle,
+): Promise<Pick<AppConfig, 'polish_style' | 'polish_enabled'>> {
   return invoke('set_polish_style', { style })
 }
 
