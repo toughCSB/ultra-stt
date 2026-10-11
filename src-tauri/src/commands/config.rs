@@ -243,7 +243,10 @@ pub(crate) async fn save_polish_style(
     let mut config = state.load().await.map_err(|error| error.to_string())?;
     config.polish_style = style.to_string();
     config.polish_enabled = true;
-    state.save(&config).await.map_err(|error| error.to_string())?;
+    state
+        .save(&config)
+        .await
+        .map_err(|error| error.to_string())?;
     let patch = json!({ "polish_style": style, "polish_enabled": true });
     emit_config_patch(app, &patch);
     crate::refresh_tray(app);
@@ -260,9 +263,7 @@ pub async fn set_polish_style(
 }
 
 #[tauri::command]
-pub async fn get_config(
-    app: tauri::AppHandle,
-) -> Result<storage::AppConfig, String> {
+pub async fn get_config(app: tauri::AppHandle) -> Result<storage::AppConfig, String> {
     crate::wait_for_config_ready().await?;
     app.state::<storage::ConfigManager>()
         .load()
@@ -347,8 +348,11 @@ pub async fn update_config(
 
     update_runtime_caches(&cache, &ask_cache, &role_cache, &close_tray_cache, &config);
     emit_config_patch(&app, &patch);
-    if patch.get("ui_language").is_some() || patch.get("capsule_auto_hide").is_some()
-        || patch.get("polish_style").is_some() || patch.get("polish_enabled").is_some() {
+    if patch.get("ui_language").is_some()
+        || patch.get("capsule_auto_hide").is_some()
+        || patch.get("polish_style").is_some()
+        || patch.get("polish_enabled").is_some()
+    {
         crate::refresh_tray(&app);
     }
     if refresh_provider_connections {
@@ -370,7 +374,9 @@ pub async fn set_auto_start(
 ) -> Result<(), String> {
     use tauri_plugin_autostart::ManagerExt;
     if !app.state::<crate::autostart::StartupScope>().0 {
-        return Err("Launch at startup cannot be changed from an isolated test profile".to_string());
+        return Err(
+            "Launch at startup cannot be changed from an isolated test profile".to_string(),
+        );
     }
     let mut config = config_state.load().await.map_err(|e| e.to_string())?;
     let previous_enabled = app.autolaunch().is_enabled().map_err(|e| e.to_string())?;

@@ -654,7 +654,8 @@ fn should_use_byok(config: &storage::AppConfig, llm_api_key: &str) -> bool {
         return false;
     }
     if (config.llm_provider != "codex-cli" && config.llm_base_url.trim().is_empty())
-        || config.llm_model.trim().is_empty() {
+        || config.llm_model.trim().is_empty()
+    {
         return false;
     }
     crate::llm::has_usable_provider_credentials(&config.llm_provider, llm_api_key)
@@ -698,7 +699,8 @@ fn ask_stt_api_key(
     token_store: &SessionTokenStore,
 ) -> Result<String, String> {
     if config.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
-        && config.stt_custom_preset == "ultra-local" {
+        && config.stt_custom_preset == "ultra-local"
+    {
         return Ok(String::new());
     }
     if config.stt_provider == "cloud" {
@@ -760,8 +762,11 @@ async fn answer_question(
     if config.llm_provider == "codex-cli" {
         let question = validate_ask_question(question).map_err(AppError::Config)?;
         let selected = selected_text.and_then(sanitize_selected_text_for_ask);
-        let prompt = format!("{}\n{}", ask_system_prompt(selected.is_some()),
-            build_ask_user_content_from_sanitized(&question, selected.as_ref()));
+        let prompt = format!(
+            "{}\n{}",
+            ask_system_prompt(selected.is_some()),
+            build_ask_user_content_from_sanitized(&question, selected.as_ref())
+        );
         let answer = crate::llm::codex::run_text(&config.llm_model, &prompt).await?;
         return validate_ask_answer(&answer).map_err(AppError::Config);
     }
@@ -1050,7 +1055,11 @@ pub(crate) async fn start_reserved_ask_dictation(
     client: tauri::State<'_, reqwest::Client>,
     include_selected_text: bool,
 ) -> Result<AskDictationStartResult, String> {
-    let generation = state.0.lock().unwrap_or_else(|error| error.into_inner()).generation;
+    let generation = state
+        .0
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .generation;
     let result = async {
         let config = config_state.load().await.map_err(|e| e.to_string())?;
         let recording_context = app
@@ -1363,7 +1372,14 @@ pub(crate) async fn start_reserved_ask_dictation(
     }
     .await;
 
-    if result.is_err() && state.0.lock().unwrap_or_else(|error| error.into_inner()).generation == generation {
+    if result.is_err()
+        && state
+            .0
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .generation
+            == generation
+    {
         state.clear_starting();
     }
     result
@@ -1419,9 +1435,7 @@ pub async fn stop_ask_dictation(
             if transcript.trim().is_empty() {
                 return Err("No speech detected. Please try again.".to_string());
             }
-            tracing::warn!(
-                "Ask STT finalize timed out; continuing with collected transcript"
-            );
+            tracing::warn!("Ask STT finalize timed out; continuing with collected transcript");
         }
 
         if let Some(message) = session
@@ -1474,9 +1488,7 @@ pub async fn stop_ask_dictation(
                 &mut backend,
             )
             .await;
-            if execution.status
-                != crate::voice_intent::executor::VoiceExecutionStatus::Completed
-            {
+            if execution.status != crate::voice_intent::executor::VoiceExecutionStatus::Completed {
                 return Err("Search could not be opened safely".to_string());
             }
             return Ok(AskDictationResult::new(
@@ -1601,7 +1613,12 @@ mod tests {
             (guard.cancellation.clone(), guard.generation)
         };
         state.abort_starting_or_recording();
-        tokio::time::timeout(std::time::Duration::from_millis(100), cancellation.notified()).await.unwrap();
+        tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            cancellation.notified(),
+        )
+        .await
+        .unwrap();
         assert!(!state.is_busy());
         assert!(state.try_begin_starting());
         let guard = state.0.lock().unwrap();

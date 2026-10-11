@@ -74,7 +74,7 @@ export function useTauriEvents() {
 
   useEffect(() => {
     let cancelled = false
-      const unlisteners: Unlisten[] = []
+    const unlisteners: Unlisten[] = []
 
     function addListener<T>(event: string, handler: (payload: T) => void) {
       listen<T>(event, (e) => handler(e.payload))
@@ -97,17 +97,21 @@ export function useTauriEvents() {
       if (cancelled) return
       recoveryVersion += 1
       setRecoveryEntries(event.payload)
-    }).then((unlisten) => {
-      if (cancelled) {
-        safeUnlisten(unlisten)
-        return
-      }
-      unlisteners.push(unlisten)
-      const versionAtQuery = recoveryVersion
-      getRecoveryEntries().then((entries) => {
-        if (!cancelled && recoveryVersion === versionAtQuery) setRecoveryEntries(entries)
-      }).catch((error) => console.error('Failed to load recovery entries:', error))
-    }).catch((error) => console.error('Failed to register recovery listener:', error))
+    })
+      .then((unlisten) => {
+        if (cancelled) {
+          safeUnlisten(unlisten)
+          return
+        }
+        unlisteners.push(unlisten)
+        const versionAtQuery = recoveryVersion
+        getRecoveryEntries()
+          .then((entries) => {
+            if (!cancelled && recoveryVersion === versionAtQuery) setRecoveryEntries(entries)
+          })
+          .catch((error) => console.error('Failed to load recovery entries:', error))
+      })
+      .catch((error) => console.error('Failed to register recovery listener:', error))
 
     addListener<number>('audio:volume', setAudioVolume)
     addListener<string>('stt:partial', setPartialTranscript)
@@ -157,9 +161,12 @@ export function useTauriEvents() {
     addListener<string>('pipeline:target_app', setTargetApp)
     addListener<InsertResult>('pipeline:insert_result', setLastInsertResult)
     addListener<ContextProfileSummary>('pipeline:context', setLastContext)
-    addListener<PipelineTiming & { recording_ms?: number | null }>('pipeline:timing', ({ stt_ms, llm_ms, total_ms }) => {
-      setLastPipelineTiming({ stt_ms, llm_ms, total_ms })
-    })
+    addListener<PipelineTiming & { recording_ms?: number | null }>(
+      'pipeline:timing',
+      ({ stt_ms, llm_ms, total_ms }) => {
+        setLastPipelineTiming({ stt_ms, llm_ms, total_ms })
+      },
+    )
     addListener<PipelineErrorPayload>('pipeline:error', (payload) => {
       const capsuleErrorKey = capsuleErrorKeyFromPayload(payload)
       setPipelineError(t(`capsule.errors.${capsuleErrorKey}`))

@@ -104,10 +104,23 @@ describe('useTauriEvents', () => {
 
   it('keeps a live recovery event when initial hydration resolves later', async () => {
     let resolveQuery!: (entries: import('../../stores/appStore').RecoveryEntry[]) => void
-    getRecoveryEntries.mockImplementationOnce(() => new Promise((resolve) => { resolveQuery = resolve }))
+    getRecoveryEntries.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveQuery = resolve
+        }),
+    )
     render(<HookHarness />)
     await waitFor(() => expect(getRecoveryEntries).toHaveBeenCalled())
-    const entry = { id: 'r1', sessionId: 4, createdAt: '2026-10-03T00:00:00Z', text: 'full text', appName: 'Editor', reason: 'partial_insert' as const, charsInserted: 2 }
+    const entry = {
+      id: 'r1',
+      sessionId: 4,
+      createdAt: '2026-10-03T00:00:00Z',
+      text: 'full text',
+      appName: 'Editor',
+      reason: 'partial_insert' as const,
+      charsInserted: 2,
+    }
     act(() => {
       eventListeners.get('pipeline:recovery')?.({ payload: [entry] })
     })
@@ -279,5 +292,4 @@ describe('useTauriEvents', () => {
     expect(toast).toHaveBeenNthCalledWith(1, 'recordingLimits.deadlineWarning', 'info')
     expect(toast).toHaveBeenNthCalledWith(2, 'recordingLimits.deadlineReached', 'info')
   })
-
-  })
+})

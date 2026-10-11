@@ -61,11 +61,31 @@ describe('MainLayout', () => {
     useAppStore.setState({
       config: { ...useAppStore.getState().config, history_enabled: false },
       recoveryEntries: [
-        { id: 'r1', sessionId: 1, createdAt: '2026-10-03T00:00:00Z', text: 'one', appName: '', reason: 'output_failed', charsInserted: 0 },
-        { id: 'r2', sessionId: 2, createdAt: '2026-10-03T00:00:01Z', text: 'two', appName: '', reason: 'partial_insert', charsInserted: 1 },
+        {
+          id: 'r1',
+          sessionId: 1,
+          createdAt: '2026-10-03T00:00:00Z',
+          text: 'one',
+          appName: '',
+          reason: 'output_failed',
+          charsInserted: 0,
+        },
+        {
+          id: 'r2',
+          sessionId: 2,
+          createdAt: '2026-10-03T00:00:01Z',
+          text: 'two',
+          appName: '',
+          reason: 'partial_insert',
+          charsInserted: 1,
+        },
       ],
     })
-    render(<MainLayout><div>content</div></MainLayout>)
+    render(
+      <MainLayout>
+        <div>content</div>
+      </MainLayout>,
+    )
     expect(screen.getByRole('button', { name: 'Input recovery' })).toHaveTextContent('2')
     useAppStore.setState(useAppStore.getInitialState())
   })
@@ -78,5 +98,4 @@ describe('MainLayout', () => {
 
     expect(screen.queryByRole('button', { name: 'Ask' })).not.toBeInTheDocument()
   })
-
-  })
+})

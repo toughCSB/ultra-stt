@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Tracked changes are not committed. Review and commit them before verifying a push." >&2
+  exit 1
+fi
+exec npm run verify

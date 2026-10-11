@@ -188,7 +188,9 @@ fn with_system_vault<Value>(operation: impl FnOnce() -> Result<Value>) -> Result
     }
 
     static KEYCHAIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _lock = KEYCHAIN_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+    let _lock = KEYCHAIN_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     let mut previous = 0;
     let status = unsafe { SecKeychainGetUserInteractionAllowed(&mut previous) };
     if status != 0 {
@@ -196,7 +198,9 @@ fn with_system_vault<Value>(operation: impl FnOnce() -> Result<Value>) -> Result
     }
     let status = unsafe { SecKeychainSetUserInteractionAllowed(0) };
     if status != 0 {
-        return Err(anyhow!("disable Keychain interaction for vault operation: {status}"));
+        return Err(anyhow!(
+            "disable Keychain interaction for vault operation: {status}"
+        ));
     }
 
     struct RestoreInteraction(u8);
@@ -312,9 +316,7 @@ pub fn resolve_config_secret<V: CredentialSecretReader>(
     match vault.get_secret(namespace, provider) {
         Ok(secret) => Ok(secret.unwrap_or_default()),
         Err(error) => {
-            tracing::warn!(
-                "Could not read the {namespace}.{provider} credential: {error}"
-            );
+            tracing::warn!("Could not read the {namespace}.{provider} credential: {error}");
             Ok(String::new())
         }
     }
@@ -499,7 +501,10 @@ mod tests {
         }
         let read_state = || {
             let mut state = 0;
-            assert_eq!(unsafe { SecKeychainGetUserInteractionAllowed(&mut state) }, 0);
+            assert_eq!(
+                unsafe { SecKeychainGetUserInteractionAllowed(&mut state) },
+                0
+            );
             state
         };
         let previous = read_state();
@@ -683,7 +688,8 @@ mod tests {
         config.stt_api_key = "shared-token".to_string();
 
         let vault = MemoryVault::default();
-        let resolved = resolve_stt_config_secret(&config, &vault).expect("resolution should not fail");
+        let resolved =
+            resolve_stt_config_secret(&config, &vault).expect("resolution should not fail");
         assert_eq!(resolved, "shared-token");
     }
 
@@ -695,7 +701,8 @@ mod tests {
         config.stt_api_key = "shared-token".to_string();
 
         let vault = MemoryVault::default();
-        let resolved = resolve_stt_config_secret(&config, &vault).expect("resolution should not fail");
+        let resolved =
+            resolve_stt_config_secret(&config, &vault).expect("resolution should not fail");
         assert_eq!(resolved, "custom-token");
     }
 

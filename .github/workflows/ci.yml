@@ -18,10 +18,7 @@ jobs:
           cache: 'npm'
 
       - run: npm ci
-      - run: npx tsc --noEmit
-      - run: npx eslint src/
-      - run: npx prettier --check src/
-      - run: npx vitest run
+      - run: npm run verify -- --frontend
 
   check-rust:
     strategy:
@@ -74,10 +71,8 @@ jobs:
         if: matrix.platform_group == 'linux'
         run: ./.github/scripts/test-linux-appimage-packaging.sh
 
-      - run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
-      - run: cargo clippy --target ${{ matrix.target }} --manifest-path src-tauri/Cargo.toml -- -D warnings
-      - name: Run Rust tests
-        run: cargo test --target ${{ matrix.target }} --manifest-path src-tauri/Cargo.toml
+      - name: Verify native code and tests
+        run: npm run verify -- --native --target ${{ matrix.target }}
 
   audit:
     runs-on: ubuntu-latest
@@ -89,15 +84,11 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - run: npm audit --audit-level=high
+      - run: npm run verify -- --security
 
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
-      # wayland-scanner 0.31.10 is currently the latest release and still pins
-      # quick-xml 0.39 for Wayland protocol code generation. The vulnerable XML
-      # parser path is not used for runtime user input; remove these ignores once
-      # wayland-scanner publishes a quick-xml >=0.41 compatible release.
-      - run: cargo audit --file src-tauri/Cargo.lock --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195
+      - run: cargo audit --file src-tauri/Cargo.lock

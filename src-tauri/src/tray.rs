@@ -5,11 +5,14 @@ use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
 pub fn should_toggle_on_tray_event(event: &tauri::tray::TrayIconEvent) -> bool {
-    matches!(event, tauri::tray::TrayIconEvent::Click {
-        button: tauri::tray::MouseButton::Left,
-        button_state: tauri::tray::MouseButtonState::Up,
-        ..
-    })
+    matches!(
+        event,
+        tauri::tray::TrayIconEvent::Click {
+            button: tauri::tray::MouseButton::Left,
+            button_state: tauri::tray::MouseButtonState::Up,
+            ..
+        }
+    )
 }
 
 fn should_hide_main_window(visible: bool, minimized: bool) -> bool {
@@ -19,12 +22,16 @@ fn should_hide_main_window(visible: bool, minimized: bool) -> bool {
 pub fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let hide = should_hide_main_window(
-            window.is_visible().unwrap_or(false), window.is_minimized().unwrap_or(false),
+            window.is_visible().unwrap_or(false),
+            window.is_minimized().unwrap_or(false),
         );
         let result = if hide {
             window.hide()
         } else {
-            window.unminimize().and_then(|_| window.show()).and_then(|_| window.set_focus())
+            window
+                .unminimize()
+                .and_then(|_| window.show())
+                .and_then(|_| window.set_focus())
         };
         match result {
             Ok(()) => tracing::info!(target_visible = !hide, "Tray window toggle requested"),
@@ -222,16 +229,73 @@ fn tray_capsule_auto_hide(app: &tauri::AppHandle) -> bool {
 
 fn polish_mode_labels(lang: &str) -> (&'static str, [&'static str; 5]) {
     match lang {
-        "ko" => ("AI 다듬기 모드", ["원문 · Original", "최소", "깔끔하게", "구조화", "전문적으로"]),
-        "ja" => ("整形スタイル", ["原文", "最小", "クリーン", "構造化", "プロ"]),
+        "ko" => (
+            "AI 다듬기 모드",
+            [
+                "원문 · Original",
+                "최소",
+                "깔끔하게",
+                "구조화",
+                "전문적으로",
+            ],
+        ),
+        "ja" => (
+            "整形スタイル",
+            ["原文", "最小", "クリーン", "構造化", "プロ"],
+        ),
         "zh" => ("润色风格", ["原文", "轻改", "清爽", "结构化", "专业"]),
-        "de" => ("Schreibstil", ["Original", "Minimal", "Klar", "Strukturiert", "Professionell"]),
-        "es" => ("Estilo de pulido", ["Original", "Mínimo", "Limpio", "Estructurado", "Profesional"]),
-        "fr" => ("Style de réécriture", ["Original", "Minimal", "Clair", "Structuré", "Professionnel"]),
-        "it" => ("Stile di rifinitura", ["Originale", "Minimo", "Pulito", "Strutturato", "Professionale"]),
-        "pt" => ("Estilo de polimento", ["Original", "Mínimo", "Limpo", "Estruturado", "Profissional"]),
-        "ru" => ("Стиль обработки", ["Оригинал", "Минимальный", "Чистый", "Структурный", "Профессиональный"]),
-        _ => ("AI polish mode", ["Original", "Minimal", "Clean", "Structured", "Professional"]),
+        "de" => (
+            "Schreibstil",
+            [
+                "Original",
+                "Minimal",
+                "Klar",
+                "Strukturiert",
+                "Professionell",
+            ],
+        ),
+        "es" => (
+            "Estilo de pulido",
+            [
+                "Original",
+                "Mínimo",
+                "Limpio",
+                "Estructurado",
+                "Profesional",
+            ],
+        ),
+        "fr" => (
+            "Style de réécriture",
+            ["Original", "Minimal", "Clair", "Structuré", "Professionnel"],
+        ),
+        "it" => (
+            "Stile di rifinitura",
+            [
+                "Originale",
+                "Minimo",
+                "Pulito",
+                "Strutturato",
+                "Professionale",
+            ],
+        ),
+        "pt" => (
+            "Estilo de polimento",
+            ["Original", "Mínimo", "Limpo", "Estruturado", "Profissional"],
+        ),
+        "ru" => (
+            "Стиль обработки",
+            [
+                "Оригинал",
+                "Минимальный",
+                "Чистый",
+                "Структурный",
+                "Профессиональный",
+            ],
+        ),
+        _ => (
+            "AI polish mode",
+            ["Original", "Minimal", "Clean", "Structured", "Professional"],
+        ),
     }
 }
 
@@ -246,11 +310,21 @@ pub fn build_tray_menu(
     let labels = get_tray_labels(&lang);
     let (mode_label, mode_labels) = polish_mode_labels(&lang);
     let config = app_config_value(app);
-    let current_style = config.as_ref().and_then(|value| value.get("polish_style"))
-        .and_then(|value| value.as_str()).unwrap_or("clean");
+    let current_style = config
+        .as_ref()
+        .and_then(|value| value.get("polish_style"))
+        .and_then(|value| value.as_str())
+        .unwrap_or("clean");
     let polish_modes = Submenu::new(app, mode_label, true)?;
     for (index, style) in storage::POLISH_STYLES.iter().enumerate() {
-        let item = CheckMenuItem::with_id(app, format!("polish_style:{style}"), mode_labels[index], true, current_style == *style, None::<&str>)?;
+        let item = CheckMenuItem::with_id(
+            app,
+            format!("polish_style:{style}"),
+            mode_labels[index],
+            true,
+            current_style == *style,
+            None::<&str>,
+        )?;
         polish_modes.append(&item)?;
     }
 
@@ -353,17 +427,31 @@ mod tests {
     #[test]
     fn tray_only_toggles_once_per_left_release_and_ignores_double_click_notification() {
         use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
-        let rect = tauri::Rect { position: tauri::PhysicalPosition::new(0, 0).into(), size: tauri::PhysicalSize::new(24, 24).into() };
+        let rect = tauri::Rect {
+            position: tauri::PhysicalPosition::new(0, 0).into(),
+            size: tauri::PhysicalSize::new(24, 24).into(),
+        };
         for (button, state, expected) in [
             (MouseButton::Left, MouseButtonState::Up, true),
             (MouseButton::Left, MouseButtonState::Down, false),
             (MouseButton::Right, MouseButtonState::Up, false),
             (MouseButton::Middle, MouseButtonState::Up, false),
         ] {
-            let event = TrayIconEvent::Click { id: "test".into(), position: tauri::PhysicalPosition::new(0.0, 0.0), rect, button, button_state: state };
+            let event = TrayIconEvent::Click {
+                id: "test".into(),
+                position: tauri::PhysicalPosition::new(0.0, 0.0),
+                rect,
+                button,
+                button_state: state,
+            };
             assert_eq!(should_toggle_on_tray_event(&event), expected);
         }
-        let double = TrayIconEvent::DoubleClick { id: "test".into(), position: tauri::PhysicalPosition::new(0.0, 0.0), rect, button: MouseButton::Left };
+        let double = TrayIconEvent::DoubleClick {
+            id: "test".into(),
+            position: tauri::PhysicalPosition::new(0.0, 0.0),
+            rect,
+            button: MouseButton::Left,
+        };
         assert!(!should_toggle_on_tray_event(&double));
     }
 
@@ -373,9 +461,17 @@ mod tests {
         assert_eq!(pixels.len(), 64 * 64 * 4);
         assert!(pixels.chunks_exact(4).all(|pixel| pixel[3] == 255));
         for offset in [0, 63 * 4, 63 * 64 * 4, (64 * 64 - 1) * 4] {
-            assert!(pixels[offset..offset + 3].iter().all(|channel| *channel <= 5));
+            assert!(pixels[offset..offset + 3]
+                .iter()
+                .all(|channel| *channel <= 5));
         }
-        assert!(pixels.chunks_exact(4).filter(|pixel| pixel[1] > 130 && pixel[1] > pixel[0].saturating_add(40)).count() > 600);
+        assert!(
+            pixels
+                .chunks_exact(4)
+                .filter(|pixel| pixel[1] > 130 && pixel[1] > pixel[0].saturating_add(40))
+                .count()
+                > 600
+        );
     }
 
     #[test]

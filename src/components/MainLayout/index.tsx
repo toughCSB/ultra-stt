@@ -29,7 +29,9 @@ export function MainLayout({ children }: Props) {
       <aside className="w-[236px] flex flex-col border-r border-border bg-bg-secondary/60 shrink-0">
         {/* Logo */}
         <div className="px-5 pt-5 pb-4" data-tauri-drag-region>
-          <h1><BrandWordmark compact /></h1>
+          <h1>
+            <BrandWordmark compact />
+          </h1>
         </div>
         <div className="px-5 pb-4">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
@@ -52,9 +54,7 @@ export function MainLayout({ children }: Props) {
                 aria-label={label}
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center gap-2.5 w-full px-3 py-2 text-[13px] rounded-[8px] transition-colors bg-transparent border-none cursor-pointer text-left relative ${
-                  active
-                    ? 'text-accent font-bold'
-                    : 'text-text-secondary hover:text-text-primary'
+                  active ? 'text-accent font-bold' : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 {active && (
@@ -68,7 +68,10 @@ export function MainLayout({ children }: Props) {
                   <Icon size={16} />
                   {label}
                   {id === 'recovery' && recoveryCount > 0 && (
-                    <span className="ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] tabular-nums text-accent" aria-label={t('recovery.pendingCount', { count: recoveryCount })}>
+                    <span
+                      className="ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] tabular-nums text-accent"
+                      aria-label={t('recovery.pendingCount', { count: recoveryCount })}
+                    >
                       {recoveryCount}
                     </span>
                   )}
@@ -76,9 +79,7 @@ export function MainLayout({ children }: Props) {
               </motion.button>
             )
           })}
-
         </nav>
-
       </aside>
 
       {/* Content */}

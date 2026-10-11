@@ -40,7 +40,8 @@ vi.mock('react-i18next', () => ({
         'settings.appStyleDialogTitle': 'Writing style for this app',
         'settings.polishStyle': 'Polish style',
         'settings.polishStyleOriginal': 'Original',
-        'settings.polishStyleOriginalHint': 'Preserve wording, order, and tone without creating lists or headings.',
+        'settings.polishStyleOriginalHint':
+          'Preserve wording, order, and tone without creating lists or headings.',
         'settings.polishStyleMinimal': 'Minimal',
         'settings.polishStyleClean': 'Clean',
         'settings.polishStyleStructured': 'Structured',
@@ -196,7 +197,7 @@ describe('LlmPane', () => {
   })
 
   describe('Provider selection', () => {
-            it('renders provider dropdown with current value', () => {
+    it('renders provider dropdown with current value', () => {
       render(<LlmPane />)
       const selects = screen.getAllByRole('combobox')
       const providerSelect = selects[0] // First select is provider
@@ -241,8 +242,7 @@ describe('LlmPane', () => {
       expect(screen.queryByText('Ask Anything')).not.toBeInTheDocument()
       expect(screen.queryByText('Voice question')).not.toBeInTheDocument()
     })
-
-              })
+  })
 
   describe('API Key input', () => {
     it('renders API key input with current value', () => {
@@ -421,7 +421,9 @@ describe('LlmPane', () => {
       cleanup()
       render(<LlmPane />)
       expect(screen.getByDisplayValue('Original')).toBeInTheDocument()
-      expect(screen.getByText('Preserve wording, order, and tone without creating lists or headings.')).toBeInTheDocument()
+      expect(
+        screen.getByText('Preserve wording, order, and tone without creating lists or headings.'),
+      ).toBeInTheDocument()
     })
 
     it('shows Clean as the default polish style outside advanced settings', () => {

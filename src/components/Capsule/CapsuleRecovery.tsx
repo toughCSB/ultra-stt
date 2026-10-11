@@ -30,13 +30,49 @@ export function CapsuleRecovery({ entry }: { entry: RecoveryEntry }) {
       <span className="min-w-0 flex-1 truncate text-[11px]" title={entry.text}>
         {t('recovery.capsuleNotice')} · {entry.text}
       </span>
-      <button type="button" disabled={busy} aria-label={t(failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy')} title={t(failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy')} onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); void copy() }} className="shrink-0 rounded-full bg-white/15 p-1.5 text-white hover:bg-white/25 disabled:opacity-50">
-        {failed ? <AlertCircle size={13} /> : copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+      <button
+        type="button"
+        disabled={busy}
+        aria-label={t(
+          failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy',
+        )}
+        title={t(failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy')}
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          void copy()
+        }}
+        className="shrink-0 rounded-full bg-white/15 p-1.5 text-white hover:bg-white/25 disabled:opacity-50"
+      >
+        {failed ? (
+          <AlertCircle size={13} />
+        ) : copied ? (
+          <Check size={13} />
+        ) : (
+          <ClipboardCopy size={13} />
+        )}
       </button>
-      <button type="button" aria-label={t('recovery.hideNotice')} title={t('recovery.hideNotice')} onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); clearAlert(); setPipelineError(null) }} className="shrink-0 rounded-full p-1.5 text-white/80 hover:bg-white/15">
+      <button
+        type="button"
+        aria-label={t('recovery.hideNotice')}
+        title={t('recovery.hideNotice')}
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          clearAlert()
+          setPipelineError(null)
+        }}
+        className="shrink-0 rounded-full p-1.5 text-white/80 hover:bg-white/15"
+      >
         <X size={13} />
       </button>
-      {(copied || failed) && <span role={failed ? 'alert' : 'status'} className="sr-only">{t(failed ? 'recovery.copyFailed' : 'recovery.copied')}</span>}
+      {(copied || failed) && (
+        <span role={failed ? 'alert' : 'status'} className="sr-only">
+          {t(failed ? 'recovery.copyFailed' : 'recovery.copied')}
+        </span>
+      )}
     </div>
   )
 }

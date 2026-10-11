@@ -868,20 +868,26 @@ export const useAppStore = create<AppState>((set) => ({
 
   recoveryEntries: [],
   recoveryAlertId: null,
-  setRecoveryEntries: (entries) => set((state) => {
-    const known = new Set(state.recoveryEntries.map((entry) => entry.id))
-    const newest = entries
-      .filter((entry) => !known.has(entry.id))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
-    return {
-      recoveryEntries: entries,
-      recoveryAlertId: newest?.id ?? (entries.some((entry) => entry.id === state.recoveryAlertId) ? state.recoveryAlertId : null),
-    }
-  }),
-  removeRecoveryEntry: (id) => set((state) => ({
-    recoveryEntries: state.recoveryEntries.filter((entry) => entry.id !== id),
-    recoveryAlertId: state.recoveryAlertId === id ? null : state.recoveryAlertId,
-  })),
+  setRecoveryEntries: (entries) =>
+    set((state) => {
+      const known = new Set(state.recoveryEntries.map((entry) => entry.id))
+      const newest = entries
+        .filter((entry) => !known.has(entry.id))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+      return {
+        recoveryEntries: entries,
+        recoveryAlertId:
+          newest?.id ??
+          (entries.some((entry) => entry.id === state.recoveryAlertId)
+            ? state.recoveryAlertId
+            : null),
+      }
+    }),
+  removeRecoveryEntry: (id) =>
+    set((state) => ({
+      recoveryEntries: state.recoveryEntries.filter((entry) => entry.id !== id),
+      recoveryAlertId: state.recoveryAlertId === id ? null : state.recoveryAlertId,
+    })),
   clearRecoveryAlert: () => set({ recoveryAlertId: null }),
 
   config: defaultConfig,

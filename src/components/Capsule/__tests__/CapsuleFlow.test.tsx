@@ -3,7 +3,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '../../../stores/appStore'
-import { abortAskDictation, abortRecording, copyRecoveryEntry, setActiveTranslationTarget, setPolishStyle, stopAskFlow } from '../../../lib/tauri'
+import {
+  abortAskDictation,
+  abortRecording,
+  copyRecoveryEntry,
+  setActiveTranslationTarget,
+  setPolishStyle,
+  stopAskFlow,
+} from '../../../lib/tauri'
 import { Capsule } from '../index'
 
 const dragWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
@@ -63,9 +70,17 @@ describe('Capsule flow states', () => {
     useAppStore.setState({ pipelineState: 'recording' })
     const { container } = render(<Capsule />)
     const shell = container.querySelector('.jelly-capsule-active')!
-    for (const [type, clientX] of [['pointerdown', 20], ['pointermove', 40], ['pointerup', 40]] as const) {
+    for (const [type, clientX] of [
+      ['pointerdown', 20],
+      ['pointermove', 40],
+      ['pointerup', 40],
+    ] as const) {
       const event = new Event(type, { bubbles: true })
-      Object.defineProperties(event, { button: { value: 0 }, clientX: { value: clientX }, clientY: { value: 20 } })
+      Object.defineProperties(event, {
+        button: { value: 0 },
+        clientX: { value: clientX },
+        clientY: { value: 20 },
+      })
       fireEvent(shell, event)
     }
     await waitFor(() => expect(dragWindow).toHaveBeenCalledTimes(1))
@@ -95,7 +110,17 @@ describe('Capsule flow states', () => {
 
   it('keeps a failed finished sentence available from the idle capsule without stopping capture', async () => {
     useAppStore.setState({
-      recoveryEntries: [{ id: 'recover-2', sessionId: 2, createdAt: '2026-10-03T00:00:00Z', text: 'Complete sentence', appName: 'Editor', reason: 'output_failed', charsInserted: 0 }],
+      recoveryEntries: [
+        {
+          id: 'recover-2',
+          sessionId: 2,
+          createdAt: '2026-10-03T00:00:00Z',
+          text: 'Complete sentence',
+          appName: 'Editor',
+          reason: 'output_failed',
+          charsInserted: 0,
+        },
+      ],
       recoveryAlertId: 'recover-2',
     })
     render(<Capsule />)
@@ -117,13 +142,16 @@ describe('Capsule flow states', () => {
     expect(screen.getByText('capsule.preparing')).toBeInTheDocument()
   })
 
-  it.each(['preparing', 'recording', 'transcribing', 'polishing'] as const)('cancels %s on Escape without submitting recording', (pipelineState) => {
-    useAppStore.setState({ pipelineState })
-    render(<Capsule />)
-    fireEvent.keyDown(window, { key: 'Escape' })
-    expect(abortRecording).toHaveBeenCalledTimes(1)
-    expect(invoke).not.toHaveBeenCalledWith('stop_recording')
-  })
+  it.each(['preparing', 'recording', 'transcribing', 'polishing'] as const)(
+    'cancels %s on Escape without submitting recording',
+    (pipelineState) => {
+      useAppStore.setState({ pipelineState })
+      render(<Capsule />)
+      fireEvent.keyDown(window, { key: 'Escape' })
+      expect(abortRecording).toHaveBeenCalledTimes(1)
+      expect(invoke).not.toHaveBeenCalledWith('stop_recording')
+    },
+  )
 
   it('cancels Ask on Escape', () => {
     useAppStore.setState({ pipelineState: 'ask_recording' })

@@ -67,10 +67,12 @@ describe('History correction creation', () => {
   })
 
   it('filters loaded records by the URL date and clears the filter', async () => {
-    useAppStore.setState({ history: [
-      { ...entry, created_at: '2026-09-30T10:00:00', polished_text: 'Wednesday record' },
-      { ...entry, id: 2, created_at: '2026-09-29T10:00:00', polished_text: 'Tuesday record' },
-    ] })
+    useAppStore.setState({
+      history: [
+        { ...entry, created_at: '2026-09-30T10:00:00', polished_text: 'Wednesday record' },
+        { ...entry, id: 2, created_at: '2026-09-29T10:00:00', polished_text: 'Tuesday record' },
+      ],
+    })
     window.location.hash = '#/history?date=2026-09-30'
 
     render(<History />)

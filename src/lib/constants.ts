@@ -111,13 +111,13 @@ export const CUSTOM_STT_DEFAULTS = {
 } as const
 
 export const CUSTOM_STT_PRESETS = [
-
   {
     value: ULTRA_REMOTE_STT_PRESET,
     labelKey: 'ultra.remoteSpeech',
     baseUrl: ULTRA_REMOTE_STT_DEFAULTS.baseUrl,
     model: ULTRA_REMOTE_STT_DEFAULTS.model,
-  },  {
+  },
+  {
     value: ULTRA_LOCAL_STT_PRESET,
     labelKey: 'ultra.localSpeech',
     baseUrl: ULTRA_LOCAL_STT_DEFAULTS.baseUrl,
@@ -162,8 +162,7 @@ export const VOLCENGINE_STT_RESOURCES = [
 export const ONBOARDING_STT_PROVIDERS = [
   ...STT_PROVIDERS.filter(
     (provider) =>
-      provider.value !== CUSTOM_WHISPER_PROVIDER &&
-      provider.value !== APPLE_SPEECH_PROVIDER,
+      provider.value !== CUSTOM_WHISPER_PROVIDER && provider.value !== APPLE_SPEECH_PROVIDER,
   ),
   { value: ULTRA_LOCAL_STT_PRESET, labelKey: 'ultra.localSpeech' },
 ] as const

@@ -462,7 +462,8 @@ impl AppConfig {
         config.auto_start = false;
         config.hotkey = "Ctrl+Alt+R".into();
         config.hotkey_mode = "toggle".into();
-        config.hotkeys = HotkeyConfig::from_legacy(&config.hotkey, &config.ask_hotkey, &config.hotkey_mode);
+        config.hotkeys =
+            HotkeyConfig::from_legacy(&config.hotkey, &config.ask_hotkey, &config.hotkey_mode);
         config
     }
 
@@ -1199,9 +1200,13 @@ impl ConfigManager {
             Ok(store) => match store.get("app_config") {
                 Some(val) => AppConfig::from_stored_value(val.clone())
                     .unwrap_or_else(|_| AppConfig::new_install_default()),
-                None => if std::env::var_os("ULTRA_STT_DATA_DIR").is_some() {
-                    AppConfig::new_ultra_local_profile()
-                } else { AppConfig::new_install_default() },
+                None => {
+                    if std::env::var_os("ULTRA_STT_DATA_DIR").is_some() {
+                        AppConfig::new_ultra_local_profile()
+                    } else {
+                        AppConfig::new_install_default()
+                    }
+                }
             },
             Err(_) => AppConfig::new_install_default(),
         };
@@ -2391,7 +2396,8 @@ mod tests {
             let mut value = serde_json::to_value(AppConfig::default()).unwrap();
             value["polish_style"] = serde_json::json!(style);
             let config = AppConfig::from_stored_value(value).unwrap();
-            let reloaded = AppConfig::from_stored_value(serde_json::to_value(config).unwrap()).unwrap();
+            let reloaded =
+                AppConfig::from_stored_value(serde_json::to_value(config).unwrap()).unwrap();
             assert_eq!(reloaded.polish_style, style);
         }
     }
@@ -3072,7 +3078,9 @@ mod tests {
         assert_eq!(local.hotkey, "Ctrl+Alt+R");
         assert_eq!(local.hotkey_mode, "toggle");
         assert!(!local.auto_start);
-        let saved = AppConfig::from_stored_value(serde_json::to_value(AppConfig::default()).unwrap()).unwrap();
+        let saved =
+            AppConfig::from_stored_value(serde_json::to_value(AppConfig::default()).unwrap())
+                .unwrap();
         assert_eq!(saved.stt_provider, "glm-asr");
         assert_eq!(saved.llm_provider, "openrouter");
     }

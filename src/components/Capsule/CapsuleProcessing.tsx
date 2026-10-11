@@ -28,7 +28,7 @@ export function CapsuleProcessing() {
   return (
     <motion.div className="relative z-10 flex items-center gap-2 h-9 px-3">
       <CapsuleBrand />
-        <CapsuleWorkIndicator tone="steady" />
+      <CapsuleWorkIndicator tone="steady" />
       <p className="text-[11px] text-white leading-snug truncate flex-1 min-w-0">
         {displayText}
         <motion.span

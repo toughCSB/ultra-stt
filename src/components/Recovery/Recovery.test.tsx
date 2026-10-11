@@ -2,22 +2,48 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Recovery } from './index'
 import { useAppStore, type RecoveryEntry } from '../../stores/appStore'
-import { copyRecoveryEntry, dismissRecoveryEntry } from '../../lib/tauri'
+import { copyRecoveryEntry, dismissRecoveryEntry, listRecordingArchives } from '../../lib/tauri'
 import i18n from '../../i18n'
 
 vi.mock('../../lib/tauri', () => ({
+  listRecordingArchives: vi.fn().mockResolvedValue([]),
+  openRecordingArchiveFolder: vi.fn().mockResolvedValue(undefined),
+  retryRecordingArchive: vi.fn(),
+  copyRecordingTranscript: vi.fn(),
+  deleteRecordingArchive: vi.fn(),
   copyRecoveryEntry: vi.fn().mockResolvedValue(undefined),
   dismissRecoveryEntry: vi.fn().mockResolvedValue([]),
 }))
 
 const entries: RecoveryEntry[] = [
-  { id: 'first', sessionId: 1, createdAt: '2026-10-03T00:00:00Z', text: '첫째 완성문\n둘째 줄', appName: 'Editor', reason: 'partial_insert', charsInserted: 2 },
-  { id: 'second', sessionId: 2, createdAt: '2026-10-03T00:00:01Z', text: 'Another finished sentence', appName: 'Browser', reason: 'target_changed', charsInserted: 3 },
+  {
+    id: 'first',
+    sessionId: 1,
+    createdAt: '2026-10-03T00:00:00Z',
+    text: '첫째 완성문\n둘째 줄',
+    appName: 'Editor',
+    reason: 'partial_insert',
+    charsInserted: 2,
+  },
+  {
+    id: 'second',
+    sessionId: 2,
+    createdAt: '2026-10-03T00:00:01Z',
+    text: 'Another finished sentence',
+    appName: 'Browser',
+    reason: 'target_changed',
+    charsInserted: 3,
+  },
 ]
 
 beforeEach(() => {
+  vi.mocked(listRecordingArchives).mockResolvedValue([])
   void i18n.changeLanguage('ko')
-  useAppStore.setState({ ...useAppStore.getInitialState(), recoveryEntries: entries, config: { ...useAppStore.getState().config, history_enabled: false } })
+  useAppStore.setState({
+    ...useAppStore.getInitialState(),
+    recoveryEntries: entries,
+    config: { ...useAppStore.getState().config, history_enabled: false },
+  })
 })
 
 afterEach(() => {
@@ -34,7 +60,10 @@ describe('Recovery', () => {
     expect(screen.getByText(/첫째 완성문/)).toHaveTextContent('첫째 완성문 둘째 줄')
     expect(screen.getAllByText(/일부 문장이 이미 입력되었을 수 있습니다/)).toHaveLength(2)
     const nativeClipboard = vi.fn()
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: nativeClipboard } })
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: nativeClipboard },
+    })
     fireEvent.click(screen.getAllByRole('button', { name: '전체 문장 복사' })[0])
     await waitFor(() => expect(copyRecoveryEntry).toHaveBeenCalledWith('first'))
     expect(await screen.findByRole('button', { name: '복사됨' })).toBeInTheDocument()
@@ -50,7 +79,9 @@ describe('Recovery', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: '지우기' })[0])
     await waitFor(() => expect(dismissRecoveryEntry).toHaveBeenCalledWith('first'))
-    await waitFor(() => expect(useAppStore.getState().recoveryEntries.map((entry) => entry.id)).toEqual(['second']))
+    await waitFor(() =>
+      expect(useAppStore.getState().recoveryEntries.map((entry) => entry.id)).toEqual(['second']),
+    )
     expect(screen.getByText('Another finished sentence')).toBeInTheDocument()
   })
 

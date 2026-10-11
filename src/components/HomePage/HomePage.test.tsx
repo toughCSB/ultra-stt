@@ -9,10 +9,15 @@ import { setPolishStyle } from '../../lib/tauri'
 vi.mock('../../lib/tauri', () => ({ setPolishStyle: vi.fn() }))
 
 vi.mock('framer-motion', () => ({
-  motion: new Proxy({}, {
-    get: (_target, tag: string) => ({ children, ...props }: React.HTMLAttributes<HTMLElement>) =>
-      React.createElement(tag, props, children),
-  }),
+  motion: new Proxy(
+    {},
+    {
+      get:
+        (_target, tag: string) =>
+        ({ children, ...props }: React.HTMLAttributes<HTMLElement>) =>
+          React.createElement(tag, props, children),
+    },
+  ),
 }))
 
 const entry: HistoryEntry = {
@@ -72,7 +77,10 @@ describe('HomePage recent history activity', () => {
     expect(screen.getByRole('radio', { name: '깔끔하게' })).toHaveAttribute('aria-checked', 'true')
     await act(async () => fireEvent.click(screen.getByRole('radio', { name: '원문 · Original' })))
     expect(setPolishStyle).toHaveBeenCalledWith('original')
-    expect(screen.getByRole('radio', { name: '원문 · Original' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: '원문 · Original' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
     expect(useAppStore.getState().config.polish_enabled).toBe(true)
   })
 
@@ -95,13 +103,19 @@ describe('HomePage recent history activity', () => {
 
   it('labels ultra-remote timing as combined server work without a zero polishing metric', () => {
     useAppStore.setState((state) => ({
-      config: { ...state.config, stt_provider: 'custom-whisper', stt_custom_preset: 'ultra-remote' },
+      config: {
+        ...state.config,
+        stt_provider: 'custom-whisper',
+        stt_custom_preset: 'ultra-remote',
+      },
       lastPipelineTiming: { stt_ms: 2400, llm_ms: 0, total_ms: 3900 },
     }))
     render(<HomePage />)
 
     expect(screen.getByText('원격 인식·다듬기')).toBeInTheDocument()
-    expect(screen.getByText('서버에서 다듬기까지 처리하므로 별도 시간이 측정되지 않습니다.')).toBeInTheDocument()
+    expect(
+      screen.getByText('서버에서 다듬기까지 처리하므로 별도 시간이 측정되지 않습니다.'),
+    ).toBeInTheDocument()
     expect(screen.queryByText('0.0초')).toBeNull()
   })
 })

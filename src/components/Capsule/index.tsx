@@ -70,13 +70,20 @@ export function Capsule() {
   useCapsuleResize()
 
   const hasError = pipelineError !== null
-  const recoveryEntry = pipelineState === 'idle' && !contextMenuOpen && !translationTargetMenuOpen && !polishModeMenuOpen
-    ? recoveryEntries.find((entry) => entry.id === recoveryAlertId)
-    : undefined
+  const recoveryEntry =
+    pipelineState === 'idle' &&
+    !contextMenuOpen &&
+    !translationTargetMenuOpen &&
+    !polishModeMenuOpen
+      ? recoveryEntries.find((entry) => entry.id === recoveryAlertId)
+      : undefined
   const capsuleState = getCapsuleState(pipelineState, hasError, Boolean(recoveryEntry))
   const capsuleShellSize = getCapsuleShellSize(capsuleState)
   const cancel = useCallback(() => {
-    const abort = pipelineState === 'ask_recording' || pipelineState === 'ask_thinking' ? abortAskDictation : abortRecording
+    const abort =
+      pipelineState === 'ask_recording' || pipelineState === 'ask_thinking'
+        ? abortAskDictation
+        : abortRecording
     void abort().catch((error) => console.error('Failed to cancel voice input:', error))
   }, [pipelineState])
 
@@ -93,7 +100,16 @@ export function Capsule() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [cancel, contextMenuOpen, pipelineState, polishModeMenuOpen, setContextMenuOpen, setContextMenuReady, setPolishModeMenuOpen, translationTargetMenuOpen])
+  }, [
+    cancel,
+    contextMenuOpen,
+    pipelineState,
+    polishModeMenuOpen,
+    setContextMenuOpen,
+    setContextMenuReady,
+    setPolishModeMenuOpen,
+    translationTargetMenuOpen,
+  ])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
@@ -202,7 +218,9 @@ export function Capsule() {
             {capsuleState === 'ask_recording' && <CapsuleAskRecording />}
             {capsuleState === 'ask_thinking' && <CapsuleAskThinking />}
             {capsuleState === 'error' && <CapsuleError />}
-            {capsuleState === 'recovery' && recoveryEntry && <CapsuleRecovery entry={recoveryEntry} />}
+            {capsuleState === 'recovery' && recoveryEntry && (
+              <CapsuleRecovery entry={recoveryEntry} />
+            )}
           </motion.div>
         </AnimatePresence>
       </motion.div>
@@ -214,12 +232,24 @@ export function Capsule() {
         </div>
       )}
       <TranslateTargetMenu />
-      {!contextMenuOpen && !translationTargetMenuOpen && capsuleState !== 'idle' && capsuleState !== 'recovery' && (
-        <PolishModeChip left={capsuleShellSize.width + 20} />
-      )}
-      {['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) && !polishModeMenuOpen && !contextMenuOpen && !translationTargetMenuOpen && (
-        <button type="button" title="Escape" onClick={cancel} className="absolute top-1/2 h-7 -translate-y-1/2 rounded-full border border-white/20 bg-[#05251b]/95 px-2 text-[10px] text-[#8dffc9] hover:border-accent" style={{ left: capsuleShellSize.width + 110 }}>Esc</button>
-      )}
+      {!contextMenuOpen &&
+        !translationTargetMenuOpen &&
+        capsuleState !== 'idle' &&
+        capsuleState !== 'recovery' && <PolishModeChip left={capsuleShellSize.width + 20} />}
+      {['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) &&
+        !polishModeMenuOpen &&
+        !contextMenuOpen &&
+        !translationTargetMenuOpen && (
+          <button
+            type="button"
+            title="Escape"
+            onClick={cancel}
+            className="absolute top-1/2 h-7 -translate-y-1/2 rounded-full border border-white/20 bg-[#05251b]/95 px-2 text-[10px] text-[#8dffc9] hover:border-accent"
+            style={{ left: capsuleShellSize.width + 110 }}
+          >
+            Esc
+          </button>
+        )}
       <PolishModeMenu />
     </div>
   )

@@ -91,7 +91,10 @@ pub trait LlmProvider: Send + Sync {
 }
 
 pub fn provider_requires_api_key(provider: &str) -> bool {
-    !matches!(provider.trim().to_ascii_lowercase().as_str(), "ollama" | "codex-cli")
+    !matches!(
+        provider.trim().to_ascii_lowercase().as_str(),
+        "ollama" | "codex-cli"
+    )
 }
 
 pub fn has_usable_provider_credentials(provider: &str, api_key: &str) -> bool {
@@ -133,7 +136,10 @@ mod provider_capability_tests {
         assert!(!provider_requires_api_key("ollama"));
         assert!(!provider_requires_api_key(" Ollama "));
         assert!(!provider_requires_api_key("codex-cli"));
-        assert_eq!(create_provider("codex-cli", None).name(), "Codex (ChatGPT subscription)");
+        assert_eq!(
+            create_provider("codex-cli", None).name(),
+            "Codex (ChatGPT subscription)"
+        );
         assert!(provider_requires_api_key("openai"));
         assert!(provider_requires_api_key("custom-openai-compatible"));
     }

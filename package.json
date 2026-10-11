@@ -31,7 +31,11 @@
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "test:verification": "node --test scripts/verify.test.mjs",
+    "verify": "node scripts/verify.mjs",
+    "hooks:install": "node scripts/install-hooks.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.0",
@@ -72,7 +76,7 @@
     "vitest": "^4.1.8"
   },
   "overrides": {
-    "brace-expansion": "5.0.9",
+    "brace-expansion": "^5.0.12",
     "nanoid": "3.3.18",
     "postcss": "8.5.23"
   }

@@ -45,12 +45,16 @@ export function History() {
 
   const filtered = useMemo(
     () =>
-      (historyDate ? history.filter((entry) => entry.created_at.slice(0, 10) === historyDate) : history)
-        .filter(
-            (h) =>
-              !search || h.polished_text.includes(search) ||
-              h.raw_text.includes(search) || h.context_label.includes(search),
-          ),
+      (historyDate
+        ? history.filter((entry) => entry.created_at.slice(0, 10) === historyDate)
+        : history
+      ).filter(
+        (h) =>
+          !search ||
+          h.polished_text.includes(search) ||
+          h.raw_text.includes(search) ||
+          h.context_label.includes(search),
+      ),
     [history, historyDate, search],
   )
 
@@ -107,8 +111,13 @@ export function History() {
   const grouped = useMemo(() => {
     const map = new Map<string, typeof filtered>()
     const todayDate = new Date()
-    const yesterdayDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() - 1)
-    const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const yesterdayDate = new Date(
+      todayDate.getFullYear(),
+      todayDate.getMonth(),
+      todayDate.getDate() - 1,
+    )
+    const localDateKey = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     const today = localDateKey(todayDate)
     const yesterday = localDateKey(yesterdayDate)
     for (const entry of filtered) {
@@ -145,13 +154,23 @@ export function History() {
         </div>
         {historyDate && (
           <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-            <span className="text-text-secondary">{t('history.dateFilter', { date: historyDate })}</span>
-            <button type="button" onClick={() => navigate('history')} className="rounded-[6px] bg-transparent px-2 py-1 text-accent hover:bg-bg-tertiary">
+            <span className="text-text-secondary">
+              {t('history.dateFilter', { date: historyDate })}
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate('history')}
+              className="rounded-[6px] bg-transparent px-2 py-1 text-accent hover:bg-bg-tertiary"
+            >
               {t('history.clearDateFilter')}
             </button>
           </div>
         )}
-        {historyDate && <p className="mt-1 text-[11px] text-text-tertiary">{t('home.loadedHistoryNotice', { count: history.length })}</p>}
+        {historyDate && (
+          <p className="mt-1 text-[11px] text-text-tertiary">
+            {t('home.loadedHistoryNotice', { count: history.length })}
+          </p>
+        )}
       </div>
 
       {/* List */}

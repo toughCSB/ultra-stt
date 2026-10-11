@@ -34,7 +34,12 @@ export function useRoute() {
 
   const navigate = useCallback((route: Route, options?: { date?: string }) => {
     const date = options?.date
-    window.location.hash = route === 'home' ? '#/' : route === 'history' && date && isValidDate(date) ? `#/history?date=${date}` : `#/${route}`
+    window.location.hash =
+      route === 'home'
+        ? '#/'
+        : route === 'history' && date && isValidDate(date)
+          ? `#/history?date=${date}`
+          : `#/${route}`
   }, [])
 
   return { route: parseHash(hash), historyDate: parseHistoryDate(hash), navigate }

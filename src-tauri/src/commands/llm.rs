@@ -71,7 +71,10 @@ pub async fn test_llm_connection(
     }
 
     if provider == "codex-cli" {
-        return crate::llm::codex::check_chatgpt_login().await.map(|_| true).map_err(|e| e.to_string());
+        return crate::llm::codex::check_chatgpt_login()
+            .await
+            .map(|_| true)
+            .map_err(|e| e.to_string());
     }
 
     // Cloud provider: verify session token + managed cloud entitlement via API.
@@ -301,7 +304,9 @@ pub async fn bench_llm_connection(
     }
     if provider == "codex-cli" {
         let t0 = std::time::Instant::now();
-        crate::llm::codex::run_text(&model, "Return exactly: ok").await.map_err(|e| e.to_string())?;
+        crate::llm::codex::run_text(&model, "Return exactly: ok")
+            .await
+            .map_err(|e| e.to_string())?;
         return Ok(t0.elapsed().as_millis().min(u32::MAX as u128) as u32);
     }
 

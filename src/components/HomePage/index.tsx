@@ -35,17 +35,29 @@ export function HomePage() {
   }, [history, today])
   const todayCount = activity[13].count
   const maxCount = Math.max(1, ...activity.map((day) => day.count))
-  const isUltraRemote = config.stt_provider === 'custom-whisper' && config.stt_custom_preset === 'ultra-remote'
+  const isUltraRemote =
+    config.stt_provider === 'custom-whisper' && config.stt_custom_preset === 'ultra-remote'
   const timingItems: Array<[string, number]> = lastPipelineTiming
     ? isUltraRemote
-      ? [['remoteProcessingTime', lastPipelineTiming.stt_ms], ['totalTime', lastPipelineTiming.total_ms]]
-      : [['sttTime', lastPipelineTiming.stt_ms], ['polishTime', lastPipelineTiming.llm_ms], ['totalTime', lastPipelineTiming.total_ms]]
+      ? [
+          ['remoteProcessingTime', lastPipelineTiming.stt_ms],
+          ['totalTime', lastPipelineTiming.total_ms],
+        ]
+      : [
+          ['sttTime', lastPipelineTiming.stt_ms],
+          ['polishTime', lastPipelineTiming.llm_ms],
+          ['totalTime', lastPipelineTiming.total_ms],
+        ]
     : []
   return (
     <div className="p-6 space-y-6">
       {/* Hero */}
       <div className="jelly-card overflow-hidden">
-        <img src={titleUrl} alt={t('app.name') + ' — ' + t('app.tagline')} className="w-full h-auto block" />
+        <img
+          src={titleUrl}
+          alt={t('app.name') + ' — ' + t('app.tagline')}
+          className="w-full h-auto block"
+        />
         <div className="px-5 py-5">
           <p className="term-eyebrow">system tray · windows &amp; macos</p>
           <p className="text-[14px] leading-[1.75] text-text-secondary mt-3 break-keep max-w-[62ch]">
@@ -63,7 +75,9 @@ export function HomePage() {
       <div className="jelly-card p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="text-[13px] font-semibold">{t('settings.polishModeTitle')}</h3>
-          <span className="text-[11px] text-accent">{config.polish_enabled ? t('settings.polishModeSelected') : t('home.disabled')}</span>
+          <span className="text-[11px] text-accent">
+            {config.polish_enabled ? t('settings.polishModeSelected') : t('home.disabled')}
+          </span>
         </div>
         <PolishModeSelector />
       </div>
@@ -102,7 +116,9 @@ export function HomePage() {
                 <span className="flex h-12 w-full items-end justify-center">
                   <span
                     className={`w-full max-w-7 rounded-t-[2px] ${count === 0 ? 'bg-bg-tertiary' : date === today ? 'bg-accent' : 'bg-accent/55'}`}
-                    style={{ height: count === 0 ? '2px' : `${Math.max(15, (count / maxCount) * 100)}%` }}
+                    style={{
+                      height: count === 0 ? '2px' : `${Math.max(15, (count / maxCount) * 100)}%`,
+                    }}
                   />
                 </span>
                 <span className="text-[9px] tabular-nums">{date.slice(5).replace('-', '/')}</span>
@@ -115,15 +131,21 @@ export function HomePage() {
       {lastPipelineTiming && (
         <div className="jelly-card p-5">
           <h3 className="text-[13px] font-medium mb-3">{t('home.lastProcessingTime')}</h3>
-          <div className={`grid gap-3 text-center ${isUltraRemote ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          <div
+            className={`grid gap-3 text-center ${isUltraRemote ? 'grid-cols-2' : 'grid-cols-3'}`}
+          >
             {timingItems.map(([label, milliseconds]) => (
               <div key={label} className="rounded-[10px] bg-bg-secondary p-2">
                 <p className="text-[11px] text-text-tertiary">{t(`home.${label}`)}</p>
-                <p className="mt-1 text-[16px] font-medium tabular-nums">{t('home.seconds', { value: (milliseconds / 1000).toFixed(1) })}</p>
+                <p className="mt-1 text-[16px] font-medium tabular-nums">
+                  {t('home.seconds', { value: (milliseconds / 1000).toFixed(1) })}
+                </p>
               </div>
             ))}
           </div>
-          {isUltraRemote && <p className="mt-2 text-[11px] text-text-tertiary">{t('home.remoteTimingNote')}</p>}
+          {isUltraRemote && (
+            <p className="mt-2 text-[11px] text-text-tertiary">{t('home.remoteTimingNote')}</p>
+          )}
         </div>
       )}
 

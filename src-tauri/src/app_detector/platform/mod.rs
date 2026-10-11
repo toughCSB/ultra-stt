@@ -9,9 +9,9 @@ mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "windows")]
-mod windows;
-#[cfg(target_os = "windows")]
 pub(crate) mod uia_worker;
+#[cfg(target_os = "windows")]
+mod windows;
 
 pub(crate) trait ContextSignalSource: Send + Sync + 'static {
     fn collect(&self) -> Option<ContextSignals>;

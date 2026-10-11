@@ -23,7 +23,11 @@ export function WelcomeStep() {
     <div className="space-y-6">
       <div className="py-4">
         <p className="term-eyebrow">system tray · windows &amp; macos</p>
-        <img src={titleUrl} alt={t('app.name') + ' — ' + t('app.tagline')} className="w-full h-auto block mt-4" />
+        <img
+          src={titleUrl}
+          alt={t('app.name') + ' — ' + t('app.tagline')}
+          className="w-full h-auto block mt-4"
+        />
         <p className="text-[14px] text-text-secondary leading-[1.75] break-keep max-w-[52ch] mt-6 mx-auto text-center">
           {t('onboarding.speakToWrite')}
         </p>

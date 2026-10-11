@@ -14,15 +14,24 @@ export function CapsuleBrand() {
   const { t } = useTranslation()
   const style = useAppStore((state) => state.config.polish_style)
   return (
-    <button type="button" aria-label={`${t('settings.polishModeTitle')}: ${t(polishModeLabelKey(style))}`} title={t('settings.polishModeTitle')}
-      className="shrink-0 rounded-[22%]" onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}
-      onClick={(event) => { event.stopPropagation(); togglePolishModeMenu() }}>
-    <img
-      src={appIconUrl}
-      alt=""
-      aria-hidden="true"
-      className="w-6 h-6 shrink-0 rounded-[22%] object-contain"
-    />
+    <button
+      type="button"
+      aria-label={`${t('settings.polishModeTitle')}: ${t(polishModeLabelKey(style))}`}
+      title={t('settings.polishModeTitle')}
+      className="shrink-0 rounded-[22%]"
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation()
+        togglePolishModeMenu()
+      }}
+    >
+      <img
+        src={appIconUrl}
+        alt=""
+        aria-hidden="true"
+        className="w-6 h-6 shrink-0 rounded-[22%] object-contain"
+      />
     </button>
   )
 }

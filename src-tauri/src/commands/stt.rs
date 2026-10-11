@@ -387,7 +387,8 @@ pub fn get_stt_provider_diagnostics(
     let resolved_api_key = if provider == "cloud"
         || (provider == stt::config::CUSTOM_WHISPER_PROVIDER
             && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
-            && custom_model.as_deref() == Some(stt::ultra_local::MODEL)) {
+            && custom_model.as_deref() == Some(stt::ultra_local::MODEL))
+    {
         String::new()
     } else {
         resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
@@ -448,7 +449,8 @@ pub async fn test_stt_connection(
 
     let api_key = if provider == stt::config::CUSTOM_WHISPER_PROVIDER
         && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
-        && custom_model.as_deref() == Some(stt::ultra_local::MODEL) {
+        && custom_model.as_deref() == Some(stt::ultra_local::MODEL)
+    {
         String::new()
     } else {
         resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
@@ -464,7 +466,8 @@ pub async fn test_stt_connection(
         && custom_model.as_deref() == Some(stt::ultra_local::MODEL)
     {
         stt::ultra_local::transcribe(&vec![0; 3200], Some("ko"))
-            .await.map_err(|e| e.to_string())?;
+            .await
+            .map_err(|e| e.to_string())?;
         return Ok(true);
     }
 
@@ -783,7 +786,8 @@ pub async fn bench_stt_connection(
 
     let api_key = if provider == stt::config::CUSTOM_WHISPER_PROVIDER
         && custom_base_url.as_deref() == Some(stt::ultra_local::BASE)
-        && custom_model.as_deref() == Some(stt::ultra_local::MODEL) {
+        && custom_model.as_deref() == Some(stt::ultra_local::MODEL)
+    {
         String::new()
     } else {
         resolve_config_secret(&api_key, "stt", &provider, &SystemCredentialVault)
@@ -800,7 +804,8 @@ pub async fn bench_stt_connection(
     {
         let t0 = std::time::Instant::now();
         stt::ultra_local::transcribe(&vec![0; 3200], Some("ko"))
-            .await.map_err(|e| e.to_string())?;
+            .await
+            .map_err(|e| e.to_string())?;
         return Ok(t0.elapsed().as_millis().min(u32::MAX as u128) as u32);
     }
 

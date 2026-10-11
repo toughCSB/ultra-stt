@@ -185,7 +185,8 @@ export function useCapsuleResize() {
   const effectGeneration = useRef(0)
 
   const hasError = pipelineError !== null
-  const hasRecovery = pipelineState === 'idle' && recoveryEntries.some((entry) => entry.id === recoveryAlertId)
+  const hasRecovery =
+    pipelineState === 'idle' && recoveryEntries.some((entry) => entry.id === recoveryAlertId)
 
   useEffect(() => {
     if (pipelineState === 'idle') return
@@ -203,22 +204,32 @@ export function useCapsuleResize() {
   useEffect(() => {
     const generation = ++effectGeneration.current
     const startingStates: PipelineState[] = ['preparing', 'recording', 'ask_recording']
-    if (startingStates.includes(pipelineState) && !startingStates.includes(previousPipelineState.current)) {
+    if (
+      startingStates.includes(pipelineState) &&
+      !startingStates.includes(previousPipelineState.current)
+    ) {
       resetPosition.current = true
       modeMenuAnchor.current = null
     }
     previousPipelineState.current = pipelineState
     let cancelled = false
     const isCurrent = () => !cancelled && effectGeneration.current === generation
-    const size = polishModeMenuOpen ? { width: 324, height: 420 } : getSizeForState(
-      pipelineState,
-      capsuleExpanded,
-      hasError,
-      hasRecovery,
-      contextMenuOpen,
-      translationTargetMenuOpen,
-    )
-    if (!polishModeMenuOpen && !contextMenuOpen && !translationTargetMenuOpen && pipelineState !== 'idle') {
+    const size = polishModeMenuOpen
+      ? { width: 324, height: 420 }
+      : getSizeForState(
+          pipelineState,
+          capsuleExpanded,
+          hasError,
+          hasRecovery,
+          contextMenuOpen,
+          translationTargetMenuOpen,
+        )
+    if (
+      !polishModeMenuOpen &&
+      !contextMenuOpen &&
+      !translationTargetMenuOpen &&
+      pipelineState !== 'idle'
+    ) {
       size.width += ['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) ? 130 : 90
     }
     const windowWidth = size.width + 24
@@ -330,8 +341,16 @@ export function useCapsuleResize() {
                 modeMenuAnchor.current ??= pos
                 newY = Math.round(pos.y + oldHeight - physicalHeight)
                 if (monitor) {
-                  newX = clamp(newX, monitor.workArea.position.x, monitor.workArea.position.x + monitor.workArea.size.width - physicalWidth)
-                  newY = clamp(newY, monitor.workArea.position.y, monitor.workArea.position.y + monitor.workArea.size.height - physicalHeight)
+                  newX = clamp(
+                    newX,
+                    monitor.workArea.position.x,
+                    monitor.workArea.position.x + monitor.workArea.size.width - physicalWidth,
+                  )
+                  newY = clamp(
+                    newY,
+                    monitor.workArea.position.y,
+                    monitor.workArea.position.y + monitor.workArea.size.height - physicalHeight,
+                  )
                 }
               } else if (modeMenuAnchor.current) {
                 newX = modeMenuAnchor.current.x

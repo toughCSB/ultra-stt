@@ -642,7 +642,6 @@ describe('SttPane', () => {
     })
   })
 
-
   describe('API Key input', () => {
     it('renders API key input with current value', () => {
       mockAppStore.config.stt_api_key = 'sk-test123'

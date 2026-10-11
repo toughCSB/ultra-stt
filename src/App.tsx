@@ -156,7 +156,6 @@ function MainApp() {
       }
       setLoaded(true)
     })
-
   }, [
     setOnboardingCompleted,
     setConfig,

@@ -98,11 +98,16 @@ pub fn build_custom_whisper_config(
     })
 }
 
-pub fn build_custom_whisper_for_app(config: &crate::storage::AppConfig) -> Result<WhisperCompatConfig, String> {
+pub fn build_custom_whisper_for_app(
+    config: &crate::storage::AppConfig,
+) -> Result<WhisperCompatConfig, String> {
     if config.stt_custom_preset == "ultra-local"
         && (config.stt_custom_base_url != super::ultra_local::BASE
-            || config.stt_custom_model != super::ultra_local::MODEL) {
-        return Err("Managed local preset requires the exact loopback URL and full large-v3 model".into());
+            || config.stt_custom_model != super::ultra_local::MODEL)
+    {
+        return Err(
+            "Managed local preset requires the exact loopback URL and full large-v3 model".into(),
+        );
     }
     build_custom_whisper_config(&config.stt_custom_base_url, &config.stt_custom_model)
 }

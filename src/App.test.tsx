@@ -58,7 +58,10 @@ it('loads native personal-profile defaults before rendering unsaved onboarding',
   }
   let releaseConfig!: (config: AppConfig) => void
   vi.mocked(getConfig).mockImplementation(
-    () => new Promise<AppConfig>((resolve) => { releaseConfig = resolve }),
+    () =>
+      new Promise<AppConfig>((resolve) => {
+        releaseConfig = resolve
+      }),
   )
 
   await act(async () => {

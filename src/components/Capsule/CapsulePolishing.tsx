@@ -19,7 +19,7 @@ export function CapsulePolishing() {
   return (
     <motion.div className="relative z-10 flex items-center gap-2 h-9 px-3">
       <CapsuleBrand />
-        <CapsuleWorkIndicator tone="thinking" />
+      <CapsuleWorkIndicator tone="thinking" />
       <p className="text-[11px] text-white leading-snug truncate flex-1 min-w-0">
         {t('capsule.thinking')}
       </p>

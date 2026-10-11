@@ -135,7 +135,16 @@ describe('getCapsuleVisibility', () => {
   })
 
   it('keeps an idle mode chooser visible when automatic hiding is enabled', () => {
-    expect(getCapsuleVisibility({ capsuleAutoHide: true, contextMenuOpen: false, polishModeMenuOpen: true, capsuleExpanded: false, hasError: false, pipelineState: 'idle' })).toBe(true)
+    expect(
+      getCapsuleVisibility({
+        capsuleAutoHide: true,
+        contextMenuOpen: false,
+        polishModeMenuOpen: true,
+        capsuleExpanded: false,
+        hasError: false,
+        pipelineState: 'idle',
+      }),
+    ).toBe(true)
   })
 })
 
@@ -374,9 +383,12 @@ describe('useCapsuleResize async updates', () => {
     render(createElement(HookHarness))
     await waitFor(() => expect(windowApiMocks.invoke).toHaveBeenCalled())
     const initialCalls = windowApiMocks.invoke.mock.calls.length
-    await waitFor(() => expect(windowApiMocks.invoke.mock.calls.length).toBeGreaterThan(initialCalls), {
-      timeout: 1800,
-    })
+    await waitFor(
+      () => expect(windowApiMocks.invoke.mock.calls.length).toBeGreaterThan(initialCalls),
+      {
+        timeout: 1800,
+      },
+    )
     act(() => useAppStore.setState({ pipelineState: 'idle' }))
     await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalled())
     const stoppedCalls = windowApiMocks.invoke.mock.calls.length
@@ -445,7 +457,9 @@ describe('useCapsuleResize async updates', () => {
     })
 
     await waitFor(() => {
-      expect(windowApiMocks.setPosition).toHaveBeenCalledWith(expect.objectContaining({ x: 803, y: 900 }))
+      expect(windowApiMocks.setPosition).toHaveBeenCalledWith(
+        expect.objectContaining({ x: 803, y: 900 }),
+      )
     })
   })
 
@@ -460,26 +474,36 @@ describe('useCapsuleResize async updates', () => {
     windowApiMocks.availableMonitors.mockResolvedValue([secondary, monitor])
     render(createElement(HookHarness))
     await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(1))
-    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 930, y: 900 }))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 930, y: 900 }),
+    )
 
     act(() => useAppStore.setState({ pipelineState: 'preparing' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
-    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 813, y: 900 }))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 813, y: 900 }),
+    )
 
     windowApiMocks.outerPosition.mockResolvedValue({ x: -1700, y: 500 })
     windowApiMocks.outerSize.mockResolvedValue({ width: 441, height: 90 })
     act(() => useAppStore.setState({ pipelineState: 'recording' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(2))
-    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: -1700, y: 500 }))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: -1700, y: 500 }),
+    )
     act(() => useAppStore.setState({ pipelineState: 'transcribing' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(3))
-    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: -1700, y: 500 }))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: -1700, y: 500 }),
+    )
 
     act(() => useAppStore.setState({ pipelineState: 'idle' }))
     await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(2))
     act(() => useAppStore.setState({ pipelineState: 'ask_recording' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(4))
-    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 819, y: 900 }))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 819, y: 900 }),
+    )
     expect(windowApiMocks.setFocusable).toHaveBeenLastCalledWith(false)
   })
 
@@ -487,13 +511,20 @@ describe('useCapsuleResize async updates', () => {
     render(createElement(HookHarness))
     await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalled())
     let finishPrimary: (value: typeof monitor) => void = () => {}
-    windowApiMocks.primaryMonitor.mockImplementationOnce(() => new Promise((resolve) => { finishPrimary = resolve }))
+    windowApiMocks.primaryMonitor.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishPrimary = resolve
+        }),
+    )
     windowApiMocks.primaryMonitor.mockClear()
     act(() => useAppStore.setState({ pipelineState: 'preparing' }))
     await waitFor(() => expect(windowApiMocks.primaryMonitor).toHaveBeenCalledTimes(1))
     act(() => useAppStore.setState({ pipelineState: 'recording' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
-    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 803, y: 900 }))
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 803, y: 900 }),
+    )
     const positions = windowApiMocks.setPosition.mock.calls.length
     await act(async () => finishPrimary(monitor))
     expect(windowApiMocks.setPosition).toHaveBeenCalledTimes(positions)
