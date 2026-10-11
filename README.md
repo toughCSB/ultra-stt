@@ -34,6 +34,7 @@
 - **Input Recovery → Original audio recovery** temporarily journals WAV audio on this device. Successful insertion or explicit cancellation removes it; failures survive restarts and support retranscription, copying and explicit deletion. Limits: 20 recordings / 512 MB; a full store blocks new recordings rather than deleting failures. Retranscription uses the configured Local / Custom Whisper provider without automatic insertion.
 - Added capsule-focus restoration, stable native Windows field identity and tray-only `--autostart` launches without disabling target protection.
 - **Installed the updated 1.1.64 build on SB, Home and Mac**, preserving settings, authentication and history. Windows background/duplicate startup and Mac-to-SB transcription/cleanup passed. Real reboot, human ten-minute dictation and locked-Mac cursor insertion remain unverified. Past recordings without saved original audio cannot be recovered. [Deployment and validation](docs/2026-10-11-desktop-update.md) · [Diagnosis](docs/2026-10-11-long-recording-diagnosis.md).
+- **Corrected the Windows production build after Home reported a localhost connection error.** SB and Home now use embedded frontend assets; startup verification checks a real frontend-to-backend request, not only a running process. Release builds without production assets are rejected. Settings, history and saved failure audio remain intact.
 
 ### October 6–7, 2026 · v1.1.64 / Android 1.1.64-android.11
 

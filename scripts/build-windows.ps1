@@ -29,7 +29,7 @@ Push-Location $app
 try {
     npm run build
     if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
-    cargo build --locked --offline --release --lib --manifest-path src-tauri/Cargo.toml
+    cargo build --locked --offline --release --features tauri/custom-protocol --lib --manifest-path src-tauri/Cargo.toml
     if ($LASTEXITCODE -ne 0) { throw 'Native library build failed.' }
 
     $backupDirectory = Join-Path $root ('runtime/app-backups/windows-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))

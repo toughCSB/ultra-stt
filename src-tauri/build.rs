@@ -1,4 +1,7 @@
 fn main() {
+    if std::env::var("PROFILE").as_deref() == Ok("release") && tauri_build::is_dev() {
+        panic!("Release builds must embed the frontend. Use npm run tauri -- build --no-bundle or cargo build --release --features tauri/custom-protocol.");
+    }
     println!("cargo:rerun-if-changed=icons");
     #[cfg(target_os = "macos")]
     println!("cargo:rustc-link-lib=framework=Speech");

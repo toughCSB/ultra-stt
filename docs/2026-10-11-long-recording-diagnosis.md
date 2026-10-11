@@ -82,3 +82,7 @@
 최종 로컬 검사 로그는 저장소 밖 `qa/long-recording-{frontend,native,integration,clippy,release}-final-20261011.log`에 있다. 단일 `npm run verify`는 최상단 검사 1건으로 실패했으며 이를 전체 통과로 보고하지 않는다.
 
 이전 CI 수정, 기존 미추적 조사 문서 3개 및 사용자 앱/인증/기록/설정은 보존했다. 작업 중 만든 읽기 전용 SSH 클라이언트가 출력을 반환한 뒤 종료되지 않아 해당 프로세스만 정리했으며 기존 사용자 SSH 연결은 유지했다.
+
+## 후속 설치·화면 장애 정정
+
+위 검증 경계는 구현 직후의 기록이다. 이후 대화형 Windows Session 1에서 최상단 창 검사를 포함한 전체 검증이 통과했으며 SB/Home/Mac 설치를 진행했다. 다만 초기 Windows 설치는 production feature 없는 release 빌드 탓에 `localhost` 화면 로딩 장애가 발생했다. Home 사용자 신고로 확인해 이전 앱을 복원한 뒤 SB/Home을 정상 Tauri production 빌드로 교체했다. 기존 실패 음성을 삭제하지 않았고 설정·기록과 함께 체크섬으로 보존을 확인했다. 최신 해시와 실제 검증 범위는 [설치 보고의 정정](2026-10-11-desktop-update.md#windows-화면-로딩-장애-정정--2019)을 따른다. 초기 후보의 빌드 성공이나 helper 검사만을 GUI/음성 성공으로 해석하지 않는다.

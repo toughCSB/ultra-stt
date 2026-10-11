@@ -25,7 +25,7 @@ Mac에서는 프런트엔드 443개, Rust 669개 및 해당 플랫폼 통합 1�
 | Home Windows | 1.1.62 → 수정 1.1.64 | 설정·인증·기록 43개 보존, 창 없이 시작 및 중복 자동 실행 확인 |
 | Mac Apple Silicon | 1.1.63 → 수정 1.1.64 | 설정·인증·기록 60개 보존, 기존 앱 서명 식별자와 strict signature 확인 |
 
-Windows 실행 파일 SHA256: `BD5E55F1E0F22A06A3C5B487916F368B5DB0A37EA9666B77FB17DC19BDDEA541`.
+최종 Windows 실행 파일 SHA256: `472503C89ACF585FF5CCA36E8607D2D1935B4EC38D8A4EAE4082A03B2C79D709`.
 
 Mac 실행 파일 SHA256: `5020f0dfc80c448939045e90832b979311c3509a9c2c4bf1ac824b3d931c4d2e`.
 
@@ -38,3 +38,15 @@ Mac 화면은 잠겨 있어 설치 후 실제 선택·번역·자동 입력은 �
 ## 원격 검증
 
 원격 `main`에는 10월 8일 워크플로 전체 삭제 커밋 `2506fd2`가 추가되어 있었다. 이를 강제로 덮어쓰거나 강제 푸시하지 않는다. GitHub 검사 결과는 워크플로 반영 뒤의 실제 실행과 로컬 검사 결과를 구분해 기록한다.
+
+## Windows 화면 로딩 장애 정정 — 20:19
+
+초기 설치 파일 `BD5E55F1…`은 잘못된 `cargo build --release` 명령으로 만들어졌다. Tauri의 `custom-protocol` 기능이 빠져 실행 파일은 존재해도 화면이 내장 파일 대신 `localhost:1420` 개발 서버를 요청했다. 프로세스·백그라운드 창·UIA helper 검사만으로 화면 성공을 판단한 것이 불충분했다. 이 파일은 정상 설치본으로 간주하지 않는다.
+
+Home은 기존 1.1.62로 먼저 복원한 뒤 `npm run tauri -- build --no-bundle -- --locked`로 만든 최종 1.1.64를 설치했다. Home PID 26160, SB PID 47356에서 실제 프런트엔드의 `get_config` 호출과 `production_assets=true` 로그를 확인했다. 두 장치 모두 설정·인증·전체 기록(Home 43개/SB 22개)과 기존 실패 음성 파일의 체크섬이 유지됐으며, 초기/중복 자동 실행 시 창이 숨겨지는 검사도 통과했다. 이 변경으로 Mac 앱을 다시 교체하지 않았다.
+
+재발 방지를 위해 production assets 없는 release 빌드는 `build.rs`에서 실패시키고, Windows 빌드 스크립트의 사전 Rust 빌드에도 `tauri/custom-protocol`을 명시했다. 잘못된 release 명령의 차단 검사, 정상 Tauri production 빌드, 최종 실행 파일 UIA helper 3개, 대화형 Session 1 전체 `npm run verify`가 통과했다. 원래 단축키(Home `Insert`/SB `Ctrl+/`)와 자동 실행 설정은 유지했다.
+
+SB 교체 후 Mac→SB 인증된 HTTPS 시험 파일 전사도 다시 통과했다. 다듬기 OFF 8160ms / ON 5055ms였으며 두 응답 모두 기대 문장과 원문을 반환했다. 재시작 직후 1회 측정이므로 다듬기 OFF가 더 느린 이 결과를 일반적인 처리속도 비교로 해석하지 않는다. Mac 설정과 기록 60개는 그대로였다.
+
+증거는 저장소 밖 `qa/runtime-check-20261011/`의 빌드·검증 결과와 두 장치 설치 영수증에 있다. 프런트엔드 IPC 로딩 확인은 사람의 실제 음성·커서 입력 시험과 다르며 후자는 사용자 확인을 요청했다. GitHub 푸시/CI와 실제 재부팅 검증은 아직 수행하지 않았다.

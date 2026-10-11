@@ -264,6 +264,10 @@ pub async fn set_polish_style(
 
 #[tauri::command]
 pub async fn get_config(app: tauri::AppHandle) -> Result<storage::AppConfig, String> {
+    tracing::info!(
+        production_assets = !tauri::is_dev(),
+        "Frontend configuration request"
+    );
     crate::wait_for_config_ready().await?;
     app.state::<storage::ConfigManager>()
         .load()
