@@ -154,7 +154,10 @@ export function createBackupSettings(config: AppConfig): BackupSettings {
           )
             .map((binding) => safeBinding(binding))
             .filter((binding): binding is ShortcutBinding => Boolean(binding)),
-          liveBindings: (Array.isArray(config.hotkeys.liveBindings) ? config.hotkeys.liveBindings : [])
+          liveBindings: (Array.isArray(config.hotkeys.liveBindings)
+            ? config.hotkeys.liveBindings
+            : []
+          )
             .map((binding) => safeBinding(binding))
             .filter((binding): binding is ShortcutBinding => Boolean(binding)),
           editSelection: safeBinding(config.hotkeys.editSelection),

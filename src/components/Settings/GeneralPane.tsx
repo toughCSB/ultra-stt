@@ -1,7 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, MessageCircle } from 'lucide-react'
-import { defaultLiveHotkey, hotkeyFromBinding, isMacPlatform, useAppStore } from '../../stores/appStore'
+import {
+  defaultLiveHotkey,
+  hotkeyFromBinding,
+  isMacPlatform,
+  useAppStore,
+} from '../../stores/appStore'
 import type { HotkeyMode, OutputMode, ShortcutBinding } from '../../stores/appStore'
 import {
   getPlatformCapabilities,
@@ -105,9 +110,7 @@ export function GeneralPane() {
   const askBindings = config.hotkeys.askBindings ?? (config.hotkeys.ask ? [config.hotkeys.ask] : [])
   const translateBindings =
     config.hotkeys.translateBindings ?? (config.hotkeys.translate ? [config.hotkeys.translate] : [])
-  const liveBindings = config.hotkeys.liveBindings?.length
-    ? config.hotkeys.liveBindings
-    : []
+  const liveBindings = config.hotkeys.liveBindings?.length ? config.hotkeys.liveBindings : []
   const liveHotkeyLabel = liveBindings[0] ? hotkeyFromBinding(liveBindings[0]) : defaultLiveHotkey()
   const secondaryBindings = [
     config.hotkeys.editSelection,
