@@ -125,12 +125,23 @@ impl RecordingArchive {
 
     pub fn begin(&self) -> io::Result<RecordingJournal> {
         self.prepare()?;
-        let entries = self.entries()?;
-        let bytes = fs::read_dir(&self.root)?.try_fold(0u64, |total, entry| {
-            Ok::<_, io::Error>(total.saturating_add(entry?.metadata()?.len()))
-        })?;
-        if entries.len() >= MAX_ENTRIES || bytes.saturating_add(MAX_PCM as u64) > MAX_STORAGE {
-            return Err(failure("Recovery storage is full. Review or delete saved recordings in Input Recovery before recording again."));
+        // A full store never blocks recording: the oldest saved recordings make room.
+        loop {
+            let entries = self.entries()?;
+            let bytes = fs::read_dir(&self.root)?.try_fold(0u64, |total, entry| {
+                Ok::<_, io::Error>(total.saturating_add(entry?.metadata()?.len()))
+            })?;
+            if entries.len() < MAX_ENTRIES && bytes.saturating_add(MAX_PCM as u64) <= MAX_STORAGE {
+                break;
+            }
+            // `entries` is newest first; recordings still in use are never removed.
+            let Some(oldest) = entries.iter().rev().find(|entry| !entry.active) else {
+                return Err(failure(
+                    "Recovery storage is full of recordings still in use.",
+                ));
+            };
+            tracing::info!("Recovery storage full; removing the oldest saved recording");
+            self.delete(&oldest.id)?;
         }
         let id = uuid::Uuid::new_v4().to_string();
         let lease = self.claim(&id)?;
@@ -551,17 +562,25 @@ mod tests {
     }
 
     #[test]
-    fn quota_blocks_new_recording_without_deleting_failed_audio() {
+    fn full_store_removes_the_oldest_saved_recording_and_keeps_recording() {
         let store = archive();
         for _ in 0..MAX_ENTRIES {
             let mut journal = store.begin().unwrap();
             journal.append(&[1, 0]).unwrap();
         }
-        assert!(store.begin().is_err());
+        let before = store.entries().unwrap();
+        let oldest = before.last().unwrap().id.clone();
+
+        let mut journal = store.begin().unwrap();
+        journal.append(&[2, 0]).unwrap();
+        let newest = journal.lease.id.clone();
+        drop(journal);
+
         let entries = store.entries().unwrap();
         assert_eq!(entries.len(), MAX_ENTRIES);
+        assert!(entries.iter().all(|entry| entry.id != oldest));
+        assert_eq!(store.read_pcm(&newest).unwrap(), vec![2, 0]);
         for entry in entries {
-            assert_eq!(store.read_pcm(&entry.id).unwrap(), vec![1, 0]);
             store.delete(&entry.id).unwrap();
         }
         fs::remove_dir(&store.root).unwrap();
