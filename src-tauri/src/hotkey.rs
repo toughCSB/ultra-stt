@@ -8,6 +8,16 @@ use crate::HotkeyRoleCache;
 use crate::SessionTokenStore;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+/// Live typing: words appear in the focused app while the user speaks.
+#[cfg(target_os = "macos")]
+const LIVE_DICTATION_HOTKEY: &str = "Command+Shift+Space";
+// Ctrl+Shift+Space is swallowed by other keyboard tools on the owner's PC.
+#[cfg(not(target_os = "macos"))]
+const LIVE_DICTATION_HOTKEY: &str = "Ctrl+Alt+Space";
+/// Adds the selected text to the dictionary (frequently misrecognised words).
+const ADD_DICTIONARY_WORD_HOTKEY: &str = "Ctrl+Alt+W";
+const MAX_DICTIONARY_WORD_CHARS: usize = 40;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
@@ -242,6 +252,8 @@ pub enum HotkeyRole {
     Dictation,
     Ask,
     TranslateSelection,
+    LiveDictation,
+    AddDictionaryWord,
     EditSelection,
     SwitchScene,
     OpenApp,
@@ -253,6 +265,8 @@ impl HotkeyRole {
             Self::Dictation => "dictation",
             Self::Ask => "ask",
             Self::TranslateSelection => "translate",
+            Self::LiveDictation => "liveDictation",
+            Self::AddDictionaryWord => "addDictionaryWord",
             Self::EditSelection => "editSelection",
             Self::SwitchScene => "switchScene",
             Self::OpenApp => "openApp",
@@ -519,6 +533,36 @@ pub(crate) fn hotkey_registration_plan_from_config_for_platform(
         config.open_app.as_ref(),
         platform,
     )?;
+    // Live typing shortcuts come from settings (platform default when none are set) and the
+    // dictionary shortcut is fixed. Each is skipped, not fatal, when another binding already
+    // uses the same keys, so they can never disable the user's other hotkeys.
+    let default_live: Vec<storage::ShortcutBinding> =
+        storage::ShortcutBinding::from_hotkey(LIVE_DICTATION_HOTKEY)
+            .into_iter()
+            .collect();
+    let live_bindings = if config.live_bindings.is_empty() {
+        default_live.as_slice()
+    } else {
+        config.live_bindings.as_slice()
+    };
+    let word_binding: Vec<storage::ShortcutBinding> =
+        storage::ShortcutBinding::from_hotkey(ADD_DICTIONARY_WORD_HOTKEY)
+            .into_iter()
+            .collect();
+    let extra = live_bindings
+        .iter()
+        .enumerate()
+        .map(|(index, binding)| (HotkeyRole::LiveDictation, index, binding))
+        .chain(
+            word_binding
+                .iter()
+                .map(|binding| (HotkeyRole::AddDictionaryWord, 0, binding)),
+        );
+    for (role, index, binding) in extra {
+        if let Err(error) = push_registered_hotkey(&mut plan, role, index, binding, platform) {
+            tracing::warn!("{} shortcut not registered: {error:?}", role.as_str());
+        }
+    }
 
     Ok(plan)
 }
@@ -624,6 +668,7 @@ pub fn validate_hotkey_pair(
         dictation_bindings: vec![dictation.clone()],
         ask_bindings: vec![ask.clone()],
         translate_bindings: Vec::new(),
+        live_bindings: Vec::new(),
         dictation,
         ask: Some(ask),
         translate: None,
@@ -895,6 +940,54 @@ fn handle_advanced_role_shortcut(
     let _ = handle.emit("hotkey:role", role.as_str());
 }
 
+/// Word for the dictionary from a selection: one line, short, trimmed.
+fn dictionary_word_from_selection(selected: Option<String>) -> Option<String> {
+    let word = selected?.trim().to_string();
+    (!word.is_empty()
+        && !word.contains(['\n', '\r'])
+        && word.chars().count() <= MAX_DICTIONARY_WORD_CHARS)
+        .then_some(word)
+}
+
+/// Copies the selection after the shortcut keys are released (held modifiers would turn
+/// the simulated Ctrl+C into another shortcut) and stores it as a dictionary word.
+fn add_selected_word_to_dictionary(handle: tauri::AppHandle, event_state: ShortcutState) {
+    if event_state != ShortcutState::Released {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        let selected = tokio::task::spawn_blocking(crate::selection::capture_selected_text)
+            .await
+            .ok()
+            .flatten();
+        let Some(word) = dictionary_word_from_selection(selected) else {
+            tracing::info!("No short single-line selection to add to the dictionary");
+            let _ = handle.emit("dictionary:add_skipped", ());
+            return;
+        };
+        let store = handle.state::<storage::DictionaryStore>();
+        match store.add(&word, None).await {
+            Ok(()) => {
+                tracing::info!(
+                    chars = word.chars().count(),
+                    "Added selection to dictionary"
+                );
+                let _ = handle.emit("dictionary:added", &word);
+                if let Some(tray_handle) = handle.try_state::<crate::TrayHandle>() {
+                    if let Ok(tray) = tray_handle.tray.lock() {
+                        let _ = tray.set_tooltip(Some(format!("Ultra STT - 사전에 추가: {word}")));
+                    }
+                }
+            }
+            Err(error) => {
+                tracing::warn!("Dictionary add from selection failed: {error}");
+                let _ = handle.emit("dictionary:add_failed", error.to_string());
+            }
+        }
+    });
+}
+
 pub fn handle_hotkey_role_event(
     handle: tauri::AppHandle,
     role: HotkeyRole,
@@ -925,6 +1018,27 @@ pub fn handle_hotkey_role_event(
                 pipeline_state,
                 pipeline::PipelineStartOptions {
                     force_translate: true,
+                    ..Default::default()
+                },
+            );
+            handle_recording_shortcut(handle, action);
+        }
+        HotkeyRole::AddDictionaryWord => add_selected_word_to_dictionary(handle, event_state),
+        HotkeyRole::LiveDictation => {
+            let hotkey_mode = handle
+                .state::<HotkeyModeCache>()
+                .0
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+            let pipeline_state = handle.state::<pipeline::PipelineHandle>().current_state();
+            let action = recording_shortcut_action(
+                &hotkey_mode,
+                event_state,
+                pipeline_state,
+                pipeline::PipelineStartOptions {
+                    live_typing: true,
+                    ..Default::default()
                 },
             );
             handle_recording_shortcut(handle, action);
@@ -1228,6 +1342,7 @@ mod tests {
             dictation_bindings: vec![dictation.clone()],
             ask_bindings: ask.clone().into_iter().collect(),
             translate_bindings: Vec::new(),
+            live_bindings: Vec::new(),
             dictation,
             ask,
             translate: None,
@@ -1245,8 +1360,15 @@ mod tests {
             plan.native[0].trigger,
             crate::native_hotkey::NativeHotkeyTrigger::RightAlt
         );
-        assert_eq!(plan.global.len(), 1);
-        assert_eq!(plan.global[0].role, HotkeyRole::Ask);
+        let roles: Vec<HotkeyRole> = plan.global.iter().map(|entry| entry.role).collect();
+        assert_eq!(
+            roles,
+            vec![
+                HotkeyRole::Ask,
+                HotkeyRole::LiveDictation,
+                HotkeyRole::AddDictionaryWord
+            ]
+        );
     }
 
     #[test]
@@ -1258,6 +1380,7 @@ mod tests {
             dictation_bindings: vec![dictation.clone()],
             ask_bindings: ask.clone().into_iter().collect(),
             translate_bindings: translate.clone().into_iter().collect(),
+            live_bindings: Vec::new(),
             dictation,
             ask,
             translate,
@@ -1269,7 +1392,11 @@ mod tests {
 
         let plan = hotkey_registration_plan_from_config_for_platform(&config, "macos").unwrap();
 
-        assert!(plan.global.is_empty());
+        // Only the fixed live typing shortcuts are global registrations.
+        assert!(plan.global.iter().all(|entry| matches!(
+            entry.role,
+            HotkeyRole::LiveDictation | HotkeyRole::AddDictionaryWord
+        )));
         assert!(plan.native.iter().any(|entry| {
             entry.role == HotkeyRole::Dictation
                 && entry.trigger == crate::native_hotkey::NativeHotkeyTrigger::Fn
@@ -1298,6 +1425,7 @@ mod tests {
             dictation_bindings: vec![dictation.clone()],
             ask_bindings: vec![ask.clone()],
             translate_bindings: Vec::new(),
+            live_bindings: Vec::new(),
             dictation,
             ask: Some(ask),
             translate: None,
@@ -1388,8 +1516,74 @@ mod tests {
                 HotkeyRole::EditSelection,
                 HotkeyRole::SwitchScene,
                 HotkeyRole::OpenApp,
+                HotkeyRole::LiveDictation,
+                HotkeyRole::AddDictionaryWord,
             ]
         );
+    }
+
+    #[test]
+    fn configured_live_typing_shortcuts_replace_the_default() {
+        let mut config = storage::HotkeyConfig::from_legacy("Ctrl+/", "Ctrl+.", "hold");
+        config.live_bindings = vec![
+            storage::ShortcutBinding::from_hotkey("F9").unwrap(),
+            storage::ShortcutBinding::from_hotkey("Ctrl+Alt+L").unwrap(),
+        ];
+
+        let plan = hotkey_registration_plan_from_config_for_platform(&config, "windows").unwrap();
+        let live: Vec<(usize, Shortcut)> = plan
+            .global
+            .iter()
+            .filter(|entry| entry.role == HotkeyRole::LiveDictation)
+            .map(|entry| (entry.index, entry.shortcut))
+            .collect();
+
+        assert_eq!(live.len(), 2);
+        assert_eq!(live[0].0, 0);
+        assert_eq!(live[1].0, 1);
+        let default = parse_hotkey(LIVE_DICTATION_HOTKEY).unwrap();
+        assert!(live
+            .iter()
+            .all(|(_, shortcut)| !shortcuts_match(shortcut, &default)));
+    }
+
+    #[test]
+    fn live_typing_shortcut_yields_to_a_configured_binding_with_the_same_keys() {
+        let config = storage::HotkeyConfig::from_legacy(LIVE_DICTATION_HOTKEY, "Ctrl+.", "hold");
+
+        let plan = registered_hotkeys_from_config(&config).unwrap();
+        let roles: Vec<HotkeyRole> = plan.iter().map(|entry| entry.role).collect();
+
+        assert_eq!(
+            roles,
+            vec![
+                HotkeyRole::Dictation,
+                HotkeyRole::Ask,
+                HotkeyRole::AddDictionaryWord
+            ]
+        );
+    }
+
+    #[test]
+    fn dictionary_word_from_selection_accepts_only_short_single_lines() {
+        assert_eq!(
+            dictionary_word_from_selection(Some("  슬관절 ".to_string())),
+            Some("슬관절".to_string())
+        );
+        assert_eq!(
+            dictionary_word_from_selection(Some(
+                "두 줄
+선택"
+                    .to_string()
+            )),
+            None
+        );
+        assert_eq!(
+            dictionary_word_from_selection(Some("   ".to_string())),
+            None
+        );
+        assert_eq!(dictionary_word_from_selection(Some("가".repeat(41))), None);
+        assert_eq!(dictionary_word_from_selection(None), None);
     }
 
     #[test]
@@ -1421,6 +1615,8 @@ mod tests {
                 (HotkeyRole::Ask, 0),
                 (HotkeyRole::Ask, 1),
                 (HotkeyRole::TranslateSelection, 0),
+                (HotkeyRole::LiveDictation, 0),
+                (HotkeyRole::AddDictionaryWord, 0),
             ]
         );
     }
@@ -1536,11 +1732,13 @@ mod tests {
                 pipeline::PipelineState::Idle,
                 pipeline::PipelineStartOptions {
                     force_translate: true,
+                    live_typing: false,
                 },
             ),
             RecordingShortcutAction::Start {
                 options: pipeline::PipelineStartOptions {
                     force_translate: true,
+                    live_typing: false,
                 },
             }
         );
@@ -1552,6 +1750,7 @@ mod tests {
                 pipeline::PipelineState::Recording,
                 pipeline::PipelineStartOptions {
                     force_translate: true,
+                    live_typing: false,
                 },
             ),
             RecordingShortcutAction::Stop

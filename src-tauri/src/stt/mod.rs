@@ -5,6 +5,7 @@ pub mod capabilities;
 pub mod cloud;
 pub mod config;
 pub mod deepgram;
+pub mod live_agreement;
 pub mod managed_audio;
 pub mod processing_budget;
 pub mod ultra_local;
@@ -60,10 +61,13 @@ impl Default for SttConfig {
     }
 }
 
+/// `Committed` (live typing) is text that will not be revised and can be typed
+/// immediately. It includes its own leading separator; the final transcript repeats it.
 #[derive(Debug, Clone)]
 pub enum TranscriptEvent {
     Partial { text: String },
     Final { text: String, confidence: f32 },
+    Committed { text: String },
     SpeechStarted,
     SpeechEnded,
     Error { message: String },

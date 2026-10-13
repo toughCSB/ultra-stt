@@ -40,6 +40,7 @@ function getCapsuleShellSize(capsuleState: string) {
     case 'ask_thinking':
       return { width: 168, height: 36 }
     case 'recording':
+      return { width: 228, height: 36 }
     case 'transcribing':
     case 'polishing':
     case 'error':
@@ -62,6 +63,7 @@ export function Capsule() {
   const setTranslationTargetMenuOpen = useAppStore((s) => s.setTranslationTargetMenuOpen)
   const polishModeMenuOpen = useAppStore((s) => s.polishModeMenuOpen)
   const setPolishModeMenuOpen = useAppStore((s) => s.setPolishModeMenuOpen)
+  const liveTyping = useAppStore((s) => s.liveTyping)
   const { stopRecording, isRecording } = useRecording()
 
   const dragStart = useRef<{ x: number; y: number } | null>(null)
@@ -78,7 +80,12 @@ export function Capsule() {
       ? recoveryEntries.find((entry) => entry.id === recoveryAlertId)
       : undefined
   const capsuleState = getCapsuleState(pipelineState, hasError, Boolean(recoveryEntry))
-  const capsuleShellSize = getCapsuleShellSize(capsuleState)
+  const baseShellSize = getCapsuleShellSize(capsuleState)
+  // Live typing has no mode chip, so its larger label uses the chip's reserved space.
+  const capsuleShellSize =
+    liveTyping && (capsuleState === 'recording' || capsuleState === 'transcribing')
+      ? { ...baseShellSize, width: baseShellSize.width + 50 }
+      : baseShellSize
   const cancel = useCallback(() => {
     const abort =
       pipelineState === 'ask_recording' || pipelineState === 'ask_thinking'
@@ -193,7 +200,9 @@ export function Capsule() {
             ? 'jelly-capsule-error'
             : capsuleState === 'idle'
               ? 'jelly-capsule text-[#8dffc9]'
-              : 'jelly-capsule-active text-white'
+              : liveTyping
+                ? 'live-capsule text-white'
+                : 'jelly-capsule-active text-white'
         }`}
         style={{ ...capsuleShellSize, top: polishModeMenuOpen ? 12 : undefined }}
         onPointerDown={handlePointerDown}
@@ -234,6 +243,7 @@ export function Capsule() {
       <TranslateTargetMenu />
       {!contextMenuOpen &&
         !translationTargetMenuOpen &&
+        !liveTyping &&
         capsuleState !== 'idle' &&
         capsuleState !== 'recovery' && <PolishModeChip left={capsuleShellSize.width + 20} />}
       {['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) &&

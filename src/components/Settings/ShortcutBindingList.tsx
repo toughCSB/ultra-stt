@@ -231,7 +231,7 @@ export function HotkeyRecorder({
 }
 
 interface ShortcutBindingListProps {
-  role: Extract<HotkeyRole, 'dictation' | 'ask' | 'translate'>
+  role: Extract<HotkeyRole, 'dictation' | 'ask' | 'translate' | 'liveDictation'>
   label: string
   bindings: ShortcutBinding[]
   otherBindings: ShortcutBinding[]

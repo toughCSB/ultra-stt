@@ -255,6 +255,14 @@ textarea:focus {
   box-shadow: none;
   border-radius: 9999px;
 }
+/* Live typing: a warm orange shell, unmistakably different from green dictation. */
+.live-capsule {
+  background: linear-gradient(180deg, #f97316 0%, #c2410c 100%);
+  border: none;
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(255, 237, 213, 0.9);
+  border-radius: 9999px;
+}
 .jelly-capsule-error {
   background: var(--color-error);
   border: none;

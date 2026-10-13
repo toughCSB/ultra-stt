@@ -231,11 +231,13 @@ fn effective_hotkey_config(config: &storage::AppConfig) -> storage::HotkeyConfig
         || !ask_matches
         || config.hotkeys.dictation_mode != config.hotkey_mode
     {
-        return storage::HotkeyConfig::from_legacy(
+        let mut legacy = storage::HotkeyConfig::from_legacy(
             &config.hotkey,
             &config.ask_hotkey,
             &config.hotkey_mode,
         );
+        legacy.live_bindings = config.hotkeys.live_bindings.clone();
+        return legacy;
     }
 
     let mut hotkeys = config.hotkeys.clone();

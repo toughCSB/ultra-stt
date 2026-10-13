@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, MessageCircle } from 'lucide-react'
-import { isMacPlatform, useAppStore } from '../../stores/appStore'
+import { defaultLiveHotkey, hotkeyFromBinding, isMacPlatform, useAppStore } from '../../stores/appStore'
 import type { HotkeyMode, OutputMode, ShortcutBinding } from '../../stores/appStore'
 import {
   getPlatformCapabilities,
@@ -105,23 +105,31 @@ export function GeneralPane() {
   const askBindings = config.hotkeys.askBindings ?? (config.hotkeys.ask ? [config.hotkeys.ask] : [])
   const translateBindings =
     config.hotkeys.translateBindings ?? (config.hotkeys.translate ? [config.hotkeys.translate] : [])
+  const liveBindings = config.hotkeys.liveBindings?.length
+    ? config.hotkeys.liveBindings
+    : []
+  const liveHotkeyLabel = liveBindings[0] ? hotkeyFromBinding(liveBindings[0]) : defaultLiveHotkey()
   const secondaryBindings = [
     config.hotkeys.editSelection,
     config.hotkeys.switchScene,
     config.hotkeys.openApp,
   ].filter((binding): binding is ShortcutBinding => Boolean(binding))
-  const otherBindingsFor = (role: 'dictation' | 'ask' | 'translate') => [
+  const otherBindingsFor = (role: 'dictation' | 'ask' | 'translate' | 'liveDictation') => [
     ...(role === 'dictation' ? [] : dictationBindings),
     ...(role === 'ask' ? [] : askBindings),
     ...(role === 'translate' ? [] : translateBindings),
+    ...(role === 'liveDictation' ? [] : liveBindings),
     ...secondaryBindings,
   ]
   const updateCoreBindings = (
-    role: 'dictation' | 'ask' | 'translate',
+    role: 'dictation' | 'ask' | 'translate' | 'liveDictation',
     bindings: ShortcutBinding[],
   ) => {
     const nextHotkeys = { ...config.hotkeys }
-    if (role === 'dictation') {
+    if (role === 'liveDictation') {
+      if (bindings.length === 0) return
+      nextHotkeys.liveBindings = bindings
+    } else if (role === 'dictation') {
       if (bindings.length === 0) return
       nextHotkeys.dictationBindings = bindings
       nextHotkeys.dictation = bindings[0]
@@ -177,6 +185,15 @@ export function GeneralPane() {
             specialOptions={translateSpecialOptions}
             onChange={(bindings) => updateCoreBindings('translate', bindings)}
           />
+          <ShortcutBindingList
+            role="liveDictation"
+            label={t('settings.liveHotkey')}
+            bindings={liveBindings}
+            otherBindings={otherBindingsFor('liveDictation')}
+            required
+            specialOptions={[]}
+            onChange={(bindings) => updateCoreBindings('liveDictation', bindings)}
+          />
         </div>
         <p className="mt-2 text-[12px] leading-relaxed text-text-tertiary">
           {t('settings.singleKeyHotkeyHint')}
@@ -206,6 +223,27 @@ export function GeneralPane() {
           ]}
           value={config.hotkey_mode}
           onChange={(v) => updateConfig({ hotkey_mode: v as HotkeyMode })}
+        />
+      </Section>
+
+      <Section title={t('settings.liveTyping')}>
+        <p className="mb-2.5 rounded-[8px] border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-[12px] leading-relaxed text-text-secondary">
+          {t('settings.liveTypingHint', {
+            liveHotkey: liveHotkeyLabel,
+            wordHotkey: 'Ctrl+Alt+W',
+          })}
+        </p>
+        <p className="mb-1.5 text-[12px] text-text-tertiary">{t('settings.liveIdleStop')}</p>
+        <SegmentedControl
+          options={[
+            { value: '0', label: t('settings.liveIdleOff') },
+            { value: '15', label: '15s' },
+            { value: '30', label: '30s' },
+            { value: '60', label: '60s' },
+            { value: '120', label: '120s' },
+          ]}
+          value={String(config.live_idle_stop_seconds)}
+          onChange={(v) => updateConfig({ live_idle_stop_seconds: Number(v) })}
         />
       </Section>
 

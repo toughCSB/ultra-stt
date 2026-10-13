@@ -7,6 +7,7 @@ import { spring } from '../../lib/animations'
 import { useAppStore } from '../../stores/appStore'
 import { useRoute } from '../../lib/router'
 import { PolishModeSelector } from '../PolishModeSelector'
+import { LiveTypingCard } from '../LiveTypingCard'
 
 function localDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -81,6 +82,8 @@ export function HomePage() {
         </div>
         <PolishModeSelector />
       </div>
+
+      <LiveTypingCard />
 
       <div className="jelly-card p-5">
         <div className="flex items-center justify-between mb-4">

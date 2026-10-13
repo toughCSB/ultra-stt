@@ -28,6 +28,7 @@ class WhisperModel:
         task: str,
         beam_size: int,
         vad_filter: bool,
+        condition_on_previous_text: bool = ...,
         initial_prompt: str | None,
         prefix: str | None,
         hotwords: str | None,

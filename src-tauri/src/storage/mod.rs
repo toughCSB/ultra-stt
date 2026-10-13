@@ -133,6 +133,9 @@ pub struct HotkeyConfig {
     pub ask_bindings: Vec<ShortcutBinding>,
     #[serde(default)]
     pub translate_bindings: Vec<ShortcutBinding>,
+    /// Live typing shortcuts; empty uses the platform default.
+    #[serde(default)]
+    pub live_bindings: Vec<ShortcutBinding>,
     pub edit_selection: Option<ShortcutBinding>,
     pub switch_scene: Option<ShortcutBinding>,
     pub open_app: Option<ShortcutBinding>,
@@ -168,6 +171,7 @@ impl HotkeyConfig {
             dictation_bindings: vec![dictation.clone()],
             ask_bindings: ask.clone().into_iter().collect(),
             translate_bindings: Vec::new(),
+            live_bindings: Vec::new(),
             dictation,
             ask,
             translate: None,
@@ -186,6 +190,7 @@ impl HotkeyConfig {
         normalize_binding_list(&mut self.dictation_bindings);
         normalize_binding_list(&mut self.ask_bindings);
         normalize_binding_list(&mut self.translate_bindings);
+        normalize_binding_list(&mut self.live_bindings);
 
         if !had_dictation_list && self.dictation.normalize() {
             self.dictation_bindings.push(self.dictation.clone());
@@ -365,6 +370,8 @@ pub struct AppConfig {
     pub paste_shortcut: String,
     pub windows_sendinput_newline_mode: String,
     pub streaming_insert_enabled: bool,
+    /// Live typing ends after this many seconds without speech; 0 never ends it.
+    pub live_idle_stop_seconds: u32,
     pub selected_text_enabled: bool,
     pub theme: String,
     pub auto_start: bool,
@@ -422,6 +429,7 @@ impl Default for AppConfig {
             paste_shortcut: "ctrlV".to_string(),
             windows_sendinput_newline_mode: "enter".to_string(),
             streaming_insert_enabled: false,
+            live_idle_stop_seconds: 30,
             selected_text_enabled: false,
             theme: "system".to_string(),
             auto_start: true,

@@ -10,6 +10,7 @@ import {
   setActiveTranslationTarget,
   setPolishStyle,
   stopAskFlow,
+  switchRecordingMode,
 } from '../../../lib/tauri'
 import { Capsule } from '../index'
 
@@ -53,6 +54,7 @@ vi.mock('../../../lib/tauri', () => ({
   stopAskFlow: vi.fn().mockResolvedValue(undefined),
   copyRecoveryEntry: vi.fn().mockResolvedValue(undefined),
   setPolishStyle: vi.fn().mockResolvedValue({ polish_style: 'original', polish_enabled: true }),
+  switchRecordingMode: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -152,6 +154,21 @@ describe('Capsule flow states', () => {
       expect(invoke).not.toHaveBeenCalledWith('stop_recording')
     },
   )
+
+  it('switches dictation to live typing with one click and hides the mode chip in live typing', () => {
+    useAppStore.setState({ pipelineState: 'recording', liveTyping: false })
+    const { unmount } = render(<Capsule />)
+    fireEvent.click(screen.getByRole('button', { name: 'capsule.switchToLive' }))
+    expect(switchRecordingMode).toHaveBeenCalledWith(true)
+    expect(abortRecording).not.toHaveBeenCalled()
+    unmount()
+
+    useAppStore.setState({ pipelineState: 'recording', liveTyping: true })
+    render(<Capsule />)
+    expect(screen.getByText('capsule.liveTyping')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'capsule.switchToStt' }))
+    expect(switchRecordingMode).toHaveBeenLastCalledWith(false)
+  })
 
   it('cancels Ask on Escape', () => {
     useAppStore.setState({ pipelineState: 'ask_recording' })
@@ -283,7 +300,7 @@ describe('Capsule flow states', () => {
     expect(useAppStore.getState().config.translation.active_target).toBe('ja')
   })
 
-  it('keeps the capsule shell at 200 by 36 and closes the target menu on Escape', async () => {
+  it('keeps the recording capsule shell at 228 by 36 and closes the target menu on Escape', async () => {
     useAppStore.setState({
       pipelineState: 'recording',
       activeVoiceMode: 'translate',
@@ -305,7 +322,7 @@ describe('Capsule flow states', () => {
     )
 
     const shell = container.querySelector('.jelly-capsule-active') as HTMLElement
-    expect(shell.style.width).toBe('200px')
+    expect(shell.style.width).toBe('228px')
     expect(shell.style.height).toBe('36px')
   })
 })

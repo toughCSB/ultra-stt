@@ -59,6 +59,7 @@ export function useTauriEvents() {
     setPipelineState,
     setRecordingDeadline,
     setActiveVoiceMode,
+    setLiveTyping,
     setTargetApp,
     setLastInsertResult,
     setLastContext,
@@ -158,6 +159,10 @@ export function useTauriEvents() {
       )
     })
     addListener<VoiceMode | null>('pipeline:voice_mode', setActiveVoiceMode)
+    addListener<boolean>('pipeline:live_typing', setLiveTyping)
+    addListener<number>('pipeline:live_idle_stop', (seconds) => {
+      toast(t('capsule.liveIdleStopped', { seconds }), 'info')
+    })
     addListener<string>('pipeline:target_app', setTargetApp)
     addListener<InsertResult>('pipeline:insert_result', setLastInsertResult)
     addListener<ContextProfileSummary>('pipeline:context', setLastContext)
@@ -224,6 +229,7 @@ export function useTauriEvents() {
     setPipelineState,
     setRecordingDeadline,
     setActiveVoiceMode,
+    setLiveTyping,
     setTargetApp,
     setLastInsertResult,
     setLastContext,

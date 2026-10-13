@@ -89,6 +89,7 @@ export interface HotkeyConfig {
   dictationBindings: ShortcutBinding[]
   askBindings: ShortcutBinding[]
   translateBindings: ShortcutBinding[]
+  liveBindings: ShortcutBinding[]
   editSelection: ShortcutBinding | null
   switchScene: ShortcutBinding | null
   openApp: ShortcutBinding | null
@@ -242,6 +243,7 @@ export interface AppConfig {
   paste_shortcut: PasteShortcut
   windows_sendinput_newline_mode: WindowsSendInputNewlineMode
   streaming_insert_enabled: boolean
+  live_idle_stop_seconds: number
   selected_text_enabled: boolean
   theme: Theme
   auto_start: boolean
@@ -274,6 +276,8 @@ interface AppState {
   setPipelineState: (state: PipelineState) => void
   activeVoiceMode: VoiceMode | null
   setActiveVoiceMode: (mode: VoiceMode | null) => void
+  liveTyping: boolean
+  setLiveTyping: (liveTyping: boolean) => void
 
   // Recording
   audioVolume: number
@@ -397,6 +401,10 @@ function defaultDictationHotkeyMode(): HotkeyMode {
 function defaultAskHotkey(): string {
   if (isMacPlatform()) return 'Fn+Space'
   return 'Ctrl+.'
+}
+
+export function defaultLiveHotkey(): string {
+  return isMacPlatform() ? 'Command+Shift+Space' : 'Ctrl+Alt+Space'
 }
 
 function defaultTranslateHotkey(): string | null {
@@ -578,6 +586,7 @@ function normalizeHotkeyConfig(config: AppConfig, hotkeysValue: HotkeyConfig): H
     dictationBindings?: ShortcutBinding[]
     askBindings?: ShortcutBinding[]
     translateBindings?: ShortcutBinding[]
+    liveBindings?: ShortcutBinding[]
   }
   const scalarDictation = normalizeBinding(hotkeys.dictation)
   const dictationBindings = normalizeBindingList(
@@ -600,6 +609,9 @@ function normalizeHotkeyConfig(config: AppConfig, hotkeysValue: HotkeyConfig): H
     hasTranslateList ? hotkeys.translateBindings : hotkeys.translate ? [hotkeys.translate] : [],
   )
 
+  const liveBindings = normalizeBindingList(hotkeys.liveBindings ?? [])
+  if (liveBindings.length === 0) liveBindings.push(bindingFromHotkey(defaultLiveHotkey())!)
+
   return {
     dictation: dictationBindings[0],
     ask: askBindings[0] ?? null,
@@ -607,6 +619,7 @@ function normalizeHotkeyConfig(config: AppConfig, hotkeysValue: HotkeyConfig): H
     dictationBindings,
     askBindings,
     translateBindings,
+    liveBindings,
     editSelection: normalizeBinding(hotkeys.editSelection),
     switchScene: normalizeBinding(hotkeys.switchScene),
     openApp: normalizeBinding(hotkeys.openApp),
@@ -643,6 +656,7 @@ function hotkeyConfigFromLegacy(config: AppConfig): HotkeyConfig {
     dictationBindings: [dictation],
     askBindings: ask ? [ask] : [],
     translateBindings,
+    liveBindings: config.hotkeys?.liveBindings ?? [],
     editSelection: config.hotkeys?.editSelection ?? null,
     switchScene: config.hotkeys?.switchScene ?? null,
     openApp: config.hotkeys?.openApp ?? null,
@@ -812,6 +826,7 @@ const defaultConfig: AppConfig = {
     translateBindings: defaultTranslateHotkey()
       ? [bindingFromHotkey(defaultTranslateHotkey()!)!]
       : [],
+    liveBindings: [bindingFromHotkey(defaultLiveHotkey())!],
     editSelection: null,
     switchScene: null,
     openApp: null,
@@ -823,6 +838,7 @@ const defaultConfig: AppConfig = {
   paste_shortcut: 'ctrlV',
   windows_sendinput_newline_mode: 'enter',
   streaming_insert_enabled: false,
+  live_idle_stop_seconds: 30,
   selected_text_enabled: false,
   theme: 'system',
   auto_start: true,
@@ -843,6 +859,8 @@ export const useAppStore = create<AppState>((set) => ({
   setPipelineState: (pipelineState) => set({ pipelineState }),
   activeVoiceMode: null,
   setActiveVoiceMode: (activeVoiceMode) => set({ activeVoiceMode }),
+  liveTyping: false,
+  setLiveTyping: (liveTyping) => set({ liveTyping }),
 
   audioVolume: 0,
   setAudioVolume: (audioVolume) => set({ audioVolume }),

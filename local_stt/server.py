@@ -34,6 +34,7 @@ MODEL_NAME = "Systran/faster-whisper-large-v3"
 MAX_BODY = 25 * 1024 * 1024
 MAX_PCM = 24 * 1024 * 1024
 HOST = "127.0.0.1:17845"
+MAX_PROMPT_CHARS = 400
 
 
 class Bootstrap(BaseModel):
@@ -43,7 +44,8 @@ class Bootstrap(BaseModel):
 
 
 class Recognizer(Protocol):
-    def transcribe(self, samples: np.ndarray, language: str) -> str: ...
+    def transcribe(self, samples: np.ndarray, language: str, live: bool = False,
+                   prompt: str = "", hotwords: str = "") -> str: ...
 
 
 class WhisperRecognizer:
@@ -73,10 +75,19 @@ class WhisperRecognizer:
         self._model = WhisperModel(str(model_path), device="cuda", compute_type="float16",
                                    cpu_threads=6, local_files_only=True)
 
-    def transcribe(self, samples: np.ndarray, language: str) -> str:
-        segments, _info = self._model.transcribe(samples, language=language, task="transcribe",
-                                                 beam_size=5, vad_filter=True,
-                                                 initial_prompt=None, prefix=None, hotwords=None)
+    def transcribe(self, samples: np.ndarray, language: str, live: bool = False,
+                   prompt: str = "", hotwords: str = "") -> str:
+        if live:
+            # Live typing re-decodes a short growing window every few hundred ms:
+            # greedy decoding, no VAD trimming, previous committed text as context.
+            segments, _info = self._model.transcribe(
+                samples, language=language, task="transcribe", beam_size=1, vad_filter=False,
+                condition_on_previous_text=False,
+                initial_prompt=prompt or None, prefix=None, hotwords=hotwords or None)
+        else:
+            segments, _info = self._model.transcribe(samples, language=language, task="transcribe",
+                                                     beam_size=5, vad_filter=True,
+                                                     initial_prompt=None, prefix=None, hotwords=None)
         return "".join(segment.text for segment in segments)  # Lazy inference completes here.
 
 
@@ -144,12 +155,20 @@ def create_app(secret: str, recognizer: Recognizer, *, host: str = HOST) -> Fast
 
             bounded = Request(request.scope, receive)
             try:
-                async with bounded.form(max_files=1, max_fields=2, max_part_size=MAX_BODY) as form:
+                async with bounded.form(max_files=1, max_fields=5, max_part_size=MAX_BODY) as form:
                     file = form.get("file")
                     model = form.get("model")
                     language = form.get("language", "ko")
                     if not isinstance(file, UploadFile) or model != MODEL_NAME or language != "ko":
                         return error(422, "Expected file, full model, and Korean language")
+                    mode = form.get("mode", "final")
+                    prompt = form.get("prompt", "")
+                    hotwords = form.get("hotwords", "")
+                    if (mode not in ("final", "live") or not isinstance(prompt, str)
+                            or not isinstance(hotwords, str)
+                            or len(prompt) > MAX_PROMPT_CHARS or len(hotwords) > MAX_PROMPT_CHARS
+                            or ((prompt or hotwords) and mode != "live")):
+                        return error(422, "Expected final/live mode and short live hints")
                     raw = await file.read(MAX_BODY + 1)
             except ValueError:
                 return error(400, "Invalid multipart body")
@@ -162,8 +181,13 @@ def create_app(secret: str, recognizer: Recognizer, *, host: str = HOST) -> Fast
             try:
                 # Shielding keeps the lock owned until the worker finishes; the native
                 # process owner must terminate the helper for actual cancellation.
-                text = await anyio.to_thread.run_sync(recognizer.transcribe, samples, "ko",
-                                                      abandon_on_cancel=False)
+                if mode == "live":
+                    text = await anyio.to_thread.run_sync(recognizer.transcribe, samples, "ko",
+                                                          True, prompt, hotwords,
+                                                          abandon_on_cancel=False)
+                else:
+                    text = await anyio.to_thread.run_sync(recognizer.transcribe, samples, "ko",
+                                                          abandon_on_cancel=False)
             except Exception as exc:
                 raise HTTPException(status_code=500, detail="Local inference failed") from exc
             return JSONResponse({"text": text})

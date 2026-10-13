@@ -458,7 +458,7 @@ describe('useCapsuleResize async updates', () => {
 
     await waitFor(() => {
       expect(windowApiMocks.setPosition).toHaveBeenCalledWith(
-        expect.objectContaining({ x: 803, y: 900 }),
+        expect.objectContaining({ x: 789, y: 900 }),
       )
     })
   })
@@ -523,7 +523,7 @@ describe('useCapsuleResize async updates', () => {
     act(() => useAppStore.setState({ pipelineState: 'recording' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
     expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
-      expect.objectContaining({ x: 803, y: 900 }),
+      expect.objectContaining({ x: 789, y: 900 }),
     )
     const positions = windowApiMocks.setPosition.mock.calls.length
     await act(async () => finishPrimary(monitor))

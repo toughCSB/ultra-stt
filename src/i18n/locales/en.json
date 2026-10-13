@@ -1,7 +1,7 @@
 {
   "audioRecovery": {
     "title": "Original audio recovery",
-    "description": "Audio is temporarily saved on this device. Confirmed input or explicit cancellation removes it; failed recordings survive app restarts. Up to 20 recordings / 512 MB; a full archive blocks new recordings until reviewed. Retry uses the current Local / Custom Whisper settings without AI cleanup or automatic insertion.",
+    "description": "Audio is temporarily saved on this device. Confirmed input or explicit cancellation removes it; failed recordings survive app restarts. Up to 20 recordings / 512 MB; when full, the oldest recording is removed so new ones keep saving. Retry uses the current Local / Custom Whisper settings without AI cleanup or automatic insertion.",
     "folder": "Open audio folder",
     "empty": "No saved audio",
     "active": "Recording / processing",
@@ -212,6 +212,10 @@
   },
   "capsule": {
     "cancelRecording": "Cancel recording",
+    "liveTyping": "Live typing",
+    "switchToLive": "Switch to live typing",
+    "switchToStt": "Switch to dictation with AI cleanup",
+    "liveIdleStopped": "Live typing stopped after {{seconds}} seconds of silence",
     "translationTarget": "Translation target",
     "translationTargets": "Translation targets",
     "preparing": "Preparing...",
@@ -384,6 +388,12 @@
     "historyMaxEntries": "Max entries",
     "historyPrivacyHint": "Set days to 0 to keep history by count only. History stays local.",
     "hideCapsuleWhenIdle": "Hide capsule when idle",
+    "liveTyping": "Live typing",
+    "liveTypingHint": "{{liveHotkey}}: words go straight to the cursor as you speak (no AI cleanup). Press again to stop. Select a word and press {{wordHotkey}} to add it to the dictionary.",
+    "liveIdleStop": "Stop automatically after silence",
+    "liveIdleOff": "Off",
+    "liveHotkey": "Live typing shortcut",
+    "liveIdleSaveFailed": "Could not save. Please try again.",
     "accessibilityPermission": "macOS Accessibility",
     "accessibilityGranted": "Permission granted",
     "accessibilityRequired": "Required for Fn shortcut or keyboard output",

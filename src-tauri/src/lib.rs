@@ -597,6 +597,26 @@ async fn stop_recording(state: tauri::State<'_, pipeline::PipelineHandle>) -> Re
     state.stop().await.map_err(|e| e.to_string())
 }
 
+/// Switches an active recording between AI dictation and live typing: the current
+/// take is discarded and recording restarts immediately in the other mode.
+#[tauri::command]
+async fn switch_recording_mode(
+    state: tauri::State<'_, pipeline::PipelineHandle>,
+    live: bool,
+) -> Result<(), String> {
+    if state.current_state() != pipeline::PipelineState::Recording {
+        return Ok(());
+    }
+    state.abort();
+    state
+        .start_with_options(pipeline::PipelineStartOptions {
+            live_typing: live,
+            ..Default::default()
+        })
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn abort_recording(state: tauri::State<'_, pipeline::PipelineHandle>) -> Result<(), String> {
     state.abort();
@@ -1356,6 +1376,7 @@ pub fn run() {
             start_recording,
             stop_recording,
             abort_recording,
+            switch_recording_mode,
             commands::ask::ask_anything,
             commands::ask::start_ask_dictation,
             commands::ask::stop_ask_dictation,

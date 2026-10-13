@@ -1,7 +1,7 @@
 {
   "audioRecovery": {
     "title": "원본 음성 복구",
-    "description": "원본 음성을 이 기기에 임시 보관합니다. 정상 입력·직접 취소 시 삭제하며, 실패한 음성은 앱을 다시 켜도 남습니다. 최대 20개·512MB이며 가득 차면 지우기 전까지 새 녹음을 시작하지 않습니다. 다시 전사는 현재 Local / Custom Whisper 설정으로 원문만 복원하며 자동 입력하지 않습니다.",
+    "description": "원본 음성을 이 기기에 임시 보관합니다. 정상 입력·직접 취소 시 삭제하며, 실패한 음성은 앱을 다시 켜도 남습니다. 최대 20개·512MB이며 가득 차면 가장 오래된 녹음부터 지우고 계속 저장합니다. 다시 전사는 현재 Local / Custom Whisper 설정으로 원문만 복원하며 자동 입력하지 않습니다.",
     "folder": "음성 폴더 열기",
     "empty": "보관된 원본 음성이 없습니다",
     "active": "녹음·처리 중",
@@ -212,6 +212,10 @@
   },
   "capsule": {
     "cancelRecording": "녹음 취소",
+    "liveTyping": "바로입력",
+    "switchToLive": "바로입력 모드로 전환",
+    "switchToStt": "STT(AI 다듬기) 모드로 전환",
+    "liveIdleStopped": "{{seconds}}초 동안 말이 없어 바로입력을 종료했습니다",
     "translationTarget": "번역 대상",
     "translationTargets": "번역 대상 목록",
     "preparing": "준비 중...",
@@ -383,6 +387,12 @@
     "historyMaxEntries": "Max entries",
     "historyPrivacyHint": "Set days to 0 to keep history by count only. History stays local.",
     "hideCapsuleWhenIdle": "유휴 시 캡슐 숨기기",
+    "liveTyping": "바로입력 모드",
+    "liveTypingHint": "{{liveHotkey}}: 말하는 대로 커서에 바로 입력 (AI 다듬기 없음). 다시 누르면 종료. 단어를 선택하고 {{wordHotkey}}: 자주 틀리는 단어(사전)에 추가.",
+    "liveIdleStop": "말이 없으면 자동 종료",
+    "liveIdleOff": "끄기",
+    "liveHotkey": "바로입력 단축키",
+    "liveIdleSaveFailed": "저장하지 못했습니다. 다시 시도해 주세요.",
     "accessibilityPermission": "macOS 접근성",
     "accessibilityGranted": "권한이 부여되었습니다",
     "accessibilityRequired": "Required for Fn shortcut or keyboard output",

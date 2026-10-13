@@ -50,9 +50,12 @@ class FixtureRecognizer:
         self.release = Event()
         self.calls = 0
         self.fail = False
+        self.last_live: tuple[bool, str, str] = (False, "", "")
 
-    def transcribe(self, samples: np.ndarray, language: str) -> str:
+    def transcribe(self, samples: np.ndarray, language: str, live: bool = False,
+                   prompt: str = "", hotwords: str = "") -> str:
         self.calls += 1
+        self.last_live = (live, prompt, hotwords)
         self.started.set()
         if self.fail:
             raise RuntimeError("GPU failed")
@@ -122,6 +125,22 @@ def test_guards_validation_and_silence(service: tuple[httpx.Client, FixtureRecog
     recognizer.release.set()
     assert client.post(URL, files=valid, data=fields).json() == {"text": ""}
     assert recognizer.calls == 1
+
+
+def test_live_mode_fields(service: tuple[httpx.Client, FixtureRecognizer]) -> None:
+    client, recognizer = service
+    recognizer.release.set()
+    valid = payload(wav(b"\x01\0" * 16000))
+    live = {"model": MODEL_NAME, "language": "ko", "mode": "live", "prompt": "앞 문장",
+            "hotwords": "슬관절, 비급여"}
+    assert client.post(URL, files=valid, data=live).json() == {"text": "한국어 2026"}
+    assert recognizer.last_live == (True, "앞 문장", "슬관절, 비급여")
+    assert client.post(URL, files=valid, data={"model": MODEL_NAME}).status_code == 200
+    assert recognizer.last_live == (False, "", "")
+    for bad in ({"mode": "fast"}, {"prompt": "x"}, {"hotwords": "x"},
+                {"mode": "live", "prompt": "x" * 401}, {"mode": "live", "hotwords": "x" * 401}):
+        assert client.post(URL, files=valid, data={"model": MODEL_NAME, **bad}).status_code == 422
+    assert recognizer.calls == 2
 
 
 def test_busy_no_queue(service: tuple[httpx.Client, FixtureRecognizer]) -> None:

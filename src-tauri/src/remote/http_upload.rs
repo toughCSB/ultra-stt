@@ -25,6 +25,23 @@ pub(super) fn wav_from_multipart(body: &[u8]) -> Option<WavUpload> {
     Some(WavUpload(body[start..end].to_vec()))
 }
 
+/// Longest live hint (prompt or hotwords) accepted, matching the local speech service.
+const MAX_LIVE_HINT_CHARS: usize = 400;
+
+/// Reads one short UTF-8 text part (`name="..."`) from a multipart body.
+pub(super) fn multipart_text_field(body: &[u8], name: &str) -> Option<String> {
+    let marker = format!("name=\"{name}\"");
+    let find = |haystack: &[u8], needle: &[u8]| {
+        haystack
+            .windows(needle.len())
+            .position(|window| window == needle)
+    };
+    let after_name = find(body, marker.as_bytes())? + marker.len();
+    let value_start = after_name + find(&body[after_name..], b"\r\n\r\n")? + 4;
+    let value_end = value_start + find(&body[value_start..], b"\r\n--")?;
+    String::from_utf8(body[value_start..value_end].to_vec()).ok()
+}
+
 /// Reads the declared body length from a request head.
 pub(super) fn content_length(head: &str) -> Option<usize> {
     head.lines().find_map(|line| {
@@ -132,6 +149,20 @@ mod tests {
     }
 
     #[test]
+    fn reads_live_hint_fields_from_a_multipart_body() {
+        let body = "--b\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\n앞 문장\r\n--b\r\nContent-Disposition: form-data; name=\"hotwords\"\r\n\r\n슬관절, 비급여\r\n--b--\r\n";
+        assert_eq!(
+            multipart_text_field(body.as_bytes(), "prompt").as_deref(),
+            Some("앞 문장")
+        );
+        assert_eq!(
+            multipart_text_field(body.as_bytes(), "hotwords").as_deref(),
+            Some("슬관절, 비급여")
+        );
+        assert_eq!(multipart_text_field(body.as_bytes(), "missing"), None);
+    }
+
+    #[test]
     fn reads_body_length_and_bearer_credential() {
         let head = "POST /v1/audio/transcriptions HTTP/1.1\r\nHost: x\r\nContent-Length: 1234\r\nAuthorization: Bearer secret-value\r\n\r\n";
         assert_eq!(content_length(head), Some(1234));
@@ -197,7 +228,9 @@ pub(super) async fn handle(
     // same request arrives as /audio/transcriptions when it came through /v1.
     let is_transcription = head.starts_with("POST /v1/audio/transcriptions")
         || head.starts_with("POST /audio/transcriptions");
-    if !is_transcription {
+    // Live typing passes from other PCs: a short window recognised on this PC's model.
+    let is_live = head.starts_with("POST /v1/audio/live ") || head.starts_with("POST /audio/live ");
+    if !is_transcription && !is_live {
         return respond(
             &mut stream,
             404,
@@ -246,6 +279,36 @@ pub(super) async fn handle(
             .await;
         }
     };
+    if is_live {
+        let prompt = multipart_text_field(&body, "prompt").unwrap_or_default();
+        let hotwords = multipart_text_field(&body, "hotwords").unwrap_or_default();
+        if prompt.chars().count() > MAX_LIVE_HINT_CHARS
+            || hotwords.chars().count() > MAX_LIVE_HINT_CHARS
+        {
+            return respond(
+                &mut stream,
+                400,
+                "application/json",
+                br#"{"error":"live hints too long"}"#,
+            )
+            .await;
+        }
+        let reply = match tokio::time::timeout(
+            std::time::Duration::from_secs(15),
+            crate::stt::ultra_local::transcribe_live(&pcm, Some("ko"), &prompt, &hotwords),
+        )
+        .await
+        {
+            Ok(Ok(text)) => serde_json::json!({"text": text.unwrap_or_default()}),
+            Ok(Err(error)) => {
+                tracing::warn!("Remote live pass failed: {error}");
+                serde_json::json!({"error": "live pass could not be processed"})
+            }
+            Err(_) => serde_json::json!({"error": "live pass timed out"}),
+        };
+        let payload = serde_json::to_vec(&reply).unwrap_or_default();
+        return respond(&mut stream, 200, "application/json", &payload).await;
+    }
     let work = tokio::time::timeout(
         crate::stt::processing_budget::remote(crate::stt::processing_budget::pcm_seconds(
             pcm.len(),

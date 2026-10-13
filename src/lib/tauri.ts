@@ -54,6 +54,10 @@ export async function stopRecording(): Promise<void> {
   return invoke('stop_recording')
 }
 
+export async function switchRecordingMode(live: boolean): Promise<void> {
+  return invoke('switch_recording_mode', { live })
+}
+
 export async function abortRecording(): Promise<void> {
   return invoke('abort_recording')
 }
@@ -263,6 +267,7 @@ export type HotkeyRole =
   | 'dictation'
   | 'ask'
   | 'translate'
+  | 'liveDictation'
   | 'editSelection'
   | 'switchScene'
   | 'openApp'

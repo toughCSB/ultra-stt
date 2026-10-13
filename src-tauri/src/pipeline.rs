@@ -710,6 +710,8 @@ fn latch_stt_task_error_if_active(
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PipelineStartOptions {
     pub force_translate: bool,
+    /// Type recognised words into the target app while the user speaks (no AI polish).
+    pub live_typing: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -762,6 +764,9 @@ pub struct PipelineHandle {
     state: Arc<AtomicU8>,
     escape_registered: Arc<AtomicBool>,
     escape_event_pending: Arc<AtomicBool>,
+    /// Enter finishes a recording while the capsule is recording.
+    enter_registered: Arc<AtomicBool>,
+    enter_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<AudioCaptureHandle>>>,
     audio_volume: Arc<Mutex<f32>>,
     accumulated_text: Arc<Mutex<String>>,
@@ -781,6 +786,9 @@ pub struct PipelineHandle {
     cloud_operation_id: Arc<Mutex<Option<String>>>,
     recording_start: Arc<Mutex<Option<std::time::Instant>>>,
     active_translation_operation: Arc<Mutex<Option<TranslationOperationState>>>,
+    /// Live typing session: words are typed while recording, and stop() skips polish.
+    live_typing: Arc<AtomicBool>,
+    live_insert_worker: Arc<Mutex<Option<StreamingInsertWorker>>>,
     shared_client: reqwest::Client,
     /// Serializes start()/stop() so that stop() waits for start() to finish
     /// its setup before reading shared state (preloaded_config, audio_handle, etc.).
@@ -1035,6 +1043,15 @@ fn consume_escape_event(pending: &AtomicBool, shortcut: &Shortcut) -> bool {
         && pending.swap(false, Ordering::SeqCst)
 }
 
+fn consume_enter_event(pending: &AtomicBool, shortcut: &Shortcut) -> bool {
+    shortcut.key == Code::Enter && shortcut.mods.is_empty() && pending.swap(false, Ordering::SeqCst)
+}
+
+/// Enter is held only while recording, so it never swallows Enter in other apps otherwise.
+fn should_hold_enter(state: PipelineState) -> bool {
+    state == PipelineState::Recording
+}
+
 fn should_register_escape(state: PipelineState, registered: bool) -> bool {
     state != PipelineState::Idle && !registered
 }
@@ -1051,6 +1068,8 @@ impl PipelineHandle {
             state: Arc::new(AtomicU8::new(PipelineState::Idle.as_u8())),
             escape_registered: Arc::new(AtomicBool::new(false)),
             escape_event_pending: Arc::new(AtomicBool::new(false)),
+            enter_registered: Arc::new(AtomicBool::new(false)),
+            enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
             audio_volume: Arc::new(Mutex::new(0.0)),
             accumulated_text: Arc::new(Mutex::new(String::new())),
@@ -1070,6 +1089,8 @@ impl PipelineHandle {
             cloud_operation_id: Arc::new(Mutex::new(None)),
             recording_start: Arc::new(Mutex::new(None)),
             active_translation_operation: Arc::new(Mutex::new(None)),
+            live_typing: Arc::new(AtomicBool::new(false)),
+            live_insert_worker: Arc::new(Mutex::new(None)),
             shared_client,
             pipeline_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
@@ -1147,9 +1168,59 @@ impl PipelineHandle {
         }
     }
 
+    /// Registers Enter as "finish recording" while recording and releases it otherwise.
+    fn sync_enter_shortcut(&self, new_state: PipelineState) {
+        let enter = Shortcut::new(None, Code::Enter);
+        if !should_hold_enter(new_state) {
+            if self.enter_registered.swap(false, Ordering::SeqCst) {
+                if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
+                    tracing::warn!("Failed to release recording Enter shortcut: {error}");
+                }
+            }
+            return;
+        }
+        if self.enter_registered.load(Ordering::SeqCst) {
+            return;
+        }
+        let registered = self
+            .app_handle
+            .global_shortcut()
+            .on_shortcut(enter, |app, _, event| {
+                let pipeline = app.state::<PipelineHandle>();
+                // The plugin calls its global handler after this per-shortcut handler.
+                pipeline.enter_event_pending.store(true, Ordering::SeqCst);
+                if event.state != ShortcutState::Pressed
+                    || pipeline.current_state() != PipelineState::Recording
+                {
+                    return;
+                }
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let pipeline = app.state::<PipelineHandle>();
+                    if let Err(error) = pipeline.stop().await {
+                        tracing::warn!("Enter could not finish the recording: {error}");
+                    }
+                });
+            });
+        match registered {
+            Ok(()) => {
+                self.enter_registered.store(true, Ordering::SeqCst);
+                if !should_hold_enter(self.current_state())
+                    && self.enter_registered.swap(false, Ordering::SeqCst)
+                {
+                    if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
+                        tracing::warn!("Failed to release recording Enter shortcut: {error}");
+                    }
+                }
+            }
+            Err(error) => tracing::warn!("Recording Enter shortcut is unavailable: {error}"),
+        }
+    }
+
     fn set_state(&self, new_state: PipelineState) {
         self.state.store(new_state.as_u8(), Ordering::SeqCst);
         self.sync_escape_shortcut(new_state);
+        self.sync_enter_shortcut(new_state);
         if new_state == PipelineState::Idle {
             *self
                 .active_translation_operation
@@ -1183,6 +1254,7 @@ impl PipelineHandle {
 
     pub(crate) fn take_escape_event_for_global(&self, shortcut: &Shortcut) -> bool {
         consume_escape_event(&self.escape_event_pending, shortcut)
+            || consume_enter_event(&self.enter_event_pending, shortcut)
     }
 
     pub fn current_state(&self) -> PipelineState {
@@ -1324,6 +1396,12 @@ impl PipelineHandle {
         }
         self.invalidate_session();
         self.set_state(PipelineState::Preparing);
+        self.live_typing
+            .store(options.live_typing, Ordering::SeqCst);
+        *self
+            .live_insert_worker
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
 
         // Clear accumulated text
         self.accumulated_text
@@ -1367,6 +1445,15 @@ impl PipelineHandle {
                 enabled: rule.enabled,
             })
             .collect::<Vec<_>>();
+        // Live typing has no AI polish: the dictionary guides recognition and correction
+        // rules are applied before each word is typed.
+        let live_hints = options.live_typing.then(|| {
+            let corrections = correction_rules
+                .iter()
+                .map(|rule| (rule.pattern.clone(), rule.replacement.clone()))
+                .collect::<Vec<_>>();
+            (dict_words.clone(), corrections)
+        });
         *self
             .preloaded_dictionary
             .lock()
@@ -1520,11 +1607,34 @@ impl PipelineHandle {
             stt::cloud::warm_managed_cloud_on_intent(self.shared_client.clone(), session_token);
         }
 
-        let mut provider = match stt::create_provider(
-            &config_data.stt_provider,
-            custom_whisper_config,
-            Some(self.shared_client.clone()),
-        ) {
+        let provider_result = if let Some((dictionary, corrections)) = live_hints {
+            // Clients of the owner's recognition PC (Mac, home) run live passes there.
+            let backend = match custom_whisper_config.as_ref() {
+                Some(remote)
+                    if config_data.stt_custom_preset == stt::config::ULTRA_REMOTE_STT_PRESET =>
+                {
+                    stt::ultra_local::LiveBackend::Remote {
+                        endpoint: stt::ultra_local::live_endpoint_for(&remote.endpoint),
+                        token: stt_config.api_key.clone(),
+                        client: self.shared_client.clone(),
+                    }
+                }
+                _ => stt::ultra_local::LiveBackend::Local,
+            };
+            Ok(Box::new(stt::ultra_local::UltraLocalLiveProvider::new(
+                &dictionary,
+                corrections,
+                backend,
+                config_data.live_idle_stop_seconds as usize * 1000,
+            )) as Box<dyn stt::SttProvider>)
+        } else {
+            stt::create_provider(
+                &config_data.stt_provider,
+                custom_whisper_config,
+                Some(self.shared_client.clone()),
+            )
+        };
+        let mut provider = match provider_result {
             Ok(provider) => provider,
             Err(e) => {
                 tracing::error!("STT provider creation failed: {}", e);
@@ -1743,6 +1853,9 @@ impl PipelineHandle {
         let _ = self.app_handle.emit("pipeline:voice_mode", voice_mode);
         let _ = self
             .app_handle
+            .emit("pipeline:live_typing", options.live_typing);
+        let _ = self
+            .app_handle
             .emit("recording:deadline", recording_deadline.event);
 
         // Volume monitoring task
@@ -1806,6 +1919,13 @@ impl PipelineHandle {
         let abort_flag_ref = self.abort_flag.clone();
         let active_session_id_ref = self.active_stt_session_id.clone();
         let stt_error_ref = self.stt_error.clone();
+        let live_session = options.live_typing;
+        let live_idle_stop_seconds = config_data.live_idle_stop_seconds;
+        let live_sender = if options.live_typing {
+            self.spawn_live_insert_worker(&config_data)
+        } else {
+            None
+        };
 
         tokio::spawn(async move {
             // Forward audio to STT and receive transcripts
@@ -1931,6 +2051,41 @@ impl PipelineHandle {
                                     stt_control.id,
                                 ) {
                                     let _ = app_handle.emit("stt:partial", &text);
+                                }
+                            }
+                            Ok(Some(TranscriptEvent::SpeechEnded)) if live_session => {
+                                // Live typing heard nothing for a while: end the session
+                                // like a second press of the shortcut.
+                                if should_finalize_stt_task(
+                                    abort_flag_ref.as_ref(),
+                                    active_session_id_ref.as_ref(),
+                                    stt_control.id,
+                                ) {
+                                    tracing::info!("Live typing stopped after silence");
+                                    let _ = app_handle.emit(
+                                        "pipeline:live_idle_stop",
+                                        live_idle_stop_seconds,
+                                    );
+                                    let handle = app_handle.clone();
+                                    tauri::async_runtime::spawn(async move {
+                                        let pipeline = handle.state::<PipelineHandle>();
+                                        if let Err(error) = pipeline.stop().await {
+                                            tracing::warn!("Live typing idle stop failed: {error}");
+                                        }
+                                    });
+                                }
+                            }
+                            Ok(Some(TranscriptEvent::Committed { text })) => {
+                                // The provider's final transcript repeats this text; stop()
+                                // types whatever the worker has not inserted yet.
+                                if let Some(sender) = live_sender.as_ref() {
+                                    if should_finalize_stt_task(
+                                        abort_flag_ref.as_ref(),
+                                        active_session_id_ref.as_ref(),
+                                        stt_control.id,
+                                    ) {
+                                        let _ = sender.send(text);
+                                    }
                                 }
                             }
                             Ok(Some(TranscriptEvent::Final { text, .. })) => {
@@ -2099,7 +2254,9 @@ impl PipelineHandle {
             .unwrap_or_else(|e| e.into_inner())
             .clone()
             .unwrap_or_default();
-        let selected_text = if config_data.selected_text_enabled {
+        let live_typing = self.live_typing.load(Ordering::SeqCst);
+        // Live typing already wrote into the target; a Ctrl+C capture would copy that text.
+        let selected_text = if config_data.selected_text_enabled && !live_typing {
             tokio::time::sleep(std::time::Duration::from_millis(
                 SELECTED_TEXT_CAPTURE_DELAY_MS,
             ))
@@ -2270,7 +2427,14 @@ impl PipelineHandle {
             );
         }
         // ── Phase 2: LLM polish + output ───────────────────────────────
-        let polish_outcome = tokio::select! {
+        let polish_outcome = if live_typing {
+            tokio::select! {
+                biased;
+                _ = cancelled.wait_for(|value| *value != generation) => return Ok(()),
+                outcome = self.finish_live_typing(&raw_text, &app_ctx, &config, generation) => outcome,
+            }
+        } else {
+            tokio::select! {
             biased;
             _ = cancelled.wait_for(|value| *value != generation) => return Ok(()),
             outcome = self.polish_text(PolishTextInput {
@@ -2287,6 +2451,7 @@ impl PipelineHandle {
                 popup_fallback_enabled: true,
                 session_generation: generation,
             }) => outcome,
+            }
         };
         if !self.is_current_session(generation) {
             return Ok(());
@@ -3214,6 +3379,167 @@ impl PipelineHandle {
         }
     }
 
+    /// Starts the worker that types live-committed words into the recording target.
+    /// Without a direct typing path (clipboard strategies, no accessibility) the whole
+    /// text is output once on stop instead.
+    fn spawn_live_insert_worker(
+        &self,
+        config: &storage::AppConfig,
+    ) -> Option<mpsc::UnboundedSender<String>> {
+        let app_ctx = self
+            .preloaded_app_ctx
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()?;
+        let strategy = output::InsertionStrategy::from_config_value(&config.insertion_strategy)
+            .direct_streaming_strategy()
+            .filter(|strategy| {
+                *strategy != output::InsertionStrategy::Keyboard
+                    || output::keyboard::check_keyboard_available().is_ok()
+            })
+            .filter(|_| is_accessibility_trusted());
+        let Some(strategy) = strategy else {
+            tracing::warn!("Live typing has no direct insert path; text is output on stop");
+            return None;
+        };
+        let worker = spawn_streaming_insert_worker(StreamingInsertWorkerContext {
+            app_handle: self.app_handle.clone(),
+            abort_flag: self.abort_flag.clone(),
+            generation: self.session_generation.clone(),
+            expected_generation: self.session_generation.load(Ordering::SeqCst),
+            context_detector: self.context_detector.clone(),
+            strategy,
+            windows_sendinput_options: output::windows_sendinput::WindowsSendInputOptions {
+                newline_mode:
+                    output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
+                        &config.windows_sendinput_newline_mode,
+                    ),
+            },
+            expected_target_guard: app_ctx.target_guard.clone(),
+            expected_target_label: app_ctx.profile.app_label.clone(),
+        });
+        let sender = worker.sender.clone();
+        *self
+            .live_insert_worker
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(worker);
+        Some(sender)
+    }
+
+    /// Finishes a live typing session: types the words the worker has not inserted yet
+    /// (normally just the last utterance's tail). No AI polish runs in this mode.
+    async fn finish_live_typing(
+        &self,
+        raw_text: &str,
+        app_ctx: &RecordingContext,
+        config: &storage::AppConfig,
+        session_generation: u64,
+    ) -> PolishTextOutcome {
+        let worker = self
+            .live_insert_worker
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        let report = match worker {
+            Some(worker) => worker.finish().await,
+            None => None,
+        };
+        let Some(report) = report.filter(StreamingInsertReport::has_inserted_text) else {
+            let output_result = self
+                .output_text(
+                    raw_text,
+                    &app_ctx.profile.app_label,
+                    &app_ctx.target_guard,
+                    config,
+                    session_generation,
+                )
+                .await;
+            if let Err(error) = &output_result {
+                tracing::error!("Output failed: {}", error);
+                let _ = self
+                    .app_handle
+                    .emit("pipeline:error", output_user_error(error));
+            }
+            let output_metadata = history_output_metadata_for_output_result(
+                output_result.as_ref(),
+                output::InsertionStrategy::from_config_value(&config.insertion_strategy)
+                    == output::InsertionStrategy::ClipboardCopyOnly,
+            );
+            return PolishTextOutcome {
+                final_text: raw_text.to_string(),
+                llm_elapsed: std::time::Duration::ZERO,
+                history_output_status: output_metadata.status,
+                history_output_error: output_metadata.error,
+                voice_execution: None,
+            };
+        };
+
+        let target_trusted = !report.failed
+            && !report.target_lost
+            && self
+                .context_detector
+                .target_still_matches_now(&app_ctx.target_guard);
+        let mut report = report;
+        match streaming_recovery_action(&report, Some(raw_text), true, target_trusted) {
+            StreamingRecoveryAction::InsertSuffix { suffix } => {
+                match output::output_stream_chunk(
+                    &self.app_handle,
+                    &suffix,
+                    report.strategy,
+                    output::windows_sendinput::WindowsSendInputOptions {
+                        newline_mode:
+                            output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
+                                &config.windows_sendinput_newline_mode,
+                            ),
+                    },
+                )
+                .await
+                {
+                    Ok(result) if result.chars_inserted == suffix.chars().count() => {
+                        report.inserted_text.push_str(&suffix);
+                    }
+                    Ok(result) => {
+                        report
+                            .inserted_text
+                            .extend(suffix.chars().take(result.chars_inserted));
+                        report.failed = true;
+                        report.error_message = result.message;
+                    }
+                    Err(error) => {
+                        report.failed = true;
+                        report.error_message = Some(error);
+                    }
+                }
+                self.emit_streaming_insert_result(&report, &app_ctx.profile.app_label);
+            }
+            StreamingRecoveryAction::AlreadyComplete
+            | StreamingRecoveryAction::NoRecoveryNeeded => {
+                self.emit_streaming_insert_result(&report, &app_ctx.profile.app_label);
+            }
+            StreamingRecoveryAction::CopyFullToClipboard { reason }
+            | StreamingRecoveryAction::CopyPartialToClipboard { reason } => {
+                tracing::warn!("Live typing could not finish in place: {reason}");
+                report.failed = true;
+                report.error_message = Some(format!("Full result copied to clipboard: {reason}"));
+                self.copy_text_to_clipboard_with_warning(
+                    raw_text,
+                    &app_ctx.profile.app_label,
+                    config,
+                    streaming_insert_user_error(report.error_message.clone()),
+                )
+                .await;
+            }
+        }
+        let status = if report.failed { "partial" } else { "inserted" };
+        PolishTextOutcome {
+            final_text: raw_text.to_string(),
+            llm_elapsed: std::time::Duration::ZERO,
+            history_output_status: Some(status.to_string()),
+            history_output_error: report.error_message.clone(),
+            voice_execution: None,
+        }
+    }
+
     fn emit_streaming_insert_result(&self, report: &StreamingInsertReport, app_name: &str) {
         let chars_inserted = report.chars_inserted();
         let mut insert_result = if report.failed {
@@ -3658,6 +3984,28 @@ mod tests {
     }
 
     #[test]
+    fn enter_is_held_only_while_recording_and_consumed_once() {
+        assert!(should_hold_enter(PipelineState::Recording));
+        for state in [
+            PipelineState::Idle,
+            PipelineState::Preparing,
+            PipelineState::Transcribing,
+            PipelineState::Polishing,
+        ] {
+            assert!(!should_hold_enter(state));
+        }
+        let pending = AtomicBool::new(true);
+        let enter = Shortcut::new(None, Code::Enter);
+        let shifted = Shortcut::new(
+            Some(tauri_plugin_global_shortcut::Modifiers::SHIFT),
+            Code::Enter,
+        );
+        assert!(!consume_enter_event(&pending, &shifted));
+        assert!(consume_enter_event(&pending, &enter));
+        assert!(!consume_enter_event(&pending, &enter));
+    }
+
+    #[test]
     fn escape_is_registered_after_start_has_already_claimed_preparing_state() {
         let state = AtomicU8::new(PipelineState::Idle.as_u8());
         state
@@ -4094,6 +4442,7 @@ mod tests {
             config.clone(),
             PipelineStartOptions {
                 force_translate: true,
+                live_typing: false,
             },
         );
 
