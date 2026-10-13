@@ -9,7 +9,7 @@
   Local Whisper recognition, optional AI cleanup, and direct text insertion.
 </p>
 <p align="center">
-  <strong>Source v1.1.64</strong> · Windows x64 · macOS Apple Silicon · MIT
+  <strong>Source v1.1.65</strong> · Windows x64 · macOS Apple Silicon · MIT
 </p>
 <p align="center">
   English · <a href="README_ko.md">한국어</a> ·
@@ -27,6 +27,35 @@
 > **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
 
 ## Update history
+
+### October 13, 2026 · v1.1.65 · Live typing
+
+A new mode types **words at the cursor while you speak**, instead of waiting for transcription and AI cleanup after you finish. Use it for short commands and notes that need no cleanup. The existing dictation mode with AI cleanup is unchanged.
+
+<p align="center">
+  <img src="docs/images/v1.1.65-live-capsule.png" width="356" alt="Live typing capsule: orange pill with a lightning icon, the live typing label, an STT switch button, elapsed time and Esc" />
+  &nbsp;
+  <img src="docs/images/v1.1.65-stt-capsule-switch.png" width="410" alt="Dictation capsule: green pill with an orange lightning switch button and the cleanup mode chip" />
+</p>
+<p align="center"><em>Left: live typing (orange). Right: the ⚡ switch in the green dictation capsule. Captured from the installed SB app on October 13, 2026.</em></p>
+
+| Feature | Behavior |
+| --- | --- |
+| Start and stop | Press the live typing shortcut (default `Ctrl+Alt+Space` on Windows, `Cmd+Shift+Space` on Mac) and speak; words appear 0.5–1.5 s later. Press it again or **Enter** to finish; **Esc** cancels. |
+| How words are typed | Local Whisper large-v3 re-recognizes the current sentence about every 0.45 s and types **only words two consecutive passes agree on**, so typed text rarely needs correction. A 0.7 s pause flushes the rest of the sentence. No AI cleanup. |
+| Recognition fixes | Dictionary words are passed as recognition hints and correction rules are applied before typing. Select a word and press `Ctrl+Alt+W` to add it to the dictionary. |
+| Auto stop | Ends after **30 s** without speech by default (off, 15, 30, 60, 120 s). |
+| Switching modes | While recording, the capsule's ⚡ button switches to live typing and **STT** switches back. The current take is discarded and recording restarts in the other mode. |
+| Enter to finish | In both modes, **Enter** ends the recording. Enter is held only while recording. |
+| Mac and Home | Remote clients recognize on SB's Whisper through a new live endpoint (`/v1/audio/live`, existing token authentication). |
+| Recovery storage | When saved failed recordings reach 20 / 512 MB, **the oldest is removed so recording continues** instead of being blocked. |
+
+<p align="center">
+  <img src="docs/images/v1.1.65-home-live-card.png" width="760" alt="Home page: orange live typing card below the cleanup modes, shortcut Shift+Left, auto stop set to 30 s" />
+</p>
+<p align="center"><em>The live typing card on Home. Change the shortcut in Settings → General → Shortcuts (here it was changed to Shift+Left).</em></p>
+
+**Validation:** 694 native and 444 frontend tests pass; a real-time GPU simulation on Korean speech typed words 0.5–1.5 s behind speech with no duplicates; the SB live endpoint answered in 0.3–0.6 s and rejected missing tokens with 403; the 30 s auto stop was measured. Installed on SB and Mac, not yet on Home. Spoken input on Mac and physical clicks on the capsule buttons rely on user confirmation. One native window-stacking test failed only because it ran in a session without a desktop; its file was not changed.
 
 ### October 11, 2026 · Long-recording safeguards (personal desktop deployment)
 
