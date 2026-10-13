@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import ciWorkflowSource from '../../../.github/workflows/ci.yml?raw'
 import appImageVerificationScriptSource from '../../../.github/scripts/verify-appimage-runtime-libraries.sh?raw'
 import appImagePluginWrapperSource from '../../../.github/scripts/linuxdeploy-plugin-appimage-exclude-wrapper.sh?raw'
 import linuxdeployPrepareScriptSource from '../../../.github/scripts/prepare-linuxdeploy-wrapper.sh?raw'
@@ -12,9 +11,8 @@ describe('release version wiring', () => {
     expect(constantsSource).toContain('import.meta.env.VITE_APP_VERSION')
   })
 
-  it('builds and verifies Linux arm64 release artifacts on a native runner', () => {
-    expect(ciWorkflowSource).toContain('platform: ubuntu-22.04-arm')
-    expect(ciWorkflowSource).toContain('target: aarch64-unknown-linux-gnu')
+  // The CI workflows were removed from the repository (2506fd2); the release scripts remain.
+  it('writes Linux release verification artifacts per architecture', () => {
     expect(linuxVerificationScriptSource).toContain(
       'verification_dir="release-verification/linux-${LINUX_ARCH}"',
     )
@@ -27,8 +25,6 @@ describe('release version wiring', () => {
   })
 
   it('excludes the bundled Wayland client from Linux AppImages', () => {
-    expect(ciWorkflowSource).toContain('Test Linux AppImage packaging guards')
-    expect(ciWorkflowSource).toContain('./.github/scripts/test-linux-appimage-packaging.sh')
     expect(linuxdeployPrepareScriptSource).toContain('linuxdeploy-exclude-wrapper.rs')
     expect(linuxdeployPrepareScriptSource).toContain(
       'linuxdeploy-plugin-appimage-exclude-wrapper.sh',
