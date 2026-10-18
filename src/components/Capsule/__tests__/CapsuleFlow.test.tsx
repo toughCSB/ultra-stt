@@ -79,6 +79,23 @@ afterEach(() => {
 })
 
 describe('Capsule flow states', () => {
+  it('groups style, input mode and cancel controls without stopping the recording', () => {
+    useAppStore.setState({ pipelineState: 'recording', liveTyping: false })
+    render(<Capsule />)
+    const styleButton = screen.getByRole('button', { name: 'settings.polishModeTitle' })
+    const controls = styleButton.closest('.capsule-stage-actions')
+    expect(controls).toContainElement(screen.getByRole('button', { name: 'capsule.switchToLive' }))
+    expect(controls).toContainElement(
+      screen.getByRole('button', { name: 'capsule.cancelRecording' }),
+    )
+    fireEvent.pointerDown(styleButton)
+    fireEvent.pointerUp(styleButton)
+    fireEvent.click(styleButton)
+    expect(screen.getByRole('dialog', { name: 'settings.polishModeTitle' })).toBeVisible()
+    expect(invoke).not.toHaveBeenCalledWith('stop_recording')
+    expect(abortRecording).not.toHaveBeenCalled()
+  })
+
   it('drags the recording shell without treating release as a stop click', async () => {
     useAppStore.setState({ pipelineState: 'recording' })
     const { container } = render(<Capsule />)

@@ -249,56 +249,67 @@ html[data-window='capsule'] .jelly-capsule,
 html[data-window='capsule'] .jelly-capsule-active,
 html[data-window='capsule'] .live-capsule,
 html[data-window='capsule'] .jelly-capsule-error {
-  --capsule-foreground: #033b29;
-  --capsule-secondary: #07523b;
-  --capsule-control: rgba(255, 255, 255, 0.18);
-  --capsule-control-hover: rgba(255, 255, 255, 0.3);
-  --capsule-control-border: rgba(0, 64, 41, 0.3);
-  --capsule-selected: #075139;
-  --capsule-focus: #043d2b;
-  --capsule-wave-top: #033e2b;
-  --capsule-wave-bottom: #087344;
-  background:
-    radial-gradient(ellipse at 18% 0%, rgba(223, 255, 239, 0.35), transparent 52%),
-    linear-gradient(180deg, #58e7a5 0%, #27d58a 53%, #14b875 100%);
-  border: 0;
+  --capsule-foreground: #e6f2e7;
+  --capsule-secondary: #93a89a;
+  --capsule-accent: #00e676;
+  --capsule-control: rgba(0, 230, 118, 0.08);
+  --capsule-control-hover: rgba(0, 230, 118, 0.16);
+  --capsule-control-border: rgba(0, 230, 118, 0.28);
+  --capsule-selected: rgba(0, 230, 118, 0.18);
+  --capsule-focus: #00ff8c;
+  --capsule-wave-top: #00ff8c;
+  --capsule-wave-bottom: #0a7a42;
+  background: linear-gradient(180deg, #0f1b13 0%, #09110c 100%);
+  border: 1px solid rgba(0, 230, 118, 0.24);
   outline: none;
   border-radius: 9999px;
   box-shadow:
-    inset 0 0 0 1px rgba(224, 255, 237, 0.64),
-    inset 0 2px 0 rgba(245, 255, 250, 0.28),
-    inset 0 -12px 24px rgba(0, 75, 49, 0.1);
+    0 3px 6px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+html[data-window='capsule'] .jelly-capsule-active::before,
+html[data-window='capsule'] .live-capsule::before,
+html[data-window='capsule'] .jelly-capsule-error::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16%;
+  right: 16%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--capsule-accent), transparent);
+  opacity: 0.9;
+  pointer-events: none;
 }
 html[data-window='capsule'] .live-capsule {
-  --capsule-foreground: #052c4b;
-  --capsule-secondary: #073b61;
-  --capsule-control: rgba(255, 255, 255, 0.2);
-  --capsule-control-hover: rgba(255, 255, 255, 0.32);
-  --capsule-control-border: rgba(0, 47, 89, 0.32);
-  --capsule-selected: #073f75;
-  --capsule-focus: #063657;
-  --capsule-wave-top: #063756;
-  --capsule-wave-bottom: #0c5480;
-  background:
-    radial-gradient(ellipse at 18% 0%, rgba(230, 248, 255, 0.4), transparent 52%),
-    linear-gradient(180deg, #87dbff, #56c2ff 56%, #3ea6ee);
+  --capsule-secondary: #7dd3fc;
+  --capsule-accent: #38bdf8;
+  --capsule-control: rgba(56, 189, 248, 0.16);
+  --capsule-control-hover: rgba(56, 189, 248, 0.28);
+  --capsule-control-border: rgba(56, 189, 248, 0.52);
+  --capsule-selected: rgba(56, 189, 248, 0.28);
+  --capsule-focus: #7dd3fc;
+  --capsule-wave-top: #bae6fd;
+  --capsule-wave-bottom: #1d64b8;
+  background: linear-gradient(180deg, #0c2242 0%, #061224 100%);
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.45),
+    0 0 8px rgba(56, 189, 248, 0.16),
+    inset 0 1px 0 rgba(186, 230, 253, 0.16);
 }
 html[data-window='capsule'] .jelly-capsule-error {
-  --capsule-foreground: #fff8f9;
-  --capsule-secondary: #fff0f3;
-  --capsule-control: rgba(66, 0, 15, 0.18);
-  --capsule-control-hover: rgba(70, 0, 20, 0.28);
-  --capsule-control-border: rgba(255, 239, 241, 0.5);
-  --capsule-selected: #731329;
-  --capsule-focus: #ffffff;
-  --capsule-wave-top: #fff4f6;
-  --capsule-wave-bottom: #ffd5dc;
-  background:
-    radial-gradient(ellipse at 18% 0%, rgba(255, 202, 205, 0.09), transparent 52%),
-    linear-gradient(180deg, #c8233e, #bd1c38 56%, #a61630);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 213, 219, 0.64),
-    inset 0 2px 0 rgba(255, 240, 244, 0.2);
+  --capsule-foreground: #fff5f5;
+  --capsule-secondary: #ffd6d6;
+  --capsule-accent: #ff4d4d;
+  --capsule-control: rgba(255, 77, 77, 0.14);
+  --capsule-control-hover: rgba(255, 77, 77, 0.24);
+  --capsule-control-border: rgba(255, 77, 77, 0.45);
+  --capsule-selected: rgba(255, 77, 77, 0.28);
+  --capsule-focus: #ff4d4d;
+  --capsule-wave-top: #ff9999;
+  --capsule-wave-bottom: #ff4d4d;
+  background: linear-gradient(180deg, #270d12 0%, #1b090c 100%);
+  border-color: rgba(255, 77, 77, 0.48);
 }
 .capsule-content {
   mix-blend-mode: normal;
@@ -310,22 +321,22 @@ html[data-window='capsule'] .jelly-capsule-error {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
   height: 100%;
-  padding: 12px 20px;
+  padding: 12px 18px;
   color: var(--capsule-foreground);
 }
 .capsule-brand {
   display: block;
   flex: none;
   padding: 0;
-  background: radial-gradient(circle at 35% 20%, #137e56, #07543b 80%);
+  background: radial-gradient(circle at 35% 20%, #163a27, #07150d 80%);
   border: 0;
   border-radius: 50%;
   overflow: hidden;
   isolation: isolate;
-  box-shadow: inset 0 0 0 1px rgba(214, 255, 231, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(0, 230, 118, 0.3);
   cursor: pointer;
 }
 .capsule-brand:focus-visible,
@@ -346,36 +357,58 @@ html[data-window='capsule'] .jelly-capsule-error {
 .capsule-stage-main {
   min-width: 0;
   flex: 1;
-  margin-right: 156px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
 }
 .capsule-stage-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 23px;
-  gap: 12px;
+  gap: 10px;
 }
 .capsule-stage-status {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 9px;
+  gap: 8px;
   overflow: hidden;
   color: var(--capsule-foreground);
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.025em;
   white-space: nowrap;
+}
+.capsule-status-label,
+.capsule-state-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.capsule-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--capsule-control-border);
+  border-radius: 999px;
+  background: var(--capsule-control);
+  color: var(--capsule-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 .capsule-stage-timer {
   flex: none;
 }
 .capsule-duration {
-  color: var(--capsule-secondary);
+  color: var(--capsule-accent);
   font-family: var(--font-mono);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 .capsule-stage-detail {
   display: flex;
@@ -392,14 +425,11 @@ html[data-window='capsule'] .jelly-capsule-error {
   white-space: nowrap;
 }
 .capsule-stage-actions {
-  position: absolute;
-  right: 20px;
-  bottom: 8px;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  width: 136px;
+  gap: 6px;
 }
 .capsule-action {
   display: inline-flex;
@@ -427,22 +457,47 @@ html[data-window='capsule'] .jelly-capsule-error {
   border-color: var(--capsule-foreground);
 }
 .capsule-action-mode {
-  min-width: 84px;
+  min-width: 78px;
+  background: var(--capsule-accent);
+  border-color: var(--capsule-accent);
+  color: #04140a;
+}
+.capsule-action-mode:hover {
+  background: var(--capsule-focus);
+}
+.capsule-stage-live .capsule-action-mode {
+  background: linear-gradient(180deg, #38bdf8, #1d8cf8);
+  border-color: #7dd3fc;
+  color: #031124;
+}
+.capsule-action-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--capsule-secondary);
+}
+.capsule-action-cancel:hover {
+  background: rgba(255, 77, 77, 0.16);
+  border-color: #ff4d4d;
+  color: #ff9999;
 }
 .capsule-status-light {
   flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--capsule-foreground);
+  background: var(--capsule-accent);
   box-shadow: 0 0 0 3px var(--capsule-control);
   animation: capsule-breathe 1.7s ease-in-out infinite;
 }
-.capsule-stage-live .capsule-status-light {
-  background: #073b61;
-}
 .capsule-stage-error .capsule-stage-status {
   color: var(--capsule-foreground);
+}
+.capsule-stage-error .capsule-stage-transcript {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  line-height: 1.3;
 }
 .capsule-stage-complete .capsule-stage-detail {
   color: var(--capsule-foreground);
@@ -474,8 +529,11 @@ html[data-window='capsule'] .jelly-capsule-error {
     opacity 75ms ease-out;
 }
 .capsule-mode-chip {
-  width: 136px;
+  flex: none;
+  min-width: 88px;
+  max-width: 128px;
   height: 44px;
+  white-space: nowrap;
   border: 1px solid var(--capsule-control-border);
   background: var(--capsule-control);
   color: var(--capsule-foreground);

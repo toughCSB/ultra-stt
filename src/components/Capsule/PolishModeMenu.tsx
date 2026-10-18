@@ -7,7 +7,7 @@ import { togglePolishModeMenu } from '../../lib/capsulePolishMenu'
 import { CapsuleBrand } from './CapsuleWorkIndicator'
 import { DurationTimer } from './DurationTimer'
 
-export function PolishModeChip({ left }: { left: number }) {
+export function PolishModeChip() {
   const { t } = useTranslation()
   const style = useAppStore((state) => state.config.polish_style)
   const open = useAppStore((state) => state.polishModeMenuOpen)
@@ -15,7 +15,7 @@ export function PolishModeChip({ left }: { left: number }) {
     <button
       type="button"
       aria-label={t('settings.polishModeTitle')}
-      title={t('settings.polishModeTitle')}
+      title={`${t('settings.polishModeTitle')}: ${t(polishModeLabelKey(style))}`}
       aria-haspopup="dialog"
       aria-expanded={open}
       onPointerDown={(event) => event.stopPropagation()}
@@ -24,8 +24,7 @@ export function PolishModeChip({ left }: { left: number }) {
         event.stopPropagation()
         togglePolishModeMenu()
       }}
-      className="capsule-mode-chip absolute z-20 flex items-center justify-center gap-2 rounded-full px-3 text-[14px] font-semibold"
-      style={{ left, top: 8 }}
+      className="capsule-mode-chip flex items-center justify-center gap-1.5 rounded-full px-3 text-[12px] font-semibold"
     >
       <span className="truncate">{t(polishModeLabelKey(style))}</span>
       <ChevronDown size={17} className="shrink-0" />
@@ -47,7 +46,7 @@ export function PolishModeMenu() {
       onPointerDown={(event) => event.stopPropagation()}
       onPointerUp={(event) => event.stopPropagation()}
     >
-      <CapsuleBrand size={64} />
+      <CapsuleBrand size={54} />
       <div className="capsule-mode-picker-main">
         <div className="capsule-mode-picker-heading">
           <span>{t('settings.polishModeTitle')}</span>

@@ -16,7 +16,7 @@ afterEach(() => {
 })
 
 describe('window canvas background', () => {
-  it('uses distinct theme foregrounds and large round controls', () => {
+  it('uses emerald, sapphire and crimson accents with large round controls', () => {
     document.documentElement.dataset.window = 'capsule'
     const style = document.createElement('style')
     style.textContent = stylesheet.slice(
@@ -24,17 +24,14 @@ describe('window canvas background', () => {
       stylesheet.indexOf('/* ─── Scrollbar ─── */'),
     )
     document.head.appendChild(style)
-    const foregrounds = ['jelly-capsule-active', 'live-capsule', 'jelly-capsule-error'].map(
-      (name) => {
-        const capsule = document.createElement('div')
-        capsule.className = name
-        capsule.dataset.capsuleTest = ''
-        document.body.appendChild(capsule)
-        return getComputedStyle(capsule).getPropertyValue('--capsule-foreground')
-      },
-    )
-    expect(foregrounds.every((foreground) => foreground.startsWith('#'))).toBe(true)
-    expect(new Set(foregrounds).size).toBe(3)
+    const accents = ['jelly-capsule-active', 'live-capsule', 'jelly-capsule-error'].map((name) => {
+      const capsule = document.createElement('div')
+      capsule.className = name
+      capsule.dataset.capsuleTest = ''
+      document.body.appendChild(capsule)
+      return getComputedStyle(capsule).getPropertyValue('--capsule-accent')
+    })
+    expect(accents).toEqual(['#00e676', '#38bdf8', '#ff4d4d'])
     for (const className of ['capsule-action', 'capsule-mode-chip']) {
       const button = document.createElement('button')
       button.className = className
@@ -48,6 +45,14 @@ describe('window canvas background', () => {
     document.body.appendChild(brand)
     expect(getComputedStyle(brand).borderRadius).toBe('50%')
     expect(getComputedStyle(brand).overflow).toBe('hidden')
+    for (const className of ['capsule-status-label', 'capsule-state-badge', 'capsule-mode-chip']) {
+      const label = document.createElement('span')
+      label.className = className
+      label.textContent = '원문 · Original'
+      label.dataset.capsuleTest = ''
+      document.body.appendChild(label)
+      expect(getComputedStyle(label).whiteSpace).toBe('nowrap')
+    }
   })
   it('positions capsule menus independently of the shared relative card style', () => {
     document.documentElement.dataset.window = 'capsule'
@@ -80,8 +85,8 @@ describe('window canvas background', () => {
     expect(getComputedStyle(content).mixBlendMode).toBe('normal')
   })
 
-  it.each(['jelly-capsule', 'jelly-capsule-active', 'jelly-capsule-error'])(
-    'keeps every %s edge and glow inside its rounded shell',
+  it.each(['jelly-capsule', 'jelly-capsule-active', 'live-capsule', 'jelly-capsule-error'])(
+    'keeps the approved %s hairline rounded without a rectangular outline',
     (className) => {
       document.documentElement.dataset.window = 'capsule'
       const style = document.createElement('style')
@@ -96,11 +101,11 @@ describe('window canvas background', () => {
       document.body.appendChild(capsule)
 
       const computed = getComputedStyle(capsule)
-      expect(['', 'none']).toContain(computed.borderTopStyle)
+      expect(computed.borderTopStyle).toBe('solid')
+      expect(computed.borderTopWidth).toBe('1px')
+      expect(computed.borderRadius).toBe('9999px')
       expect(computed.outline).toBe('none')
       expect(computed.boxShadow).toContain('inset')
-      const shadows = computed.boxShadow.replaceAll(/rgba?\([^)]*\)/g, '').split(',')
-      expect(shadows.every((shadow) => shadow.trim().startsWith('inset'))).toBe(true)
     },
   )
 

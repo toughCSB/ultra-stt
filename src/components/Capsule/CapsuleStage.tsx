@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { CapsuleBrand } from './CapsuleWorkIndicator'
+import { PolishModeChip } from './PolishModeMenu'
+import { useAppStore } from '../../stores/appStore'
 
 interface CapsuleStageProps {
   status: ReactNode
@@ -41,9 +43,17 @@ export function CapsuleStage({
   timer,
   tone = 'working',
 }: CapsuleStageProps) {
+  const showModeChip = useAppStore(
+    (state) =>
+      !state.liveTyping &&
+      !state.contextMenuOpen &&
+      !state.translationTargetMenuOpen &&
+      !state.polishModeMenuOpen &&
+      (state.pipelineState !== 'idle' || state.pipelineError !== null),
+  )
   return (
     <div className={`capsule-stage capsule-stage-${tone}`}>
-      <CapsuleBrand size={64} />
+      <CapsuleBrand size={54} />
       <div className="capsule-stage-main">
         <div className="capsule-stage-heading">
           <div className="capsule-stage-status">{status}</div>
@@ -51,7 +61,12 @@ export function CapsuleStage({
         </div>
         <div className="capsule-stage-detail">{detail}</div>
       </div>
-      {actions && <div className="capsule-stage-actions">{actions}</div>}
+      {(showModeChip || actions) && (
+        <div className="capsule-stage-actions">
+          {showModeChip && <PolishModeChip />}
+          {actions}
+        </div>
+      )}
     </div>
   )
 }

@@ -10,6 +10,7 @@ import { Waveform } from './Waveform'
 export function CapsuleRecording() {
   const { t } = useTranslation()
   const liveTyping = useAppStore((state) => state.liveTyping)
+  const polishEnabled = useAppStore((state) => state.config.polish_enabled)
 
   const handleCancel = async (event: React.MouseEvent) => {
     event.stopPropagation()
@@ -37,7 +38,24 @@ export function CapsuleRecording() {
       status={
         <>
           <span className="capsule-status-light" />
-          <span>{liveTyping ? t('capsule.liveTyping') : t('ask.listening')}</span>
+          <span className="capsule-status-label">
+            {liveTyping ? t('capsule.liveTyping') : t('ask.listening')}
+          </span>
+          <span
+            className="capsule-state-badge"
+            title={!liveTyping && polishEnabled ? `STT · ${t('settings.aiPolish')}` : undefined}
+          >
+            {liveTyping ? (
+              <>
+                <Zap size={12} />
+                LIVE
+              </>
+            ) : polishEnabled ? (
+              'STT · AI'
+            ) : (
+              'STT'
+            )}
+          </span>
           {!liveTyping && <TranslateTargetChip />}
         </>
       }

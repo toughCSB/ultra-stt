@@ -9,7 +9,7 @@
   Local Whisper recognition, optional AI cleanup, and direct text insertion.
 </p>
 <p align="center">
-  <strong>Source v1.1.68</strong> · Windows x64 · macOS Apple Silicon · MIT
+  <strong>Source v1.1.69</strong> · Windows x64 · macOS Apple Silicon · MIT
 </p>
 <p align="center">
   English · <a href="README_ko.md">한국어</a> ·
@@ -27,6 +27,14 @@
 > **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
 
 ## Update history
+
+### October 18, 2026 · v1.1.69 · Approved Argon capsule design
+
+- Implements the user-approved first AGY Argon design, Original Terminal Precision, using the original Ultra STT black/emerald identity.
+- Installed on SB, Home and Mac with existing settings, credentials, shortcuts, history and recovery audio preserved. Fresh physical-microphone/cursor-input acceptance remains a separate check.
+- Sapphire-blue live typing and crimson errors have distinct waveforms, badges and controls. Style, LIVE/STT and cancel controls form one accessible action row.
+- Long Original labels do not wrap the status badge; inline style selection preserves the window position and recording timer. The native transparent margin remains unchanged.
+- This is a visual update: speech models, prompts, audio recovery, input-target protection and shortcuts are unchanged. See [implementation and validation](docs/2026-10-18-capsule-argon-approved.md) for verification boundaries.
 
 ### October 18, 2026 · v1.1.68 · Bright themes and stationary mode selection
 

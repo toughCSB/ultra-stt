@@ -16,7 +16,7 @@ import { CapsuleContextMenu } from './CapsuleContextMenu'
 import { CapsuleAskRecording } from './CapsuleAskRecording'
 import { CapsuleAskThinking } from './CapsuleAskThinking'
 import { TranslateTargetMenu } from './TranslateTargetChip'
-import { PolishModeChip, PolishModeMenu } from './PolishModeMenu'
+import { PolishModeMenu } from './PolishModeMenu'
 import { CAPSULE_ENTER_MS, CAPSULE_EXIT_MS } from '../../lib/capsuleMotion'
 
 const DRAG_THRESHOLD = 5
@@ -58,13 +58,6 @@ export function Capsule() {
       ? recoveryEntries.find((entry) => entry.id === recoveryAlertId)
       : undefined
   const capsuleState = getCapsuleState(pipelineState, hasError, Boolean(recoveryEntry))
-  const showModeChip =
-    !contextMenuOpen &&
-    !polishModeMenuOpen &&
-    !translationTargetMenuOpen &&
-    !liveTyping &&
-    capsuleState !== 'idle' &&
-    capsuleState !== 'recovery'
   const cancel = useCallback(() => {
     const abort =
       pipelineState === 'ask_recording' || pipelineState === 'ask_thinking'
@@ -232,7 +225,6 @@ export function Capsule() {
                 )}
               </motion.div>
             </AnimatePresence>
-            {showModeChip && <PolishModeChip left={capsuleShellSize.width - 156} />}
           </motion.div>
         )}
       </AnimatePresence>
