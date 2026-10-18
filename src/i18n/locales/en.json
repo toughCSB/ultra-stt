@@ -267,7 +267,7 @@
     "shortcutRollback": "The previous shortcuts were restored.",
     "disableAskHotkey": "Disable Ask shortcut",
     "pressKeyCombination": "Press a single key or key combination...",
-    "singleKeyHotkeyHint": "Single keys such as F8, letters, digits and punctuation are supported. Saving checks app duplicates and OS registration conflicts, not ordinary shortcuts inside other apps. Letters and Space can interfere with typing; prefer a function key.",
+    "singleKeyHotkeyHint": "Single keys, including left/right modifiers, are supported. A modifier triggers only when released alone; using it in a chord keeps normal typing and copy shortcuts. Fn requires a Mac keyboard and Accessibility access; standalone Fn is unavailable on Windows. Saving checks duplicates and hook startup, but OS-reserved keys and other apps may still intercept a key. Letters and Space can interfere with typing; prefer a function key.",
     "clickToConfirm": "Click again to confirm, or press another combination",
     "holdToTalk": "Hold to Talk",
     "toggleOnOff": "Press to start/stop",

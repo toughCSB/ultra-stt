@@ -246,6 +246,96 @@ describe('ShortcutBindingList', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['Shift', 'ShiftLeft', 'LeftShift'],
+    ['Control', 'ControlRight', 'RightCtrl'],
+    ['Alt', 'AltLeft', 'LeftAlt'],
+    ['Meta', 'MetaRight', 'RightMeta'],
+  ])('records a clean %s keyup as %s', (key, code, primary) => {
+    const onChange = vi.fn()
+    render(
+      <ShortcutBindingList
+        role="dictation"
+        label="Dictate"
+        bindings={[ctrlSlash]}
+        otherBindings={[]}
+        required
+        specialOptions={[]}
+        onChange={onChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ctrl+/' }))
+    fireEvent.keyDown(window, { key, code })
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.keyUp(window, { key, code })
+    fireEvent.click(screen.getByRole('button', { name: primary }))
+    expect(onChange).toHaveBeenCalledWith([{ primary, modifiers: [] }])
+  })
+
+  it('does not record a modifier used with Ctrl+C', () => {
+    const onChange = vi.fn()
+    render(
+      <ShortcutBindingList
+        role="dictation"
+        label="Dictate"
+        bindings={[ctrlSlash]}
+        otherBindings={[]}
+        required
+        specialOptions={[]}
+        onChange={onChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ctrl+/' }))
+    fireEvent.keyDown(window, { key: 'Control', code: 'ControlLeft', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'c', code: 'KeyC', ctrlKey: true })
+    fireEvent.keyUp(window, { key: 'c', code: 'KeyC', ctrlKey: true })
+    fireEvent.keyUp(window, { key: 'Control', code: 'ControlLeft' })
+    expect(screen.queryByRole('button', { name: 'LeftCtrl' })).not.toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('does not record a modifier pressed while another key is held', () => {
+    const onChange = vi.fn()
+    render(
+      <ShortcutBindingList
+        role="dictation"
+        label="Dictate"
+        bindings={[ctrlSlash]}
+        otherBindings={[]}
+        required
+        specialOptions={[]}
+        onChange={onChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ctrl+/' }))
+    fireEvent.keyDown(window, { key: 'a', code: 'KeyA' })
+    fireEvent.keyDown(window, { key: 'Shift', code: 'ShiftLeft', shiftKey: true })
+    fireEvent.keyUp(window, { key: 'Shift', code: 'ShiftLeft' })
+    expect(screen.queryByRole('button', { name: 'LeftShift' })).not.toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('rejects a side key when its generic modifier is already assigned', () => {
+    const onChange = vi.fn()
+    render(
+      <ShortcutBindingList
+        role="dictation"
+        label="Dictate"
+        bindings={[ctrlSlash]}
+        otherBindings={[{ primary: 'Ctrl', modifiers: [] }]}
+        required
+        specialOptions={[]}
+        onChange={onChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ctrl+/' }))
+    fireEvent.keyDown(window, { key: 'Control', code: 'ControlRight' })
+    fireEvent.keyUp(window, { key: 'Control', code: 'ControlRight' })
+    fireEvent.click(screen.getByRole('button', { name: 'RightCtrl' }))
+    expect(screen.getByText('Shortcut conflict')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('reports unsupported keys instead of silently ignoring them', () => {
     const onChange = vi.fn()
     render(

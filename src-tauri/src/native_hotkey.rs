@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 #[cfg(any(target_os = "macos", target_os = "windows", test))]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -8,9 +9,20 @@ pub enum NativeHotkeyTrigger {
     Fn,
     FnSpace,
     FnLeftShift,
+    Shift,
+    LeftShift,
+    RightShift,
+    Ctrl,
+    LeftCtrl,
+    RightCtrl,
+    Alt,
+    LeftAlt,
     RightAlt,
     RightAltSpace,
     RightAltLeftShift,
+    Meta,
+    LeftMeta,
+    RightMeta,
 }
 
 impl NativeHotkeyTrigger {
@@ -19,26 +31,29 @@ impl NativeHotkeyTrigger {
             Self::Fn => "Fn",
             Self::FnSpace => "Fn+Space",
             Self::FnLeftShift => "Fn+LeftShift",
+            Self::Shift => "Shift",
+            Self::LeftShift => "LeftShift",
+            Self::RightShift => "RightShift",
+            Self::Ctrl => "Ctrl",
+            Self::LeftCtrl => "LeftCtrl",
+            Self::RightCtrl => "RightCtrl",
+            Self::Alt => "Alt",
+            Self::LeftAlt => "LeftAlt",
             Self::RightAlt => "RightAlt",
             Self::RightAltSpace => "RightAlt+Space",
             Self::RightAltLeftShift => "RightAlt+LeftShift",
+            Self::Meta => "Meta",
+            Self::LeftMeta => "LeftMeta",
+            Self::RightMeta => "RightMeta",
         }
     }
 
-    #[cfg(any(target_os = "macos", target_os = "windows", test))]
+    #[cfg(test)]
     fn base(self) -> NativeHotkeyTrigger {
         match self {
             Self::Fn | Self::FnSpace | Self::FnLeftShift => Self::Fn,
             Self::RightAlt | Self::RightAltSpace | Self::RightAltLeftShift => Self::RightAlt,
-        }
-    }
-
-    #[cfg(any(target_os = "macos", target_os = "windows", test))]
-    fn combo_key(self) -> Option<NativeComboKey> {
-        match self {
-            Self::FnSpace | Self::RightAltSpace => Some(NativeComboKey::Space),
-            Self::FnLeftShift | Self::RightAltLeftShift => Some(NativeComboKey::LeftShift),
-            Self::Fn | Self::RightAlt => None,
+            other => other,
         }
     }
 
@@ -51,6 +66,141 @@ impl NativeHotkeyTrigger {
             (Self::RightAlt, NativeComboKey::LeftShift) => Some(Self::RightAltLeftShift),
             _ => None,
         }
+    }
+
+    pub fn is_modifier_tap(self) -> bool {
+        matches!(
+            self,
+            Self::Shift
+                | Self::LeftShift
+                | Self::RightShift
+                | Self::Ctrl
+                | Self::LeftCtrl
+                | Self::RightCtrl
+                | Self::Alt
+                | Self::LeftAlt
+                | Self::RightAlt
+                | Self::Meta
+                | Self::LeftMeta
+                | Self::RightMeta
+        )
+    }
+
+    pub fn overlaps(self, other: Self) -> bool {
+        if self == other {
+            return true;
+        }
+        PhysicalModifier::ALL
+            .iter()
+            .any(|key| self.matches_modifier(*key) && other.matches_modifier(*key))
+    }
+
+    fn matches_modifier(self, key: PhysicalModifier) -> bool {
+        matches!(
+            (self, key),
+            (
+                Self::Shift,
+                PhysicalModifier::LeftShift | PhysicalModifier::RightShift
+            ) | (Self::LeftShift, PhysicalModifier::LeftShift)
+                | (Self::RightShift, PhysicalModifier::RightShift)
+                | (
+                    Self::Ctrl,
+                    PhysicalModifier::LeftCtrl | PhysicalModifier::RightCtrl
+                )
+                | (Self::LeftCtrl, PhysicalModifier::LeftCtrl)
+                | (Self::RightCtrl, PhysicalModifier::RightCtrl)
+                | (
+                    Self::Alt,
+                    PhysicalModifier::LeftAlt | PhysicalModifier::RightAlt
+                )
+                | (Self::LeftAlt, PhysicalModifier::LeftAlt)
+                | (Self::RightAlt, PhysicalModifier::RightAlt)
+                | (
+                    Self::Meta,
+                    PhysicalModifier::LeftMeta | PhysicalModifier::RightMeta
+                )
+                | (Self::LeftMeta, PhysicalModifier::LeftMeta)
+                | (Self::RightMeta, PhysicalModifier::RightMeta)
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PhysicalModifier {
+    LeftShift,
+    RightShift,
+    LeftCtrl,
+    RightCtrl,
+    LeftAlt,
+    RightAlt,
+    LeftMeta,
+    RightMeta,
+}
+
+impl PhysicalModifier {
+    const ALL: [Self; 8] = [
+        Self::LeftShift,
+        Self::RightShift,
+        Self::LeftCtrl,
+        Self::RightCtrl,
+        Self::LeftAlt,
+        Self::RightAlt,
+        Self::LeftMeta,
+        Self::RightMeta,
+    ];
+
+    fn bit(self) -> u8 {
+        1 << Self::ALL.iter().position(|key| *key == self).unwrap()
+    }
+}
+
+#[derive(Default)]
+struct ModifierTapState {
+    held: u8,
+    candidate: Option<PhysicalModifier>,
+    other_held: HashSet<u32>,
+}
+
+impl ModifierTapState {
+    fn modifier_edge(&mut self, key: PhysicalModifier, pressed: bool) -> Option<PhysicalModifier> {
+        let bit = key.bit();
+        if pressed {
+            if self.held & bit != 0 {
+                return None;
+            }
+            if self.held == 0 && self.other_held.is_empty() {
+                self.candidate = Some(key);
+            } else {
+                self.candidate = None;
+            }
+            self.held |= bit;
+            None
+        } else {
+            if self.held & bit == 0 {
+                return None;
+            }
+            self.held &= !bit;
+            let tapped = if self.candidate == Some(key) && self.held == 0 {
+                Some(key)
+            } else {
+                None
+            };
+            self.candidate = None;
+            tapped
+        }
+    }
+
+    fn other_key_edge(&mut self, code: u32, pressed: bool) {
+        if pressed {
+            self.other_held.insert(code);
+            self.candidate = None;
+        } else {
+            self.other_held.remove(&code);
+        }
+    }
+
+    fn cancel(&mut self) {
+        self.candidate = None;
     }
 }
 
@@ -73,6 +223,7 @@ pub struct NativeHotkeyEvent {
     pub role: crate::hotkey::HotkeyRole,
     pub index: usize,
     pub state: ShortcutState,
+    pub tap_only: bool,
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows", test))]
@@ -148,7 +299,7 @@ impl NativeMonitoredBinding {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows", test))]
+#[cfg(test)]
 fn monitored_bindings_for_base(
     bindings: Vec<NativeHotkeyBinding>,
     base: NativeHotkeyTrigger,
@@ -158,13 +309,6 @@ fn monitored_bindings_for_base(
         .filter(|binding| binding.trigger.base() == base)
         .map(NativeMonitoredBinding::new)
         .collect()
-}
-
-#[cfg(any(target_os = "macos", target_os = "windows", test))]
-fn has_combo_bindings(bindings: &[NativeMonitoredBinding], base: NativeHotkeyTrigger) -> bool {
-    bindings.iter().any(|binding| {
-        binding.binding.trigger.base() == base && binding.binding.trigger.combo_key().is_some()
-    })
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows", test))]
@@ -195,10 +339,30 @@ fn dispatch_matching_bindings(
                 role: binding.binding.role,
                 index: binding.binding.index,
                 state,
+                tap_only: trigger.is_modifier_tap(),
             });
         }
     }
     matched
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn dispatch_modifier_tap(
+    bindings: &[NativeMonitoredBinding],
+    key: PhysicalModifier,
+    handler: &NativeHotkeyHandler,
+) {
+    for binding in bindings {
+        if !binding.binding.trigger.matches_modifier(key) {
+            continue;
+        }
+        (handler.as_ref())(NativeHotkeyEvent {
+            role: binding.binding.role,
+            index: binding.binding.index,
+            state: ShortcutState::Pressed,
+            tap_only: true,
+        });
+    }
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows", test))]
@@ -246,7 +410,7 @@ fn dispatch_native_base_edge(
     if pressed {
         state.base_pressed = true;
         state.combo_used = false;
-        state.pending_base_press = has_combo_bindings(bindings, base);
+        state.pending_base_press = true;
         if state.pending_base_press {
             return true;
         }
@@ -291,7 +455,7 @@ fn dispatch_native_combo_edge(
     pressed: bool,
     handler: &NativeHotkeyHandler,
 ) -> bool {
-    if !state.base_pressed {
+    if !state.base_pressed || (pressed && state.combo_used) {
         return false;
     }
     let Some(trigger) = NativeHotkeyTrigger::from_base_combo(base, combo) else {
@@ -316,9 +480,10 @@ fn dispatch_native_combo_edge(
 #[cfg(target_os = "macos")]
 mod platform {
     use super::{
-        activate_pending_hold_base, dispatch_native_base_edge, dispatch_native_combo_edge,
-        monitored_bindings_for_base, NativeComboKey, NativeComboState, NativeHotkeyHandler,
-        NativeHotkeyTrigger, NativeMonitoredBinding,
+        activate_pending_hold_base, dispatch_matching_bindings, dispatch_modifier_tap,
+        dispatch_native_base_edge, dispatch_native_combo_edge, ModifierTapState, NativeComboKey,
+        NativeComboState, NativeHotkeyHandler, NativeHotkeyTrigger, NativeMonitoredBinding,
+        PhysicalModifier,
     };
     use std::ffi::c_void;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -367,10 +532,19 @@ mod platform {
 
     const KEYBOARD_EVENT_KEYCODE: CgEventField = 9;
     const FLAG_MASK_SECONDARY_FN: CgEventFlags = 0x0080_0000;
-    const FLAG_MASK_SHIFT: CgEventFlags = 0x0002_0000;
     const FN_KEYCODE: i64 = 63;
     const SPACE_KEYCODE: i64 = 49;
     const LEFT_SHIFT_KEYCODE: i64 = 56;
+    const MODIFIER_KEYS: [(i64, PhysicalModifier, CgEventFlags); 8] = [
+        (56, PhysicalModifier::LeftShift, 0x0000_0002),
+        (60, PhysicalModifier::RightShift, 0x0000_0004),
+        (59, PhysicalModifier::LeftCtrl, 0x0000_0001),
+        (62, PhysicalModifier::RightCtrl, 0x0000_2000),
+        (58, PhysicalModifier::LeftAlt, 0x0000_0020),
+        (61, PhysicalModifier::RightAlt, 0x0000_0040),
+        (55, PhysicalModifier::LeftMeta, 0x0000_0008),
+        (54, PhysicalModifier::RightMeta, 0x0000_0010),
+    ];
 
     type CgEventTapCallBack = extern "C" fn(
         proxy: *mut c_void,
@@ -453,9 +627,12 @@ mod platform {
             hold_dictation: bool,
             handler: NativeHotkeyHandler,
         ) -> Result<Self, String> {
-            let bindings = monitored_bindings_for_base(bindings, NativeHotkeyTrigger::Fn);
+            let bindings: Vec<_> = bindings
+                .into_iter()
+                .map(NativeMonitoredBinding::new)
+                .collect();
             if bindings.is_empty() {
-                return Err("macOS native hotkeys currently support Fn only".to_string());
+                return Err("No supported macOS native hotkeys were provided".to_string());
             }
 
             let handles = Arc::new(MacShutdownHandles::new());
@@ -505,6 +682,7 @@ mod platform {
         handler: NativeHotkeyHandler,
         handles: Arc<MacShutdownHandles>,
         state: Arc<Mutex<NativeComboState>>,
+        modifier_state: Mutex<ModifierTapState>,
     }
 
     fn run_event_tap_loop(
@@ -527,6 +705,7 @@ mod platform {
                 hold_base,
                 ..NativeComboState::default()
             })),
+            modifier_state: Mutex::new(ModifierTapState::default()),
         }));
         let mask: CgEventMask = (1u64 << FLAGS_CHANGED) | (1u64 << KEY_DOWN) | (1u64 << KEY_UP);
 
@@ -614,6 +793,15 @@ mod platform {
                 // macOS can disable the tap while a key is held. Clear the
                 // captured state so a missing key-up cannot leave Fn stuck.
                 let mut state = context.state.lock().unwrap_or_else(|e| e.into_inner());
+                if state.hold_base && state.base_pressed && !state.pending_base_press {
+                    let _ = dispatch_matching_bindings(
+                        &context.bindings,
+                        NativeHotkeyTrigger::Fn,
+                        false,
+                        &context.handler,
+                    );
+                }
+                state.combo_used = true;
                 let _ = dispatch_native_base_edge(
                     &mut state,
                     &context.bindings,
@@ -622,6 +810,10 @@ mod platform {
                     &context.handler,
                 );
                 drop(state);
+                *context
+                    .modifier_state
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = ModifierTapState::default();
                 if let Some(tap) = context
                     .handles
                     .tap
@@ -646,6 +838,11 @@ mod platform {
         let flags = unsafe { CGEventGetFlags(event) };
         if keycode == FN_KEYCODE {
             let pressed = (flags & FLAG_MASK_SECONDARY_FN) != 0;
+            context
+                .modifier_state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .other_key_edge(FN_KEYCODE as u32, pressed);
             let mut state = context.state.lock().unwrap_or_else(|e| e.into_inner());
             let was_pressed = state.base_pressed;
             let _ = dispatch_native_base_edge(
@@ -684,43 +881,85 @@ mod platform {
             return;
         }
 
-        if keycode == LEFT_SHIFT_KEYCODE {
-            let pressed = (flags & FLAG_MASK_SHIFT) != 0;
+        if let Some((_, key, side_flag)) =
+            MODIFIER_KEYS.iter().find(|(code, _, _)| *code == keycode)
+        {
+            let pressed = flags & *side_flag != 0;
+            let tapped = {
+                let mut modifier_state = context
+                    .modifier_state
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                let tapped = modifier_state.modifier_edge(*key, pressed);
+                if flags & (0x0000_207f & !*side_flag) != 0 {
+                    modifier_state.cancel();
+                    None
+                } else {
+                    tapped
+                }
+            };
+            if let Some(key) = tapped {
+                dispatch_modifier_tap(&context.bindings, key, &context.handler);
+            }
             let mut state = context.state.lock().unwrap_or_else(|e| e.into_inner());
-            let _ = dispatch_native_combo_edge(
-                &mut state,
-                &context.bindings,
-                NativeHotkeyTrigger::Fn,
-                NativeComboKey::LeftShift,
-                pressed,
-                &context.handler,
-            );
+            let matched = if keycode == LEFT_SHIFT_KEYCODE {
+                dispatch_native_combo_edge(
+                    &mut state,
+                    &context.bindings,
+                    NativeHotkeyTrigger::Fn,
+                    NativeComboKey::LeftShift,
+                    pressed,
+                    &context.handler,
+                )
+            } else {
+                false
+            };
+            if pressed && !matched && state.base_pressed {
+                state.combo_used = true;
+            }
+            return;
+        }
+
+        context
+            .modifier_state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .cancel();
+        let mut state = context.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.base_pressed {
+            state.combo_used = true;
         }
     }
 
     fn handle_key_event(context: &CallbackContext, event: CgEventRef, pressed: bool) {
         let keycode = unsafe { CGEventGetIntegerValueField(event, KEYBOARD_EVENT_KEYCODE) };
-        if keycode != SPACE_KEYCODE {
-            return;
-        }
+        context
+            .modifier_state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .other_key_edge(keycode as u32, pressed);
         let mut state = context.state.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = dispatch_native_combo_edge(
-            &mut state,
-            &context.bindings,
-            NativeHotkeyTrigger::Fn,
-            NativeComboKey::Space,
-            pressed,
-            &context.handler,
-        );
+        let matched = keycode == SPACE_KEYCODE
+            && dispatch_native_combo_edge(
+                &mut state,
+                &context.bindings,
+                NativeHotkeyTrigger::Fn,
+                NativeComboKey::Space,
+                pressed,
+                &context.handler,
+            );
+        if pressed && !matched && state.base_pressed {
+            state.combo_used = true;
+        }
     }
 }
 
 #[cfg(target_os = "windows")]
 mod platform {
     use super::{
-        dispatch_native_base_edge, dispatch_native_combo_edge, monitored_bindings_for_base,
-        NativeComboKey, NativeComboState, NativeHotkeyHandler, NativeHotkeyTrigger,
-        NativeMonitoredBinding,
+        dispatch_modifier_tap, dispatch_native_base_edge, dispatch_native_combo_edge,
+        ModifierTapState, NativeComboKey, NativeComboState, NativeHotkeyHandler,
+        NativeHotkeyTrigger, NativeMonitoredBinding, PhysicalModifier,
     };
     use std::ptr;
     use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering as AtomicOrdering};
@@ -733,7 +972,7 @@ mod platform {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, DispatchMessageW, GetMessageW, PeekMessageW, PostThreadMessageW,
         SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, HC_ACTION, HHOOK,
-        KBDLLHOOKSTRUCT, LLKHF_INJECTED, MSG, PM_NOREMOVE, WH_KEYBOARD_LL, WM_QUIT,
+        KBDLLHOOKSTRUCT, LLKHF_EXTENDED, LLKHF_INJECTED, MSG, PM_NOREMOVE, WH_KEYBOARD_LL, WM_QUIT,
     };
 
     const STARTUP_TIMEOUT: Duration = Duration::from_secs(3);
@@ -744,8 +983,14 @@ mod platform {
     const WM_SYSKEYDOWN: usize = 0x0104;
     const WM_SYSKEYUP: usize = 0x0105;
     const VK_SPACE: u32 = 0x20;
-    const VK_LSHIFT: u32 = 0xA0;
     const VK_RMENU: u32 = 0xA5;
+    const VK_LSHIFT: u32 = 0xA0;
+    const VK_RSHIFT: u32 = 0xA1;
+    const VK_LCONTROL: u32 = 0xA2;
+    const VK_RCONTROL: u32 = 0xA3;
+    const VK_LMENU: u32 = 0xA4;
+    const VK_LWIN: u32 = 0x5B;
+    const VK_RWIN: u32 = 0x5C;
 
     static HOOK_CONTEXT: AtomicPtr<CallbackContext> = AtomicPtr::new(ptr::null_mut());
 
@@ -792,9 +1037,12 @@ mod platform {
             _hold_dictation: bool,
             handler: NativeHotkeyHandler,
         ) -> Result<Self, String> {
-            let bindings = monitored_bindings_for_base(bindings, NativeHotkeyTrigger::RightAlt);
+            let bindings: Vec<_> = bindings
+                .into_iter()
+                .map(NativeMonitoredBinding::new)
+                .collect();
             if bindings.is_empty() {
-                return Err("Windows native hotkeys currently support RightAlt only".to_string());
+                return Err("No supported Windows native hotkeys were provided".to_string());
             }
 
             let (status_tx, status_rx) = mpsc::channel();
@@ -856,6 +1104,7 @@ mod platform {
         handler: NativeHotkeyHandler,
         hook: std::sync::Mutex<Option<HHOOK>>,
         state: std::sync::Mutex<NativeComboState>,
+        modifier_state: std::sync::Mutex<ModifierTapState>,
     }
 
     unsafe impl Send for CallbackContext {}
@@ -886,6 +1135,7 @@ mod platform {
                 handler,
                 hook: std::sync::Mutex::new(None),
                 state: std::sync::Mutex::new(NativeComboState::default()),
+                modifier_state: std::sync::Mutex::new(ModifierTapState::default()),
             }));
             HOOK_CONTEXT.store(context, AtomicOrdering::SeqCst);
 
@@ -980,9 +1230,25 @@ mod platform {
         if code == HC_ACTION as i32 && lparam != 0 {
             let keyboard = *(lparam as *const KBDLLHOOKSTRUCT);
             let injected = (keyboard.flags & LLKHF_INJECTED) != 0;
-            if (!injected || accept_synthetic_events())
-                && dispatch_keyboard_event(keyboard.vkCode, wparam)
-            {
+            if injected && !accept_synthetic_events() {
+                if let Some(context) = unsafe { callback_context() } {
+                    context
+                        .modifier_state
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .cancel();
+                    context
+                        .state
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .combo_used = true;
+                }
+            } else if dispatch_keyboard_event(
+                keyboard.vkCode,
+                keyboard.scanCode,
+                keyboard.flags,
+                wparam,
+            ) {
                 return 1;
             }
         }
@@ -990,7 +1256,7 @@ mod platform {
         CallNextHookEx(ptr::null_mut(), code, wparam, lparam)
     }
 
-    fn dispatch_keyboard_event(vk_code: u32, message: WPARAM) -> bool {
+    fn dispatch_keyboard_event(vk_code: u32, scan_code: u32, flags: u32, message: WPARAM) -> bool {
         let pressed = match message {
             WM_KEYDOWN | WM_SYSKEYDOWN => true,
             WM_KEYUP | WM_SYSKEYUP => false,
@@ -1002,33 +1268,93 @@ mod platform {
             return false;
         };
 
+        let physical = match vk_code {
+            VK_LSHIFT => Some(PhysicalModifier::LeftShift),
+            VK_RSHIFT => Some(PhysicalModifier::RightShift),
+            0x10 if scan_code == 0x36 => Some(PhysicalModifier::RightShift),
+            0x10 => Some(PhysicalModifier::LeftShift),
+            VK_LCONTROL => Some(PhysicalModifier::LeftCtrl),
+            VK_RCONTROL => Some(PhysicalModifier::RightCtrl),
+            0x11 if flags & LLKHF_EXTENDED != 0 => Some(PhysicalModifier::RightCtrl),
+            0x11 => Some(PhysicalModifier::LeftCtrl),
+            VK_LMENU => Some(PhysicalModifier::LeftAlt),
+            VK_RMENU => Some(PhysicalModifier::RightAlt),
+            0x12 if flags & LLKHF_EXTENDED != 0 => Some(PhysicalModifier::RightAlt),
+            0x12 => Some(PhysicalModifier::LeftAlt),
+            VK_LWIN => Some(PhysicalModifier::LeftMeta),
+            VK_RWIN => Some(PhysicalModifier::RightMeta),
+            _ => None,
+        };
+
+        if let Some(key) = physical {
+            let (other_held, tapped) = {
+                let mut modifier_state = context
+                    .modifier_state
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                let other_held =
+                    modifier_state.held & !key.bit() != 0 || !modifier_state.other_held.is_empty();
+                let tapped = modifier_state.modifier_edge(key, pressed).filter(|tapped| {
+                    *tapped != PhysicalModifier::RightAlt
+                        || !context
+                            .bindings
+                            .iter()
+                            .any(|binding| binding.binding.trigger == NativeHotkeyTrigger::RightAlt)
+                });
+                (other_held, tapped)
+            };
+            if let Some(tapped) = tapped {
+                dispatch_modifier_tap(&context.bindings, tapped, &context.handler);
+            }
+            let mut state = context.state.lock().unwrap_or_else(|e| e.into_inner());
+            if key == PhysicalModifier::RightAlt {
+                let _ = dispatch_native_base_edge(
+                    &mut state,
+                    &context.bindings,
+                    NativeHotkeyTrigger::RightAlt,
+                    pressed,
+                    &context.handler,
+                );
+                if pressed && other_held {
+                    state.combo_used = true;
+                }
+            } else {
+                let matched = key == PhysicalModifier::LeftShift
+                    && dispatch_native_combo_edge(
+                        &mut state,
+                        &context.bindings,
+                        NativeHotkeyTrigger::RightAlt,
+                        NativeComboKey::LeftShift,
+                        pressed,
+                        &context.handler,
+                    );
+                if pressed && !matched && state.base_pressed {
+                    state.combo_used = true;
+                }
+                return matched;
+            }
+            return false;
+        }
+
+        context
+            .modifier_state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .other_key_edge(vk_code, pressed);
         let mut state = context.state.lock().unwrap_or_else(|e| e.into_inner());
-        match vk_code {
-            VK_RMENU => dispatch_native_base_edge(
-                &mut state,
-                &context.bindings,
-                NativeHotkeyTrigger::RightAlt,
-                pressed,
-                &context.handler,
-            ),
-            VK_SPACE => dispatch_native_combo_edge(
+        let matched = vk_code == VK_SPACE
+            && dispatch_native_combo_edge(
                 &mut state,
                 &context.bindings,
                 NativeHotkeyTrigger::RightAlt,
                 NativeComboKey::Space,
                 pressed,
                 &context.handler,
-            ),
-            VK_LSHIFT => dispatch_native_combo_edge(
-                &mut state,
-                &context.bindings,
-                NativeHotkeyTrigger::RightAlt,
-                NativeComboKey::LeftShift,
-                pressed,
-                &context.handler,
-            ),
-            _ => false,
+            );
+        if pressed && !matched && state.base_pressed {
+            state.combo_used = true;
         }
+        matched
     }
 
     unsafe fn callback_context<'a>() -> Option<&'a CallbackContext> {
@@ -1075,6 +1401,137 @@ mod tests {
         assert_eq!(state.edge(false), Some(ShortcutState::Released));
         assert_eq!(state.edge(false), None);
         assert_eq!(state.edge(true), Some(ShortcutState::Pressed));
+    }
+
+    #[test]
+    fn modifier_tap_requires_a_clean_keyup() {
+        let mut state = ModifierTapState::default();
+        assert_eq!(state.modifier_edge(PhysicalModifier::LeftCtrl, true), None);
+        assert_eq!(state.modifier_edge(PhysicalModifier::LeftCtrl, true), None);
+        assert_eq!(
+            state.modifier_edge(PhysicalModifier::LeftCtrl, false),
+            Some(PhysicalModifier::LeftCtrl)
+        );
+        assert_eq!(state.modifier_edge(PhysicalModifier::LeftCtrl, false), None);
+
+        state.modifier_edge(PhysicalModifier::LeftCtrl, true);
+        state.other_key_edge(0x43, true);
+        state.other_key_edge(0x43, false);
+        assert_eq!(state.modifier_edge(PhysicalModifier::LeftCtrl, false), None);
+
+        state.other_key_edge(0x43, true);
+        state.modifier_edge(PhysicalModifier::LeftCtrl, true);
+        assert_eq!(state.modifier_edge(PhysicalModifier::LeftCtrl, false), None);
+        state.other_key_edge(0x43, false);
+    }
+
+    #[test]
+    fn modifier_tap_rejects_chords_and_interrupted_input() {
+        let mut state = ModifierTapState::default();
+        state.modifier_edge(PhysicalModifier::LeftShift, true);
+        state.modifier_edge(PhysicalModifier::RightShift, true);
+        assert_eq!(
+            state.modifier_edge(PhysicalModifier::RightShift, false),
+            None
+        );
+        assert_eq!(
+            state.modifier_edge(PhysicalModifier::LeftShift, false),
+            None
+        );
+
+        state.modifier_edge(PhysicalModifier::RightCtrl, true);
+        state.cancel();
+        assert_eq!(
+            state.modifier_edge(PhysicalModifier::RightCtrl, false),
+            None
+        );
+    }
+
+    #[test]
+    fn modifier_overlap_distinguishes_sides() {
+        assert!(NativeHotkeyTrigger::Ctrl.overlaps(NativeHotkeyTrigger::RightCtrl));
+        assert!(!NativeHotkeyTrigger::LeftCtrl.overlaps(NativeHotkeyTrigger::RightCtrl));
+        assert!(NativeHotkeyTrigger::Alt.overlaps(NativeHotkeyTrigger::RightAlt));
+        assert!(!NativeHotkeyTrigger::Fn.overlaps(NativeHotkeyTrigger::Ctrl));
+    }
+
+    #[test]
+    fn generic_alt_tap_accepts_either_side_without_repeating() {
+        let bindings = vec![NativeMonitoredBinding::new(NativeHotkeyBinding {
+            role: crate::hotkey::HotkeyRole::Ask,
+            index: 0,
+            trigger: NativeHotkeyTrigger::Alt,
+        })];
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let captured = Arc::clone(&events);
+        let handler: NativeHotkeyHandler = Arc::new(move |event| {
+            captured.lock().unwrap().push((event.state, event.tap_only));
+        });
+        let mut state = ModifierTapState::default();
+        for key in [PhysicalModifier::LeftAlt, PhysicalModifier::RightAlt] {
+            assert_eq!(state.modifier_edge(key, true), None);
+            assert_eq!(state.modifier_edge(key, true), None);
+            if let Some(tapped) = state.modifier_edge(key, false) {
+                dispatch_modifier_tap(&bindings, tapped, &handler);
+            }
+        }
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![
+                (ShortcutState::Pressed, true),
+                (ShortcutState::Pressed, true),
+            ]
+        );
+    }
+
+    #[test]
+    fn fn_tap_waits_for_keyup_and_ignores_a_used_chord() {
+        let bindings = vec![NativeMonitoredBinding::new(NativeHotkeyBinding {
+            role: crate::hotkey::HotkeyRole::Dictation,
+            index: 0,
+            trigger: NativeHotkeyTrigger::Fn,
+        })];
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let captured = Arc::clone(&events);
+        let handler: NativeHotkeyHandler = Arc::new(move |event| {
+            captured.lock().unwrap().push(event.state);
+        });
+        let mut state = NativeComboState::default();
+        dispatch_native_base_edge(
+            &mut state,
+            &bindings,
+            NativeHotkeyTrigger::Fn,
+            true,
+            &handler,
+        );
+        assert!(events.lock().unwrap().is_empty());
+        state.combo_used = true;
+        dispatch_native_base_edge(
+            &mut state,
+            &bindings,
+            NativeHotkeyTrigger::Fn,
+            false,
+            &handler,
+        );
+        assert!(events.lock().unwrap().is_empty());
+        dispatch_native_base_edge(
+            &mut state,
+            &bindings,
+            NativeHotkeyTrigger::Fn,
+            true,
+            &handler,
+        );
+        dispatch_native_base_edge(
+            &mut state,
+            &bindings,
+            NativeHotkeyTrigger::Fn,
+            false,
+            &handler,
+        );
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![ShortcutState::Pressed, ShortcutState::Released]
+        );
     }
 
     #[test]

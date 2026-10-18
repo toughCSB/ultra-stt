@@ -869,6 +869,11 @@ fn normalize_hotkey_primary(value: &str) -> Option<String> {
         "tab" => "Tab".to_string(),
         "enter" | "return" => "Enter".to_string(),
         "backspace" => "Backspace".to_string(),
+        "capslock" => "CapsLock".to_string(),
+        "numlock" => "NumLock".to_string(),
+        "scrolllock" => "ScrollLock".to_string(),
+        "pause" => "Pause".to_string(),
+        "printscreen" => "PrintScreen".to_string(),
         "escape" | "esc" => "Escape".to_string(),
         "delete" => "Delete".to_string(),
         "insert" => "Insert".to_string(),
@@ -877,6 +882,20 @@ fn normalize_hotkey_primary(value: &str) -> Option<String> {
         "leftshift" | "left_shift" | "left-shift" | "shiftleft" | "shift_left" | "shift-left" => {
             "LeftShift".to_string()
         }
+        "rightshift" | "shift_right" | "right_shift" | "rshift" => "RightShift".to_string(),
+        "ctrl" | "control" => "Ctrl".to_string(),
+        "leftctrl" | "leftcontrol" | "controlleft" | "lcontrol" => "LeftCtrl".to_string(),
+        "rightctrl" | "rightcontrol" | "controlright" | "rcontrol" => "RightCtrl".to_string(),
+        "shift" => "Shift".to_string(),
+        "alt" | "option" => "Alt".to_string(),
+        "leftalt" | "leftoption" | "optionleft" | "loption" => "LeftAlt".to_string(),
+        "meta" | "super" | "win" | "cmd" | "command" => "Meta".to_string(),
+        "leftmeta" | "leftcommand" | "commandleft" | "leftwin" | "lcommand" => {
+            "LeftMeta".to_string()
+        }
+        "rightmeta" | "rightcommand" | "commandright" | "rightwin" | "rcommand" => {
+            "RightMeta".to_string()
+        }
         "pageup" => "PageUp".to_string(),
         "pagedown" => "PageDown".to_string(),
         "arrowup" | "up" => "Up".to_string(),
@@ -884,9 +903,8 @@ fn normalize_hotkey_primary(value: &str) -> Option<String> {
         "arrowleft" | "left" => "Left".to_string(),
         "arrowright" | "right" => "Right".to_string(),
         "fn" | "function" => "Fn".to_string(),
-        "rightalt" | "right_alt" | "right-alt" | "altright" | "alt_right" | "alt-right" => {
-            "RightAlt".to_string()
-        }
+        "rightalt" | "right_alt" | "right-alt" | "altright" | "alt_right" | "alt-right"
+        | "roption" => "RightAlt".to_string(),
         "slash" | "/" => "/".to_string(),
         "backslash" | "\\" => "\\".to_string(),
         "period" | "." | "。" => ".".to_string(),
@@ -912,6 +930,18 @@ fn normalize_hotkey_primary(value: &str) -> Option<String> {
                     | "f10"
                     | "f11"
                     | "f12"
+                    | "f13"
+                    | "f14"
+                    | "f15"
+                    | "f16"
+                    | "f17"
+                    | "f18"
+                    | "f19"
+                    | "f20"
+                    | "f21"
+                    | "f22"
+                    | "f23"
+                    | "f24"
             ) =>
         {
             other.to_uppercase()

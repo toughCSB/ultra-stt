@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useAppStore } from '../appStore'
+import { bindingFromHotkey, hotkeyFromBinding, useAppStore } from '../appStore'
 import type { HistoryEntry, DictionaryEntry, CorrectionRule } from '../appStore'
 
 function getState() {
@@ -7,6 +7,12 @@ function getState() {
 }
 
 describe('appStore', () => {
+  it.each(['CapsLock', 'NumLock', 'ScrollLock', 'PrintScreen', 'Pause', 'F13', 'F24'])(
+    'keeps the standalone special key %s',
+    (key) => {
+      expect(bindingFromHotkey(key)).toEqual({ primary: key, modifiers: [] })
+    },
+  )
   beforeEach(() => {
     // Reset store to initial state
     useAppStore.setState(useAppStore.getInitialState())
@@ -132,6 +138,29 @@ describe('appStore', () => {
         modifiers: [],
       })
       expect(config.hotkeys.dictationMode).toBe('toggle')
+    })
+
+    it('round trips standalone generic and side-specific modifiers', () => {
+      for (const hotkey of [
+        'Shift',
+        'LeftShift',
+        'RightShift',
+        'Ctrl',
+        'LeftCtrl',
+        'RightCtrl',
+        'Alt',
+        'LeftAlt',
+        'RightAlt',
+        'Meta',
+        'LeftMeta',
+        'RightMeta',
+      ]) {
+        const binding = bindingFromHotkey(hotkey)
+        expect(binding).not.toBeNull()
+        expect(hotkeyFromBinding(binding!)).toBe(hotkey)
+      }
+      expect(bindingFromHotkey('RControl')?.primary).toBe('RightCtrl')
+      expect(bindingFromHotkey('ROption')?.primary).toBe('RightAlt')
     })
 
     it('updateConfig keeps disabled typed Ask hotkey disabled in legacy fields', () => {

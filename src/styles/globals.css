@@ -135,6 +135,12 @@ html,
 #root {
   background: transparent;
 }
+html[data-window='capsule'],
+html[data-window='capsule'] body,
+html[data-window='capsule'] #root {
+  background: transparent;
+  background-image: none;
+}
 html.app-canvas,
 html.app-canvas body {
   background-color: var(--color-bg-primary);
@@ -239,39 +245,385 @@ textarea:focus {
     0 0 20px rgba(0, 230, 118, 0.1) !important;
   outline: none !important;
 }
-/* The capsule carries white text and a green glyph, so it sits on a deep green
-   body rather than the bright accent, which washed the text out. No black rim. */
-.jelly-capsule {
-  background: linear-gradient(180deg, #09623a 0%, #064d2f 100%);
-  border: none;
+html[data-window='capsule'] .jelly-capsule,
+html[data-window='capsule'] .jelly-capsule-active,
+html[data-window='capsule'] .live-capsule,
+html[data-window='capsule'] .jelly-capsule-error {
+  --capsule-foreground: #033b29;
+  --capsule-secondary: #07523b;
+  --capsule-control: rgba(255, 255, 255, 0.18);
+  --capsule-control-hover: rgba(255, 255, 255, 0.3);
+  --capsule-control-border: rgba(0, 64, 41, 0.3);
+  --capsule-selected: #075139;
+  --capsule-focus: #043d2b;
+  --capsule-wave-top: #033e2b;
+  --capsule-wave-bottom: #087344;
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(223, 255, 239, 0.35), transparent 52%),
+    linear-gradient(180deg, #58e7a5 0%, #27d58a 53%, #14b875 100%);
+  border: 0;
   outline: none;
-  box-shadow: none;
   border-radius: 9999px;
+  box-shadow:
+    inset 0 0 0 1px rgba(224, 255, 237, 0.64),
+    inset 0 2px 0 rgba(245, 255, 250, 0.28),
+    inset 0 -12px 24px rgba(0, 75, 49, 0.1);
 }
-.jelly-capsule-active {
-  background: linear-gradient(180deg, #085c35 0%, #06492b 100%);
-  border: none;
-  outline: none;
-  box-shadow: none;
-  border-radius: 9999px;
+html[data-window='capsule'] .live-capsule {
+  --capsule-foreground: #052c4b;
+  --capsule-secondary: #073b61;
+  --capsule-control: rgba(255, 255, 255, 0.2);
+  --capsule-control-hover: rgba(255, 255, 255, 0.32);
+  --capsule-control-border: rgba(0, 47, 89, 0.32);
+  --capsule-selected: #073f75;
+  --capsule-focus: #063657;
+  --capsule-wave-top: #063756;
+  --capsule-wave-bottom: #0c5480;
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(230, 248, 255, 0.4), transparent 52%),
+    linear-gradient(180deg, #87dbff, #56c2ff 56%, #3ea6ee);
 }
-/* Live typing: a warm orange shell, unmistakably different from green dictation. */
-.live-capsule {
-  background: linear-gradient(180deg, #f97316 0%, #c2410c 100%);
-  border: none;
-  outline: none;
-  box-shadow: inset 0 0 0 2px rgba(255, 237, 213, 0.9);
-  border-radius: 9999px;
-}
-.jelly-capsule-error {
-  background: var(--color-error);
-  border: none;
-  outline: none;
-  box-shadow: none;
-  border-radius: 9999px;
+html[data-window='capsule'] .jelly-capsule-error {
+  --capsule-foreground: #fff8f9;
+  --capsule-secondary: #fff0f3;
+  --capsule-control: rgba(66, 0, 15, 0.18);
+  --capsule-control-hover: rgba(70, 0, 20, 0.28);
+  --capsule-control-border: rgba(255, 239, 241, 0.5);
+  --capsule-selected: #731329;
+  --capsule-focus: #ffffff;
+  --capsule-wave-top: #fff4f6;
+  --capsule-wave-bottom: #ffd5dc;
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(255, 202, 205, 0.09), transparent 52%),
+    linear-gradient(180deg, #c8233e, #bd1c38 56%, #a61630);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 213, 219, 0.64),
+    inset 0 2px 0 rgba(255, 240, 244, 0.2);
 }
 .capsule-content {
+  mix-blend-mode: normal;
+}
+.capsule-content > * {
+  height: 100%;
+}
+.capsule-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+  padding: 12px 20px;
+  color: var(--capsule-foreground);
+}
+.capsule-brand {
+  display: block;
+  flex: none;
+  padding: 0;
+  background: radial-gradient(circle at 35% 20%, #137e56, #07543b 80%);
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: inset 0 0 0 1px rgba(214, 255, 231, 0.55);
+  cursor: pointer;
+}
+.capsule-brand:focus-visible,
+.capsule-action:focus-visible,
+.capsule-mode-chip:focus-visible,
+.capsule-translate-chip:focus-visible {
+  outline: 2px solid var(--capsule-focus);
+  outline-offset: 2px;
+}
+.capsule-brand-image {
+  display: block;
+  flex: none;
+  border-radius: 50%;
   mix-blend-mode: screen;
+  object-fit: contain;
+  filter: drop-shadow(0 0 9px rgba(60, 245, 153, 0.2));
+}
+.capsule-stage-main {
+  min-width: 0;
+  flex: 1;
+  margin-right: 156px;
+}
+.capsule-stage-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 23px;
+  gap: 12px;
+}
+.capsule-stage-status {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 9px;
+  overflow: hidden;
+  color: var(--capsule-foreground);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+.capsule-stage-timer {
+  flex: none;
+}
+.capsule-duration {
+  color: var(--capsule-secondary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.capsule-stage-detail {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  color: var(--capsule-secondary);
+  font-size: 13px;
+}
+.capsule-stage-transcript {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.capsule-stage-actions {
+  position: absolute;
+  right: 20px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 136px;
+}
+.capsule-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 44px;
+  height: 44px;
+  gap: 6px;
+  padding: 0 7px;
+  border: 1px solid var(--capsule-control-border);
+  border-radius: 999px;
+  background: var(--capsule-control);
+  color: var(--capsule-foreground);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+.capsule-action:hover {
+  background: var(--capsule-control-hover);
+  border-color: var(--capsule-foreground);
+}
+.capsule-action-mode {
+  min-width: 84px;
+}
+.capsule-status-light {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--capsule-foreground);
+  box-shadow: 0 0 0 3px var(--capsule-control);
+  animation: capsule-breathe 1.7s ease-in-out infinite;
+}
+.capsule-stage-live .capsule-status-light {
+  background: #073b61;
+}
+.capsule-stage-error .capsule-stage-status {
+  color: var(--capsule-foreground);
+}
+.capsule-stage-complete .capsule-stage-detail {
+  color: var(--capsule-foreground);
+}
+.capsule-stage-thought {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.capsule-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 35px;
+  overflow: hidden;
+}
+.capsule-waveform-bar {
+  display: block;
+  flex: 0 0 5px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--capsule-wave-top), var(--capsule-wave-bottom));
+  opacity: 0.46;
+  transform: scaleY(0.12);
+  will-change: transform;
+  transition:
+    transform 75ms ease-out,
+    opacity 75ms ease-out;
+}
+.capsule-mode-chip {
+  width: 136px;
+  height: 44px;
+  border: 1px solid var(--capsule-control-border);
+  background: var(--capsule-control);
+  color: var(--capsule-foreground);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+html[data-window='capsule'] .capsule-mode-menu,
+html[data-window='capsule'] .capsule-translation-menu {
+  position: absolute;
+}
+.capsule-mode-chip:hover {
+  border-color: var(--capsule-foreground);
+  background: var(--capsule-control-hover);
+}
+.capsule-translate-chip {
+  border: 1px solid var(--capsule-control-border);
+  background: var(--capsule-control);
+  color: var(--capsule-foreground);
+  cursor: pointer;
+}
+.capsule-translate-chip:hover {
+  background: var(--capsule-control-hover);
+}
+.capsule-work-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--capsule-foreground);
+}
+.capsule-mode-picker {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 20px;
+  color: var(--capsule-foreground);
+}
+.capsule-mode-picker-main {
+  flex: 1;
+  min-width: 0;
+}
+.capsule-mode-picker-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 24px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.capsule-mode-picker-hint {
+  min-width: 0;
+  flex: 1;
+  font-size: 10px;
+}
+.capsule-mode-picker-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 24px;
+  margin-left: auto;
+  border-radius: 12px;
+  background: var(--capsule-control);
+  color: var(--capsule-foreground);
+  cursor: pointer;
+}
+.capsule-inline-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.capsule-inline-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: 60px;
+  padding: 3px;
+  border: 1px solid var(--capsule-control-border);
+  border-radius: 12px;
+  background: var(--capsule-control);
+  color: var(--capsule-foreground);
+  cursor: pointer;
+}
+.capsule-inline-option:hover,
+.capsule-mode-picker-close:hover {
+  background: var(--capsule-control-hover);
+}
+.capsule-inline-option[aria-checked='true'] {
+  border-color: var(--capsule-selected);
+  background: var(--capsule-selected);
+  color: #ffffff;
+}
+.capsule-inline-option:focus-visible,
+.capsule-mode-picker-close:focus-visible {
+  outline: 2px solid var(--capsule-focus);
+  outline-offset: 1px;
+}
+.capsule-inline-option:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.capsule-inline-art {
+  display: block;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+.capsule-inline-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  font-size: 11px;
+  line-height: 11px;
+  text-align: center;
+  font-weight: 650;
+}
+.capsule-inline-check {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+}
+.capsule-inline-error {
+  margin-top: 2px;
+  color: var(--capsule-foreground);
+  font-size: 10px;
+  line-height: 12px;
+}
+@keyframes capsule-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capsule-status-light {
+    animation: none;
+  }
+  .capsule-waveform-bar {
+    transition: none;
+  }
 }
 .jelly-capsule::before,
 .jelly-capsule::after,

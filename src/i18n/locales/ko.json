@@ -266,7 +266,7 @@
     "shortcutRollback": "The previous shortcuts were restored.",
     "disableAskHotkey": "Ask 단축키 비활성화",
     "pressKeyCombination": "단독키 또는 키 조합을 누르세요...",
-    "singleKeyHotkeyHint": "F8, 문자, 숫자, 기호 등 단독키도 지정할 수 있습니다. 앱 내 중복과 OS 등록 충돌은 저장 시 확인합니다. 다른 앱의 일반 키 기능까지 확인할 수는 없으며, 문자·Space 등은 평소 타이핑을 방해할 수 있어 F키를 권장합니다.",
+    "singleKeyHotkeyHint": "F8, 문자, 숫자, 기호와 좌우 수정키 단독 입력을 지정할 수 있습니다. 수정키는 다른 키와 함께 쓰지 않고 놓을 때만 작동해 Ctrl+C 등 조합은 유지합니다. Fn은 Mac 키보드와 손쉬운 사용 권한이 필요하며 Windows 단독 Fn은 지원하지 않습니다. 저장 시 중복과 훅 시작은 확인하지만 OS 예약 키나 다른 앱의 가로채기는 보장할 수 없습니다. 문자·Space는 타이핑을 방해할 수 있어 F키를 권장합니다.",
     "clickToConfirm": "다시 클릭하여 확인하거나, 다른 조합을 누르세요",
     "holdToTalk": "누른 채 말하기",
     "toggleOnOff": "토글 켜기/끄기",

@@ -37,6 +37,9 @@ export function HotkeyRecorder({
   const autoConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoStarted = useRef(false)
   const recordingRef = useRef(false)
+  const modifierCandidate = useRef<string | null>(null)
+  const heldModifiers = useRef(new Set<string>())
+  const heldOtherKeys = useRef(new Set<string>())
 
   const clearTimer = useCallback(() => {
     if (!autoConfirmTimer.current) return
@@ -51,6 +54,9 @@ export function HotkeyRecorder({
       setRecording(false)
       setModifierHint(null)
       setPending(null)
+      modifierCandidate.current = null
+      heldModifiers.current.clear()
+      heldOtherKeys.current.clear()
       const validationError = validateHotkey?.(hotkey)
       if (validationError) {
         setError(validationError)
@@ -71,6 +77,9 @@ export function HotkeyRecorder({
     setPending(null)
     setModifierHint(null)
     setError(null)
+    modifierCandidate.current = null
+    heldModifiers.current.clear()
+    heldOtherKeys.current.clear()
     resumeHotkey().catch(() => {})
     onCancel?.()
   }, [clearTimer, onCancel])
@@ -83,6 +92,9 @@ export function HotkeyRecorder({
     setPending(null)
     setModifierHint(null)
     setError(null)
+    modifierCandidate.current = null
+    heldModifiers.current.clear()
+    heldOtherKeys.current.clear()
   }, [disabled])
 
   useEffect(() => {
@@ -104,6 +116,16 @@ export function HotkeyRecorder({
       event.preventDefault()
       event.stopPropagation()
       if (event.repeat) return
+
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) {
+        if (heldModifiers.current.size === 0 && heldOtherKeys.current.size === 0) {
+          modifierCandidate.current = event.code
+        } else modifierCandidate.current = null
+        heldModifiers.current.add(event.code)
+      } else {
+        modifierCandidate.current = null
+        heldOtherKeys.current.add(event.code)
+      }
 
       const parts: string[] = []
       if (isMac && event.metaKey) parts.push('Command')
@@ -158,17 +180,49 @@ export function HotkeyRecorder({
     [clearTimer, confirmHotkey, isMac, invalidHotkeyMessage],
   )
 
+  const handleKeyUp = useCallback(
+    (event: KeyboardEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      const candidate = modifierCandidate.current
+      heldModifiers.current.delete(event.code)
+      heldOtherKeys.current.delete(event.code)
+      setModifierHint(null)
+      if (candidate !== event.code || heldModifiers.current.size !== 0) return
+      modifierCandidate.current = null
+      const keyName: Record<string, string> = {
+        ShiftLeft: 'LeftShift',
+        ShiftRight: 'RightShift',
+        ControlLeft: 'LeftCtrl',
+        ControlRight: 'RightCtrl',
+        AltLeft: 'LeftAlt',
+        AltRight: 'RightAlt',
+        MetaLeft: 'LeftMeta',
+        MetaRight: 'RightMeta',
+      }
+      const hotkey = keyName[event.code]
+      if (!hotkey || !bindingFromHotkey(hotkey)) {
+        setError(invalidHotkeyMessage)
+        return
+      }
+      setError(null)
+      setPending(hotkey)
+      clearTimer()
+      autoConfirmTimer.current = setTimeout(() => confirmHotkey(hotkey), 1500)
+    },
+    [clearTimer, confirmHotkey, invalidHotkeyMessage],
+  )
+
   useEffect(() => {
     if (!recording) return
-    const clearModifierHint = () => setModifierHint(null)
     window.addEventListener('keydown', handleKeyDown, true)
-    window.addEventListener('keyup', clearModifierHint, true)
+    window.addEventListener('keyup', handleKeyUp, true)
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true)
-      window.removeEventListener('keyup', clearModifierHint, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
       clearTimer()
     }
-  }, [clearTimer, handleKeyDown, recording])
+  }, [clearTimer, handleKeyDown, handleKeyUp, recording])
 
   const handleClick = () => {
     if (disabled) return
@@ -211,9 +265,14 @@ export function HotkeyRecorder({
       {recording && pending && (
         <p className="mt-1 text-[11px] text-text-tertiary">{t('settings.clickToConfirm')}</p>
       )}
-      {recording && specialOptions && specialOptions.length > 0 && (
+      {recording && (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {specialOptions.map((option) => (
+          {[
+            ...(specialOptions ?? []),
+            ...['Shift', 'Ctrl', isMac ? 'Option' : 'Alt', isMac ? 'Command' : 'Meta'].map(
+              (value) => ({ value, label: value }),
+            ),
+          ].map((option) => (
             <button
               key={option.value}
               type="button"
@@ -249,6 +308,22 @@ function bindingIdentity(binding: ShortcutBinding) {
     return modifier
   })
   return [...semanticModifiers, binding.primary].join('+')
+}
+
+function bindingsConflict(left: ShortcutBinding, right: ShortcutBinding) {
+  if (bindingIdentity(left) === bindingIdentity(right)) return true
+  if (left.modifiers.length || right.modifiers.length) return false
+  const groups = [
+    ['Shift', 'LeftShift', 'RightShift'],
+    ['Ctrl', 'LeftCtrl', 'RightCtrl'],
+    ['Alt', 'LeftAlt', 'RightAlt'],
+    ['Meta', 'LeftMeta', 'RightMeta'],
+  ]
+  return groups.some(
+    ([generic, ...sides]) =>
+      (left.primary === generic && sides.includes(right.primary)) ||
+      (right.primary === generic && sides.includes(left.primary)),
+  )
 }
 
 export function ShortcutBindingList({
@@ -295,11 +370,10 @@ export function ShortcutBindingList({
   const validate = (hotkey: string, editingIndex: number | null) => {
     const candidate = bindingFromHotkey(hotkey)
     if (!candidate) return t('settings.hotkeyInvalid')
-    const identity = bindingIdentity(candidate)
     const ownConflicts = bindings.some(
-      (binding, index) => index !== editingIndex && bindingIdentity(binding) === identity,
+      (binding, index) => index !== editingIndex && bindingsConflict(binding, candidate),
     )
-    const externalConflict = otherBindings.some((binding) => bindingIdentity(binding) === identity)
+    const externalConflict = otherBindings.some((binding) => bindingsConflict(binding, candidate))
     return ownConflicts || externalConflict ? t('settings.hotkeyConflict') : null
   }
 

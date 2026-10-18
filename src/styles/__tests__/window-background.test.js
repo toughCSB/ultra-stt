@@ -11,14 +11,64 @@ const canvasStyles = stylesheet.slice(
 afterEach(() => {
   document.head.querySelectorAll('style').forEach((style) => style.remove())
   document.documentElement.className = ''
+  delete document.documentElement.dataset.window
   document.body.querySelectorAll('[data-capsule-test]').forEach((element) => element.remove())
 })
 
 describe('window canvas background', () => {
-  it('blends the original icon black background out of the capsule content', () => {
+  it('uses distinct theme foregrounds and large round controls', () => {
+    document.documentElement.dataset.window = 'capsule'
     const style = document.createElement('style')
     style.textContent = stylesheet.slice(
-      stylesheet.indexOf('.jelly-capsule {'),
+      stylesheet.indexOf('/* ─── Panels:'),
+      stylesheet.indexOf('/* ─── Scrollbar ─── */'),
+    )
+    document.head.appendChild(style)
+    const foregrounds = ['jelly-capsule-active', 'live-capsule', 'jelly-capsule-error'].map(
+      (name) => {
+        const capsule = document.createElement('div')
+        capsule.className = name
+        capsule.dataset.capsuleTest = ''
+        document.body.appendChild(capsule)
+        return getComputedStyle(capsule).getPropertyValue('--capsule-foreground')
+      },
+    )
+    expect(foregrounds.every((foreground) => foreground.startsWith('#'))).toBe(true)
+    expect(new Set(foregrounds).size).toBe(3)
+    for (const className of ['capsule-action', 'capsule-mode-chip']) {
+      const button = document.createElement('button')
+      button.className = className
+      button.dataset.capsuleTest = ''
+      document.body.appendChild(button)
+      expect(Number.parseFloat(getComputedStyle(button).height)).toBeGreaterThanOrEqual(44)
+    }
+    const brand = document.createElement('button')
+    brand.className = 'capsule-brand'
+    brand.dataset.capsuleTest = ''
+    document.body.appendChild(brand)
+    expect(getComputedStyle(brand).borderRadius).toBe('50%')
+    expect(getComputedStyle(brand).overflow).toBe('hidden')
+  })
+  it('positions capsule menus independently of the shared relative card style', () => {
+    document.documentElement.dataset.window = 'capsule'
+    const style = document.createElement('style')
+    style.textContent = stylesheet.slice(
+      stylesheet.indexOf('/* ─── Panels:'),
+      stylesheet.indexOf('/* ─── Scrollbar ─── */'),
+    )
+    document.head.appendChild(style)
+    for (const name of ['capsule-mode-menu', 'capsule-translation-menu']) {
+      const menu = document.createElement('div')
+      menu.className = `jelly-card ${name}`
+      menu.dataset.capsuleTest = ''
+      document.body.appendChild(menu)
+      expect(getComputedStyle(menu).position).toBe('absolute')
+    }
+  })
+  it('preserves legible state and waveform colors instead of blending all content', () => {
+    const style = document.createElement('style')
+    style.textContent = stylesheet.slice(
+      stylesheet.indexOf("html[data-window='capsule'] .jelly-capsule,"),
       stylesheet.indexOf('/* ─── Scrollbar ─── */'),
     )
     document.head.appendChild(style)
@@ -27,15 +77,16 @@ describe('window canvas background', () => {
     content.dataset.capsuleTest = ''
     document.body.appendChild(content)
 
-    expect(getComputedStyle(content).mixBlendMode).toBe('screen')
+    expect(getComputedStyle(content).mixBlendMode).toBe('normal')
   })
 
   it.each(['jelly-capsule', 'jelly-capsule-active', 'jelly-capsule-error'])(
-    'does not draw a border or shadow around %s',
+    'keeps every %s edge and glow inside its rounded shell',
     (className) => {
+      document.documentElement.dataset.window = 'capsule'
       const style = document.createElement('style')
       style.textContent = stylesheet.slice(
-        stylesheet.indexOf('.jelly-capsule {'),
+        stylesheet.indexOf("html[data-window='capsule'] .jelly-capsule,"),
         stylesheet.indexOf('/* ─── Scrollbar ─── */'),
       )
       document.head.appendChild(style)
@@ -47,7 +98,9 @@ describe('window canvas background', () => {
       const computed = getComputedStyle(capsule)
       expect(['', 'none']).toContain(computed.borderTopStyle)
       expect(computed.outline).toBe('none')
-      expect(computed.boxShadow).toBe('none')
+      expect(computed.boxShadow).toContain('inset')
+      const shadows = computed.boxShadow.replaceAll(/rgba?\([^)]*\)/g, '').split(',')
+      expect(shadows.every((shadow) => shadow.trim().startsWith('inset'))).toBe(true)
     },
   )
 

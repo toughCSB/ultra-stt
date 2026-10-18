@@ -342,7 +342,7 @@ fn native_conflict(
 ) -> Option<&RegisteredNativeHotkey> {
     plan.native
         .iter()
-        .find(|registered| registered.trigger == trigger)
+        .find(|registered| registered.trigger.overlaps(trigger))
 }
 
 fn global_conflict<'a>(
@@ -420,18 +420,22 @@ fn push_registered_hotkey(
 
 pub fn native_trigger_supported_on_platform(trigger: NativeHotkeyTrigger, platform: &str) -> bool {
     match platform {
-        "macos" => matches!(
-            trigger,
-            NativeHotkeyTrigger::Fn
-                | NativeHotkeyTrigger::FnSpace
-                | NativeHotkeyTrigger::FnLeftShift
-        ),
-        "windows" => matches!(
-            trigger,
-            NativeHotkeyTrigger::RightAlt
-                | NativeHotkeyTrigger::RightAltSpace
-                | NativeHotkeyTrigger::RightAltLeftShift
-        ),
+        "macos" => {
+            matches!(
+                trigger,
+                NativeHotkeyTrigger::Fn
+                    | NativeHotkeyTrigger::FnSpace
+                    | NativeHotkeyTrigger::FnLeftShift
+            ) || trigger.is_modifier_tap()
+        }
+        "windows" => {
+            matches!(
+                trigger,
+                NativeHotkeyTrigger::RightAlt
+                    | NativeHotkeyTrigger::RightAltSpace
+                    | NativeHotkeyTrigger::RightAltLeftShift
+            ) || trigger.is_modifier_tap()
+        }
         _ => false,
     }
 }
@@ -442,6 +446,17 @@ pub fn native_trigger_from_binding(
     if binding.modifiers.is_empty() {
         return match binding.primary.trim().to_lowercase().as_str() {
             "fn" | "function" => Some(NativeHotkeyTrigger::Fn),
+            "shift" => Some(NativeHotkeyTrigger::Shift),
+            "leftshift" => Some(NativeHotkeyTrigger::LeftShift),
+            "rightshift" => Some(NativeHotkeyTrigger::RightShift),
+            "ctrl" => Some(NativeHotkeyTrigger::Ctrl),
+            "leftctrl" => Some(NativeHotkeyTrigger::LeftCtrl),
+            "rightctrl" => Some(NativeHotkeyTrigger::RightCtrl),
+            "alt" => Some(NativeHotkeyTrigger::Alt),
+            "leftalt" => Some(NativeHotkeyTrigger::LeftAlt),
+            "meta" => Some(NativeHotkeyTrigger::Meta),
+            "leftmeta" => Some(NativeHotkeyTrigger::LeftMeta),
+            "rightmeta" => Some(NativeHotkeyTrigger::RightMeta),
             "rightalt" | "right_alt" | "right-alt" | "altright" | "alt_right" | "alt-right" => {
                 Some(NativeHotkeyTrigger::RightAlt)
             }
@@ -560,6 +575,9 @@ pub(crate) fn hotkey_registration_plan_from_config_for_platform(
         );
     for (role, index, binding) in extra {
         if let Err(error) = push_registered_hotkey(&mut plan, role, index, binding, platform) {
+            if role == HotkeyRole::LiveDictation && default_live.first() != Some(binding) {
+                return Err(error);
+            }
             tracing::warn!("{} shortcut not registered: {error:?}", role.as_str());
         }
     }
@@ -631,7 +649,7 @@ pub fn hotkeys_conflict(left: &str, right: &str) -> bool {
         .as_ref()
         .and_then(native_trigger_from_binding);
     if let (Some(left), Some(right)) = (native_left, native_right) {
-        return left == right;
+        return left.overlaps(right);
     }
 
     match (parse_hotkey(left), parse_hotkey(right)) {
@@ -993,6 +1011,18 @@ pub fn handle_hotkey_role_event(
     role: HotkeyRole,
     event_state: ShortcutState,
 ) {
+    handle_hotkey_role_event_with_mode(handle, role, event_state, false);
+}
+
+pub fn handle_hotkey_role_event_with_mode(
+    handle: tauri::AppHandle,
+    role: HotkeyRole,
+    event_state: ShortcutState,
+    tap_only: bool,
+) {
+    if tap_only && event_state == ShortcutState::Released {
+        return;
+    }
     match role {
         HotkeyRole::Ask => {
             let ask_state = handle.state::<commands::ask::AskDictationState>();
@@ -1013,7 +1043,7 @@ pub fn handle_hotkey_role_event(
                 .clone();
             let pipeline_state = handle.state::<pipeline::PipelineHandle>().current_state();
             let action = recording_shortcut_action(
-                &hotkey_mode,
+                if tap_only { "toggle" } else { &hotkey_mode },
                 event_state,
                 pipeline_state,
                 pipeline::PipelineStartOptions {
@@ -1033,7 +1063,7 @@ pub fn handle_hotkey_role_event(
                 .clone();
             let pipeline_state = handle.state::<pipeline::PipelineHandle>().current_state();
             let action = recording_shortcut_action(
-                &hotkey_mode,
+                if tap_only { "toggle" } else { &hotkey_mode },
                 event_state,
                 pipeline_state,
                 pipeline::PipelineStartOptions {
@@ -1072,7 +1102,7 @@ pub fn handle_hotkey_role_event(
                 .clone();
             let pipeline_state = handle.state::<pipeline::PipelineHandle>().current_state();
             let action = recording_shortcut_action(
-                &hotkey_mode,
+                if tap_only { "toggle" } else { &hotkey_mode },
                 event_state,
                 pipeline_state,
                 pipeline::PipelineStartOptions::default(),
@@ -1094,6 +1124,12 @@ pub fn build_shortcut_handler(
         if handle
             .state::<pipeline::PipelineHandle>()
             .take_escape_event_for_global(shortcut)
+        {
+            return;
+        }
+        if handle
+            .state::<pipeline::PipelineHandle>()
+            .route_recording_control(shortcut, event.state)
         {
             return;
         }
@@ -1126,6 +1162,11 @@ pub fn parse_hotkey(s: &str) -> Option<Shortcut> {
         "tab" => Code::Tab,
         "enter" | "return" => Code::Enter,
         "backspace" => Code::Backspace,
+        "capslock" => Code::CapsLock,
+        "numlock" => Code::NumLock,
+        "scrolllock" => Code::ScrollLock,
+        "pause" => Code::Pause,
+        "printscreen" => Code::PrintScreen,
         "escape" | "esc" => Code::Escape,
         "delete" => Code::Delete,
         "insert" => Code::Insert,
@@ -1149,6 +1190,18 @@ pub fn parse_hotkey(s: &str) -> Option<Shortcut> {
         "f10" => Code::F10,
         "f11" => Code::F11,
         "f12" => Code::F12,
+        "f13" => Code::F13,
+        "f14" => Code::F14,
+        "f15" => Code::F15,
+        "f16" => Code::F16,
+        "f17" => Code::F17,
+        "f18" => Code::F18,
+        "f19" => Code::F19,
+        "f20" => Code::F20,
+        "f21" => Code::F21,
+        "f22" => Code::F22,
+        "f23" => Code::F23,
+        "f24" => Code::F24,
         "a" => Code::KeyA,
         "b" => Code::KeyB,
         "c" => Code::KeyC,
@@ -1210,6 +1263,23 @@ pub fn parse_hotkey(s: &str) -> Option<Shortcut> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_standalone_lock_and_extended_function_keys() {
+        for (name, key) in [
+            ("CapsLock", Code::CapsLock),
+            ("F13", Code::F13),
+            ("F24", Code::F24),
+            ("PrintScreen", Code::PrintScreen),
+            ("NumLock", Code::NumLock),
+            ("Pause", Code::Pause),
+        ] {
+            let shortcut = parse_hotkey(name).unwrap();
+            assert_eq!(shortcut.key, key);
+            assert!(shortcut.mods.is_empty());
+            assert!(storage::ShortcutBinding::from_hotkey(name).is_some());
+        }
+    }
 
     #[test]
     fn test_parse_hotkey_ctrl_slash() {
@@ -1548,6 +1618,19 @@ mod tests {
     }
 
     #[test]
+    fn configured_live_shortcut_registration_errors_are_reported() {
+        let mut config = storage::HotkeyConfig::from_legacy("Ctrl+/", "Ctrl+.", "toggle");
+        config.live_bindings = vec![storage::ShortcutBinding::from_hotkey("Fn").unwrap()];
+        assert!(matches!(
+            hotkey_registration_plan_from_config_for_platform(&config, "windows"),
+            Err(HotkeyPairError::UnsupportedNativeHotkey {
+                role: HotkeyRole::LiveDictation,
+                ..
+            })
+        ));
+    }
+
+    #[test]
     fn live_typing_shortcut_yields_to_a_configured_binding_with_the_same_keys() {
         let config = storage::HotkeyConfig::from_legacy(LIVE_DICTATION_HOTKEY, "Ctrl+.", "hold");
 
@@ -1671,9 +1754,13 @@ mod tests {
             NativeHotkeyTrigger::FnSpace,
             "macos"
         ));
-        assert!(!native_trigger_supported_on_platform(
+        assert!(native_trigger_supported_on_platform(
             NativeHotkeyTrigger::RightAlt,
             "macos"
+        ));
+        assert!(native_trigger_supported_on_platform(
+            NativeHotkeyTrigger::RightCtrl,
+            "windows"
         ));
         assert!(native_trigger_supported_on_platform(
             NativeHotkeyTrigger::RightAltLeftShift,
@@ -1687,6 +1774,58 @@ mod tests {
             NativeHotkeyTrigger::Fn,
             "linux"
         ));
+    }
+
+    #[test]
+    fn modifier_bindings_round_trip_and_reject_overlapping_sides() {
+        for key in [
+            "Shift",
+            "LeftShift",
+            "RightShift",
+            "Ctrl",
+            "LeftCtrl",
+            "RightCtrl",
+            "Alt",
+            "LeftAlt",
+            "RightAlt",
+            "Meta",
+            "LeftMeta",
+            "RightMeta",
+        ] {
+            let binding = storage::ShortcutBinding::from_hotkey(key).unwrap();
+            assert_eq!(binding.to_hotkey_string().as_deref(), Some(key));
+            assert!(native_trigger_from_binding(&binding).is_some());
+            assert!(binding_is_valid_for_platform(&binding, "windows"));
+            assert!(binding_is_valid_for_platform(&binding, "macos"));
+            assert!(!binding_is_valid_for_platform(&binding, "linux"));
+        }
+        assert_eq!(
+            storage::ShortcutBinding::from_hotkey("RControl")
+                .unwrap()
+                .primary,
+            "RightCtrl"
+        );
+        assert_eq!(
+            storage::ShortcutBinding::from_hotkey("ROption")
+                .unwrap()
+                .primary,
+            "RightAlt"
+        );
+
+        let mut config = storage::HotkeyConfig::from_legacy("Ctrl", "RightCtrl", "hold");
+        assert!(matches!(
+            validate_hotkey_config_for_platform(&config, "windows"),
+            Err(HotkeyPairError::ConflictingHotkeys)
+        ));
+        config.ask = storage::ShortcutBinding::from_hotkey("LeftCtrl");
+        config.ask_bindings = config.ask.clone().into_iter().collect();
+        assert!(matches!(
+            validate_hotkey_config_for_platform(&config, "windows"),
+            Err(HotkeyPairError::ConflictingHotkeys)
+        ));
+        config.dictation = storage::ShortcutBinding::from_hotkey("RightCtrl").unwrap();
+        config.dictation_bindings = vec![config.dictation.clone()];
+        assert!(validate_hotkey_config_for_platform(&config, "windows").is_ok());
     }
 
     #[test]

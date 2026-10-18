@@ -3,6 +3,7 @@ import { AlertCircle, Check, ClipboardCopy, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyRecoveryEntry } from '../../lib/tauri'
 import { useAppStore, type RecoveryEntry } from '../../stores/appStore'
+import { CapsuleStage } from './CapsuleStage'
 
 export function CapsuleRecovery({ entry }: { entry: RecoveryEntry }) {
   const { t } = useTranslation()
@@ -26,53 +27,60 @@ export function CapsuleRecovery({ entry }: { entry: RecoveryEntry }) {
   }
 
   return (
-    <div className="relative z-10 flex h-9 w-full items-center gap-2 pl-3 pr-1.5 text-white">
-      <span className="min-w-0 flex-1 truncate text-[11px]" title={entry.text}>
-        {t('recovery.capsuleNotice')} · {entry.text}
-      </span>
-      <button
-        type="button"
-        disabled={busy}
-        aria-label={t(
-          failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy',
-        )}
-        title={t(failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy')}
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation()
-          void copy()
-        }}
-        className="shrink-0 rounded-full bg-white/15 p-1.5 text-white hover:bg-white/25 disabled:opacity-50"
-      >
-        {failed ? (
-          <AlertCircle size={13} />
-        ) : copied ? (
-          <Check size={13} />
-        ) : (
-          <ClipboardCopy size={13} />
-        )}
-      </button>
-      <button
-        type="button"
-        aria-label={t('recovery.hideNotice')}
-        title={t('recovery.hideNotice')}
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation()
-          clearAlert()
-          setPipelineError(null)
-        }}
-        className="shrink-0 rounded-full p-1.5 text-white/80 hover:bg-white/15"
-      >
-        <X size={13} />
-      </button>
-      {(copied || failed) && (
-        <span role={failed ? 'alert' : 'status'} className="sr-only">
-          {t(failed ? 'recovery.copyFailed' : 'recovery.copied')}
+    <CapsuleStage
+      status={t('recovery.capsuleNotice')}
+      detail={
+        <span className="capsule-stage-transcript" title={entry.text}>
+          {entry.text}
         </span>
-      )}
-    </div>
+      }
+      actions={
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            aria-label={t(
+              failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy',
+            )}
+            title={t(failed ? 'recovery.copyFailed' : copied ? 'recovery.copied' : 'recovery.copy')}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              void copy()
+            }}
+            className="capsule-action disabled:opacity-50"
+          >
+            {failed ? (
+              <AlertCircle size={13} />
+            ) : copied ? (
+              <Check size={13} />
+            ) : (
+              <ClipboardCopy size={13} />
+            )}
+          </button>
+          <button
+            type="button"
+            aria-label={t('recovery.hideNotice')}
+            title={t('recovery.hideNotice')}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              clearAlert()
+              setPipelineError(null)
+            }}
+            className="capsule-action"
+          >
+            <X size={13} />
+          </button>
+          {(copied || failed) && (
+            <span role={failed ? 'alert' : 'status'} className="sr-only">
+              {t(failed ? 'recovery.copyFailed' : 'recovery.copied')}
+            </span>
+          )}
+        </>
+      }
+    />
   )
 }

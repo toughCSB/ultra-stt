@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../stores/appStore'
+import { CapsuleStage } from './CapsuleStage'
 
 export function CapsuleError() {
   const { t } = useTranslation()
@@ -24,17 +24,14 @@ export function CapsuleError() {
   }, [setPipelineError, resetRecording, pipelineError])
 
   return (
-    <motion.div
-      className="relative z-10 flex items-center gap-2 h-9 px-3"
-      initial={{ opacity: 0, x: -4 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-    >
-      {/* White dot */}
-      <motion.div className="w-2 h-2 rounded-full bg-white/80 flex-shrink-0" />
-      <p className="text-[11px] text-white truncate flex-1">
-        {pipelineError || t('capsule.errors.unknown')}
-      </p>
-    </motion.div>
+    <CapsuleStage
+      tone="error"
+      status={t('capsule.errorOccurred')}
+      detail={
+        <span className="capsule-stage-transcript" title={pipelineError || undefined}>
+          {pipelineError || t('capsule.errors.unknown')}
+        </span>
+      }
+    />
   )
 }

@@ -1,11 +1,13 @@
 import { createElement } from 'react'
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  getCapsuleBottomCenterPosition,
+  getCapsuleCenterPosition,
   getCapsuleFocusable,
   getCapsuleRecoveryPosition,
+  getCapsuleShellSize,
   getCapsuleVisibility,
+  getRecordingTargetMonitor,
   isCapsuleVisibleOnAnyMonitor,
   useCapsuleResize,
 } from '../useCapsuleResize'
@@ -44,6 +46,8 @@ vi.mock('@tauri-apps/api/window', () => {
     ) {}
   }
 
+  class LogicalPosition extends PhysicalPosition {}
+
   return {
     getCurrentWindow: windowApiMocks.getCurrentWindow,
     availableMonitors: windowApiMocks.availableMonitors,
@@ -51,12 +55,48 @@ vi.mock('@tauri-apps/api/window', () => {
     primaryMonitor: windowApiMocks.primaryMonitor,
     LogicalSize,
     PhysicalPosition,
+    LogicalPosition,
   }
 })
 
-const logicalCapsuleSize = { width: 224, height: 60 }
+const logicalCapsuleSize = { width: 444, height: 88 }
+
+describe('capsule shell geometry', () => {
+  it('uses one 560x112 shell for every recording and result state', () => {
+    for (const state of [
+      'preparing',
+      'recording',
+      'transcribing',
+      'polishing',
+      'outputting',
+      'ask_recording',
+      'ask_thinking',
+    ] as const) {
+      expect(getCapsuleShellSize(state, false, false, false)).toEqual({ width: 560, height: 112 })
+    }
+    expect(getCapsuleShellSize('idle', false, true, false)).toEqual({ width: 560, height: 112 })
+    expect(getCapsuleShellSize('idle', false, false, true)).toEqual({ width: 560, height: 112 })
+  })
+})
 
 describe('getCapsuleVisibility', () => {
+  it('recovers a detached macOS screen without treating unlike Retina coordinates as overlap', () => {
+    const retina = {
+      position: { x: 0, y: 0 },
+      size: { width: 3024, height: 1964 },
+      scaleFactor: 2,
+      workArea: { position: { x: 0, y: 48 }, size: { width: 3024, height: 1880 } },
+    }
+    expect(
+      getCapsuleRecoveryPosition(
+        { x: 1700, y: 300, width: 544, height: 120 },
+        [retina],
+        retina,
+        { width: 544, height: 120 },
+        1,
+      ),
+    ).toEqual({ x: 968, y: 868 })
+  })
   it('hides idle capsule when auto-hide is enabled', () => {
     expect(
       getCapsuleVisibility({
@@ -153,63 +193,63 @@ describe('capsule monitor geometry', () => {
     {
       name: 'primary monitor',
       workArea: { position: { x: 0, y: 0 }, size: { width: 1920, height: 1040 } },
-      expected: { x: 848, y: 900 },
+      expected: { x: 738, y: 476 },
     },
     {
       name: 'monitor to the right',
       workArea: { position: { x: 3440, y: 0 }, size: { width: 1920, height: 1040 } },
-      expected: { x: 4288, y: 900 },
+      expected: { x: 4178, y: 476 },
     },
     {
       name: 'monitor to the left',
       workArea: { position: { x: -1920, y: 0 }, size: { width: 1920, height: 1040 } },
-      expected: { x: -1072, y: 900 },
+      expected: { x: -1182, y: 476 },
     },
     {
       name: 'monitor above',
       workArea: { position: { x: 0, y: -1080 }, size: { width: 1920, height: 1040 } },
-      expected: { x: 848, y: -180 },
+      expected: { x: 738, y: -604 },
     },
   ])('uses the global work-area origin for the $name', ({ workArea, expected }) => {
-    expect(
-      getCapsuleBottomCenterPosition({ scaleFactor: 1, workArea }, logicalCapsuleSize),
-    ).toEqual(expected)
+    expect(getCapsuleCenterPosition({ scaleFactor: 1, workArea }, logicalCapsuleSize)).toEqual(
+      expected,
+    )
   })
 
   it('uses physical pixels for mixed-DPI monitors', () => {
     expect(
-      getCapsuleBottomCenterPosition(
+      getCapsuleCenterPosition(
         {
           scaleFactor: 1.5,
           workArea: { position: { x: 1920, y: 100 }, size: { width: 2560, height: 1400 } },
         },
         logicalCapsuleSize,
       ),
-    ).toEqual({ x: 3032, y: 1290 })
+    ).toEqual({ x: 2867, y: 734 })
   })
 
   it('supports a 200% scale factor without converting the global origin', () => {
     expect(
-      getCapsuleBottomCenterPosition(
+      getCapsuleCenterPosition(
         {
           scaleFactor: 2,
           workArea: { position: { x: -3840, y: -200 }, size: { width: 3840, height: 2080 } },
         },
         logicalCapsuleSize,
       ),
-    ).toEqual({ x: -2144, y: 1600 })
+    ).toEqual({ x: -2364, y: 752 })
   })
 
   it('uses the work area rather than placing the capsule behind the taskbar', () => {
     expect(
-      getCapsuleBottomCenterPosition(
+      getCapsuleCenterPosition(
         {
           scaleFactor: 1,
           workArea: { position: { x: 0, y: 40 }, size: { width: 1920, height: 1000 } },
         },
         logicalCapsuleSize,
       ),
-    ).toEqual({ x: 848, y: 900 })
+    ).toEqual({ x: 738, y: 496 })
   })
 
   it('preserves a capsule that is even partially visible on any monitor', () => {
@@ -303,13 +343,13 @@ describe('capsule monitor geometry', () => {
         monitors[0],
         logicalCapsuleSize,
       ),
-    ).toEqual({ x: 848, y: 900 })
+    ).toEqual({ x: 738, y: 476 })
   })
 })
 
 function HookHarness() {
-  useCapsuleResize()
-  return null
+  const frame = useCapsuleResize()
+  return createElement('div', { 'data-testid': 'capsule-frame', 'data-visible': frame.visible })
 }
 
 describe('useCapsuleResize async updates', () => {
@@ -367,15 +407,119 @@ describe('useCapsuleResize async updates', () => {
 
     for (let cycle = 0; cycle < 2; cycle++) {
       act(() => useAppStore.setState({ pipelineState: 'recording' }))
-      await waitFor(() => expect(windowApiMocks.invoke).toHaveBeenCalledTimes(cycle + 1))
+      await waitFor(() => expect(windowApiMocks.invoke).toHaveBeenLastCalledWith('raise_capsule'))
       expect(windowApiMocks.invoke).toHaveBeenLastCalledWith('raise_capsule')
       expect(windowApiMocks.show.mock.invocationCallOrder[cycle]).toBeLessThan(
-        windowApiMocks.invoke.mock.invocationCallOrder[cycle],
+        windowApiMocks.invoke.mock.invocationCallOrder[cycle * 2 + 1],
       )
       expect(windowApiMocks.setFocusable).toHaveBeenLastCalledWith(false)
       act(() => useAppStore.setState({ pipelineState: 'idle' }))
       await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(cycle + 2))
     }
+  })
+
+  it('gives the error shell the same native window size as recording', async () => {
+    useAppStore.setState({ pipelineError: 'Capture failed' })
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalled())
+    expect(windowApiMocks.setSize).toHaveBeenLastCalledWith(
+      expect.objectContaining({ width: 584, height: 136 }),
+    )
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 668, y: 452 }),
+    )
+  })
+
+  it('opens and closes mode selection without moving or resizing an active capsule', async () => {
+    useAppStore.setState({ pipelineState: 'recording' })
+    render(createElement(HookHarness))
+    await waitFor(() =>
+      expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'true'),
+    )
+    windowApiMocks.setSize.mockClear()
+    windowApiMocks.setPosition.mockClear()
+    windowApiMocks.show.mockClear()
+    act(() => useAppStore.setState({ polishModeMenuOpen: true }))
+    await waitFor(() => expect(windowApiMocks.setFocusable).toHaveBeenLastCalledWith(true))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
+    expect(windowApiMocks.setSize).not.toHaveBeenCalled()
+    expect(windowApiMocks.setPosition).not.toHaveBeenCalled()
+    act(() => useAppStore.setState({ polishModeMenuOpen: false }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(2))
+    expect(windowApiMocks.setSize).not.toHaveBeenCalled()
+    expect(windowApiMocks.setPosition).not.toHaveBeenCalled()
+    expect(windowApiMocks.setFocusable).toHaveBeenLastCalledWith(false)
+  })
+
+  it('keeps a user-dragged position when mode selection is quickly opened and closed', async () => {
+    useAppStore.setState({ pipelineState: 'recording' })
+    render(createElement(HookHarness))
+    await waitFor(() =>
+      expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'true'),
+    )
+    windowApiMocks.outerPosition.mockResolvedValue({ x: -1700, y: 500 })
+    windowApiMocks.setPosition.mockClear()
+    windowApiMocks.setSize.mockClear()
+    windowApiMocks.show.mockClear()
+    act(() => useAppStore.setState({ polishModeMenuOpen: true }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
+    act(() => useAppStore.setState({ polishModeMenuOpen: false }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(2))
+    expect(windowApiMocks.setPosition).not.toHaveBeenCalled()
+    expect(windowApiMocks.setSize).not.toHaveBeenCalled()
+  })
+
+  it('shows all mode choices in a full-size frame when opened from the idle icon', async () => {
+    useAppStore.setState({ pipelineState: 'idle', polishModeMenuOpen: true })
+    render(createElement(HookHarness))
+    await waitFor(() =>
+      expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'true'),
+    )
+    expect(windowApiMocks.setSize).toHaveBeenLastCalledWith(
+      expect.objectContaining({ width: 584, height: 136 }),
+    )
+  })
+
+  it('starts the entrance only after native show and keeps the full frame until exit finishes', async () => {
+    let finishShow: () => void = () => {}
+    windowApiMocks.show.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishShow = resolve
+        }),
+    )
+    useAppStore.setState({ pipelineState: 'recording' })
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalled())
+    expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'false')
+    await act(async () => finishShow())
+    await waitFor(() =>
+      expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'true'),
+    )
+    const sizeCalls = windowApiMocks.setSize.mock.calls.length
+    act(() => useAppStore.setState({ pipelineState: 'idle' }))
+    expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'false')
+    expect(windowApiMocks.hide).not.toHaveBeenCalled()
+    expect(windowApiMocks.setSize).toHaveBeenCalledTimes(sizeCalls)
+    await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(1))
+    expect(windowApiMocks.setSize).toHaveBeenCalledTimes(sizeCalls)
+  })
+
+  it('does not let an old exit hide a new recording', async () => {
+    useAppStore.setState({ pipelineState: 'recording' })
+    render(createElement(HookHarness))
+    await waitFor(() =>
+      expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'true'),
+    )
+    await act(async () => {
+      useAppStore.setState({ pipelineState: 'idle' })
+      await Promise.resolve()
+    })
+    act(() => useAppStore.setState({ pipelineState: 'preparing' }))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(2))
+    await new Promise((resolve) => setTimeout(resolve, 180))
+    expect(windowApiMocks.hide).not.toHaveBeenCalled()
+    expect(screen.getByTestId('capsule-frame')).toHaveAttribute('data-visible', 'true')
   })
 
   it('reasserts stacking during recording and stops when the capsule becomes idle', async () => {
@@ -458,7 +602,7 @@ describe('useCapsuleResize async updates', () => {
 
     await waitFor(() => {
       expect(windowApiMocks.setPosition).toHaveBeenCalledWith(
-        expect.objectContaining({ x: 789, y: 900 }),
+        expect.objectContaining({ x: 668, y: 452 }),
       )
     })
   })
@@ -475,17 +619,23 @@ describe('useCapsuleResize async updates', () => {
     render(createElement(HookHarness))
     await waitFor(() => expect(windowApiMocks.hide).toHaveBeenCalledTimes(1))
     expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
-      expect.objectContaining({ x: 930, y: 900 }),
+      expect.objectContaining({ x: 930, y: 490 }),
     )
 
     act(() => useAppStore.setState({ pipelineState: 'preparing' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
-    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
-      expect.objectContaining({ x: 813, y: 900 }),
+    expect(windowApiMocks.setSize).toHaveBeenLastCalledWith(
+      expect.objectContaining({ width: 584, height: 136 }),
     )
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 668, y: 452 }),
+    )
+    const positionCalls = windowApiMocks.setPosition.mock.invocationCallOrder
+    const sizeCalls = windowApiMocks.setSize.mock.invocationCallOrder
+    expect(positionCalls[positionCalls.length - 1]).toBeGreaterThan(sizeCalls[sizeCalls.length - 1])
 
     windowApiMocks.outerPosition.mockResolvedValue({ x: -1700, y: 500 })
-    windowApiMocks.outerSize.mockResolvedValue({ width: 441, height: 90 })
+    windowApiMocks.outerSize.mockResolvedValue({ width: 876, height: 204 })
     act(() => useAppStore.setState({ pipelineState: 'recording' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(2))
     expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
@@ -502,7 +652,7 @@ describe('useCapsuleResize async updates', () => {
     act(() => useAppStore.setState({ pipelineState: 'ask_recording' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(4))
     expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
-      expect.objectContaining({ x: 819, y: 900 }),
+      expect.objectContaining({ x: 668, y: 452 }),
     )
     expect(windowApiMocks.setFocusable).toHaveBeenLastCalledWith(false)
   })
@@ -523,10 +673,59 @@ describe('useCapsuleResize async updates', () => {
     act(() => useAppStore.setState({ pipelineState: 'recording' }))
     await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalledTimes(1))
     expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
-      expect.objectContaining({ x: 789, y: 900 }),
+      expect.objectContaining({ x: 668, y: 452 }),
     )
     const positions = windowApiMocks.setPosition.mock.calls.length
     await act(async () => finishPrimary(monitor))
     expect(windowApiMocks.setPosition).toHaveBeenCalledTimes(positions)
+  })
+
+  it('centers on the captured input monitor rather than primary or the old capsule display', async () => {
+    const external = {
+      ...monitor,
+      position: { x: -2560, y: -300 },
+      size: { width: 2560, height: 1440 },
+      workArea: { position: { x: -2560, y: -280 }, size: { width: 2560, height: 1400 } },
+    }
+    windowApiMocks.availableMonitors.mockResolvedValue([monitor, external])
+    windowApiMocks.invoke.mockImplementation(async (command: string) =>
+      command === 'get_recording_monitor' ? external : undefined,
+    )
+    useAppStore.setState({ pipelineState: 'preparing' })
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalled())
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: -1572, y: 352 }),
+    )
+    expect(windowApiMocks.primaryMonitor).not.toHaveBeenCalled()
+  })
+
+  it('uses logical macOS coordinates when moving from Retina to an external screen', async () => {
+    vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel')
+    const external = {
+      ...monitor,
+      position: { x: -5120, y: 0 },
+      size: { width: 5120, height: 2880 },
+      scaleFactor: 2,
+      workArea: { position: { x: -5120, y: 40 }, size: { width: 5120, height: 2800 } },
+    }
+    windowApiMocks.availableMonitors.mockResolvedValue([monitor, external])
+    windowApiMocks.invoke.mockImplementation(async (command: string) =>
+      command === 'get_recording_monitor' ? external : undefined,
+    )
+    useAppStore.setState({ pipelineState: 'recording' })
+    render(createElement(HookHarness))
+    await waitFor(() => expect(windowApiMocks.show).toHaveBeenCalled())
+    expect(windowApiMocks.setPosition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: -1572, y: 652 }),
+    )
+    vi.restoreAllMocks()
+  })
+
+  it('rejects an unplugged captured display before falling back to the available primary', () => {
+    expect(
+      getRecordingTargetMonitor({ ...monitor, position: { x: -1920, y: 0 } }, [monitor]),
+    ).toBeUndefined()
+    expect(getRecordingTargetMonitor({ ...monitor }, [monitor])).toBe(monitor)
   })
 })

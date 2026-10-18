@@ -203,7 +203,24 @@ fn register_configured_shortcuts_guarded(
             native_bindings,
             hotkeys.dictation_mode == "hold",
             Arc::new(move |event| {
-                crate::hotkey::handle_hotkey_role_event(handle.clone(), event.role, event.state);
+                if event.tap_only {
+                    let handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+                        crate::hotkey::handle_hotkey_role_event_with_mode(
+                            handle,
+                            event.role,
+                            event.state,
+                            true,
+                        );
+                    });
+                } else {
+                    crate::hotkey::handle_hotkey_role_event(
+                        handle.clone(),
+                        event.role,
+                        event.state,
+                    );
+                }
             }),
         )?;
     }

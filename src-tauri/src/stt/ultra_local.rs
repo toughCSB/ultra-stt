@@ -567,6 +567,10 @@ impl LiveWorker {
                         .unwrap_or_else(|e| e.into_inner())
                         .stopping;
                     let text = match self.recognise(&pcm, speech_ms).await {
+                        Ok(None) if self.errors > 0 => {
+                            tokio::time::sleep(LIVE_PASS_INTERVAL).await;
+                            continue;
+                        }
                         Ok(text) => text.unwrap_or_default(),
                         Err(error) => {
                             let _ = self.events.send(TranscriptEvent::Error {
@@ -871,5 +875,101 @@ mod tests {
             step_name(next_live_step(&silent, Duration::ZERO, 0)),
             "stop"
         );
+    }
+
+    async fn check_final_live_pass_failures(failures: usize) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/audio/live", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let mut uploads = Vec::new();
+            for attempt in 0..(failures + 1).min(LIVE_MAX_ERRORS as usize) {
+                let (mut connection, _) = listener.accept().await.unwrap();
+                let mut head = Vec::new();
+                while !head.ends_with(b"\r\n\r\n") {
+                    head.push(connection.read_u8().await.unwrap());
+                    assert!(head.len() < 8192);
+                }
+                let head = String::from_utf8(head).unwrap();
+                let length: usize = head
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse().unwrap())
+                    })
+                    .unwrap();
+                let mut body = vec![0; length];
+                connection.read_exact(&mut body).await.unwrap();
+                uploads.push(body);
+                let (status, payload) = if attempt < failures {
+                    ("503 Service Unavailable", "{}")
+                } else {
+                    ("200 OK", r#"{"text":"최종 문장을 보존합니다."}"#)
+                };
+                let reply = format!(
+                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                    payload.len()
+                );
+                connection.write_all(reply.as_bytes()).await.unwrap();
+            }
+            for body in uploads {
+                let offset = body.windows(4).position(|bytes| bytes == b"RIFF").unwrap() + 44;
+                assert_eq!(&body[offset..offset + 32_000], pcm(1_000, 8_000));
+            }
+        });
+        let mut audio = LiveAudio::default();
+        audio.push(&pcm(1_000, 8_000));
+        audio.stopping = true;
+        let audio = std::sync::Arc::new(std::sync::Mutex::new(audio));
+        let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let worker = LiveWorker {
+            audio: audio.clone(),
+            events,
+            cancelled: Default::default(),
+            language: Some("ko".to_string()),
+            backend: LiveBackend::Remote {
+                endpoint,
+                token: "fixture-only".to_string(),
+                client: reqwest::Client::new(),
+            },
+            idle_stop_ms: 0,
+            hotwords: String::new(),
+            corrections: Vec::new(),
+            agreement: Default::default(),
+            typed: String::new(),
+            utterance_start: 0,
+            errors: 0,
+        };
+        let typed = tokio::time::timeout(Duration::from_secs(3), worker.run())
+            .await
+            .unwrap();
+        server.await.unwrap();
+        if failures < LIVE_MAX_ERRORS as usize {
+            assert_eq!(typed, "최종 문장을 보존합니다.");
+            assert!(audio.lock().unwrap().pcm.is_empty());
+            assert!(matches!(
+                receiver.recv().await,
+                Some(TranscriptEvent::Committed { text }) if text == typed
+            ));
+        } else {
+            assert!(typed.is_empty());
+            assert_eq!(audio.lock().unwrap().pcm, pcm(1_000, 8_000));
+            assert!(matches!(
+                receiver.recv().await,
+                Some(TranscriptEvent::Error { .. })
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn final_live_pass_retries_a_transient_failure_without_losing_audio() {
+        for failures in 1..=2 {
+            check_final_live_pass_failures(failures).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn final_live_pass_reports_repeated_failure_without_consuming_audio() {
+        check_final_live_pass_failures(LIVE_MAX_ERRORS as usize).await;
     }
 }

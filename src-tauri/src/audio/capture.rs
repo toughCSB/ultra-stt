@@ -92,6 +92,7 @@ pub struct AudioCaptureHandle {
     startup_waiter: Option<CaptureStartupWaiter>,
     volume: Arc<Mutex<f32>>,
     state: Arc<Mutex<CaptureState>>,
+    runtime_error: Arc<Mutex<Option<String>>>,
 }
 
 impl AudioCaptureHandle {
@@ -101,11 +102,13 @@ impl AudioCaptureHandle {
         let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
         let volume = Arc::new(Mutex::new(0.0f32));
         let state = Arc::new(Mutex::new(initial_capture_state()));
+        let runtime_error = Arc::new(Mutex::new(None));
         let (mut startup_notifier, startup_waiter) = capture_startup_channel();
 
         let vol_clone = volume.clone();
         let state_clone = state.clone();
         let failed_state = state.clone();
+        let capture_error = runtime_error.clone();
 
         // Audio capture must run on a dedicated OS thread because cpal::Stream is !Send
         std::thread::spawn(move || {
@@ -115,12 +118,16 @@ impl AudioCaptureHandle {
                 stop_rx,
                 vol_clone,
                 state_clone,
+                capture_error.clone(),
                 &mut startup_notifier,
             ) {
                 *failed_state
                     .lock()
                     .unwrap_or_else(|error| error.into_inner()) = CaptureState::Idle;
                 startup_notifier.failed(e.to_string());
+                *capture_error
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = Some(e.to_string());
                 tracing::error!("Audio capture thread error: {}", e);
             }
         });
@@ -131,6 +138,7 @@ impl AudioCaptureHandle {
                 startup_waiter: Some(startup_waiter),
                 volume,
                 state,
+                runtime_error,
             },
             audio_rx,
         ))
@@ -160,6 +168,13 @@ impl AudioCaptureHandle {
 
     pub fn state(&self) -> CaptureState {
         *self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn runtime_error(&self) -> Option<String> {
+        self.runtime_error
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone()
     }
 }
 
@@ -214,6 +229,7 @@ struct InputProcessingContext {
     sender: mpsc::Sender<Vec<u8>>,
     volume: Arc<Mutex<f32>>,
     buffer: Arc<Mutex<Vec<i16>>>,
+    runtime_error: Arc<Mutex<Option<String>>>,
 }
 
 fn normalized_rms(data: &[f32]) -> f32 {
@@ -267,13 +283,42 @@ fn process_input_samples(data: &[f32], context: &InputProcessingContext) {
 
     // Send complete chunks
     while buffer.len() >= context.samples_per_chunk {
-        let chunk: Vec<i16> = buffer.drain(..context.samples_per_chunk).collect();
-        let bytes: Vec<u8> = chunk
+        let bytes: Vec<u8> = buffer[..context.samples_per_chunk]
             .iter()
             .flat_map(|sample| sample.to_le_bytes())
             .collect();
-        let _ = context.sender.try_send(bytes);
+        match context.sender.try_send(bytes) {
+            Ok(()) => {
+                buffer.drain(..context.samples_per_chunk);
+            }
+            Err(mpsc::error::TrySendError::Full(_)) => break,
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                *context
+                    .runtime_error
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) =
+                    Some("Audio receiver closed during recording".into());
+                break;
+            }
+        }
     }
+}
+
+fn flush_pending_audio(
+    buffer: &Arc<Mutex<Vec<i16>>>,
+    sender: &mpsc::Sender<Vec<u8>>,
+) -> Result<()> {
+    let pending = std::mem::take(&mut *buffer.lock().unwrap_or_else(|error| error.into_inner()));
+    if !pending.is_empty() {
+        let bytes = pending
+            .iter()
+            .flat_map(|sample| sample.to_le_bytes())
+            .collect();
+        sender.blocking_send(bytes).map_err(|_| {
+            anyhow::anyhow!("Audio receiver closed before pending samples were saved")
+        })?;
+    }
+    Ok(())
 }
 
 fn build_input_stream_for_sample<T>(
@@ -285,14 +330,18 @@ where
     T: cpal::SizedSample,
     f32: cpal::FromSample<T>,
 {
+    let capture_error = context.runtime_error.clone();
     device.build_input_stream(
         stream_config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
             let samples = samples_to_f32(data);
             process_input_samples(&samples, &context);
         },
-        |error| {
+        move |error| {
             tracing::error!("Audio capture error: {}", error);
+            *capture_error
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = Some(error.to_string());
         },
         None,
     )
@@ -304,6 +353,7 @@ fn run_capture(
     stop_rx: std::sync::mpsc::Receiver<()>,
     volume: Arc<Mutex<f32>>,
     state: Arc<Mutex<CaptureState>>,
+    runtime_error: Arc<Mutex<Option<String>>>,
     startup_notifier: &mut CaptureStartupNotifier,
 ) -> Result<()> {
     super::permission::ensure_authorized()?;
@@ -347,6 +397,8 @@ fn run_capture(
     let target_channels = config.channels;
     let samples_per_chunk = (target_rate * config.chunk_duration_ms / 1000) as usize;
     let buffer: Arc<Mutex<Vec<i16>>> = Arc::new(Mutex::new(Vec::with_capacity(samples_per_chunk)));
+    let pending_buffer = buffer.clone();
+    let final_sender = sender.clone();
 
     let processing_context = InputProcessingContext {
         device_sample_rate,
@@ -357,6 +409,7 @@ fn run_capture(
         sender,
         volume,
         buffer,
+        runtime_error,
     };
 
     let stream = match device_sample_format {
@@ -425,6 +478,7 @@ fn run_capture(
 
     // Stream is dropped here, stopping capture
     drop(stream);
+    flush_pending_audio(&pending_buffer, &final_sender)?;
     *state.lock().unwrap_or_else(|e| e.into_inner()) = CaptureState::Idle;
     tracing::info!("Audio capture stopped");
     Ok(())
@@ -443,6 +497,78 @@ mod tests {
     #[test]
     fn audio_queue_preserves_a_minute_while_the_provider_connects() {
         assert_eq!(audio_channel_capacity(&AudioConfig::default()), 3_000);
+    }
+
+    #[test]
+    fn capture_retains_two_minutes_when_the_audio_receiver_is_backpressured() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+        let context = InputProcessingContext {
+            device_sample_rate: 16_000,
+            device_channels: 1,
+            target_rate: 16_000,
+            target_channels: 1,
+            samples_per_chunk: 320,
+            sender,
+            volume: Arc::new(Mutex::new(0.0)),
+            buffer: buffer.clone(),
+            runtime_error: Arc::new(Mutex::new(None)),
+        };
+        let samples = vec![0.5_f32; 120 * 16_000];
+        process_input_samples(&samples, &context);
+        let first = receiver.try_recv().unwrap();
+        assert_eq!(
+            first.len() / 2 + buffer.lock().unwrap().len(),
+            samples.len()
+        );
+        process_input_samples(&vec![0.5_f32; 320], &context);
+        let second = receiver.try_recv().unwrap();
+        assert_eq!(second, first);
+        assert_eq!(
+            first.len() / 2 + second.len() / 2 + buffer.lock().unwrap().len(),
+            samples.len() + 320
+        );
+    }
+
+    #[test]
+    fn stopping_capture_flushes_the_entire_pending_tail() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let samples = vec![1234_i16; 120 * 16_000];
+        let expected = samples.len();
+        let buffer = Arc::new(Mutex::new(samples));
+        let worker = std::thread::spawn(move || flush_pending_audio(&buffer, &sender));
+        let received = receiver.blocking_recv().unwrap();
+        assert_eq!(received.len(), expected * 2);
+        assert!(received
+            .chunks_exact(2)
+            .all(|bytes| i16::from_le_bytes([bytes[0], bytes[1]]) == 1234));
+        worker.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn a_closed_audio_receiver_is_reported_instead_of_silently_dropping_speech() {
+        let (sender, receiver) = mpsc::channel(1);
+        drop(receiver);
+        let error = Arc::new(Mutex::new(None));
+        let context = InputProcessingContext {
+            device_sample_rate: 16_000,
+            device_channels: 1,
+            target_rate: 16_000,
+            target_channels: 1,
+            samples_per_chunk: 320,
+            sender,
+            volume: Arc::new(Mutex::new(0.0)),
+            buffer: Arc::new(Mutex::new(Vec::new())),
+            runtime_error: error.clone(),
+        };
+        process_input_samples(&vec![0.5; 320], &context);
+        assert!(error
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .contains("receiver closed"));
+        assert_eq!(context.buffer.lock().unwrap().len(), 320);
     }
 
     #[test]

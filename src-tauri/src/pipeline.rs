@@ -1052,6 +1052,21 @@ fn should_hold_enter(state: PipelineState) -> bool {
     state == PipelineState::Recording
 }
 
+fn recording_control_key(
+    shortcut: &Shortcut,
+    state: PipelineState,
+    ask_busy: bool,
+) -> Option<Code> {
+    if !shortcut.mods.is_empty() {
+        return None;
+    }
+    match shortcut.key {
+        Code::Escape if state != PipelineState::Idle || ask_busy => Some(Code::Escape),
+        Code::Enter if should_hold_enter(state) => Some(Code::Enter),
+        _ => None,
+    }
+}
+
 fn should_register_escape(state: PipelineState, registered: bool) -> bool {
     state != PipelineState::Idle && !registered
 }
@@ -1107,7 +1122,8 @@ impl PipelineHandle {
                 }
             } else if should_register_escape(
                 new_state,
-                self.escape_registered.load(Ordering::SeqCst),
+                self.escape_registered.load(Ordering::SeqCst)
+                    || self.app_handle.global_shortcut().is_registered(escape),
             ) {
                 let registered =
                     self.app_handle
@@ -1180,6 +1196,9 @@ impl PipelineHandle {
             return;
         }
         if self.enter_registered.load(Ordering::SeqCst) {
+            return;
+        }
+        if self.app_handle.global_shortcut().is_registered(enter) {
             return;
         }
         let registered = self
@@ -1255,6 +1274,44 @@ impl PipelineHandle {
     pub(crate) fn take_escape_event_for_global(&self, shortcut: &Shortcut) -> bool {
         consume_escape_event(&self.escape_event_pending, shortcut)
             || consume_enter_event(&self.enter_event_pending, shortcut)
+    }
+
+    pub(crate) fn route_recording_control(
+        &self,
+        shortcut: &Shortcut,
+        state: ShortcutState,
+    ) -> bool {
+        let ask_busy = self
+            .app_handle
+            .try_state::<crate::commands::ask::AskDictationState>()
+            .is_some_and(|ask| ask.is_busy());
+        let action = recording_control_key(shortcut, self.current_state(), ask_busy);
+        if action == Some(Code::Escape) {
+            if state == ShortcutState::Pressed {
+                if let Some(ask) = self
+                    .app_handle
+                    .try_state::<crate::commands::ask::AskDictationState>()
+                    .filter(|ask| ask.is_busy())
+                {
+                    let _ = crate::commands::ask::abort_ask_dictation(self.app_handle.clone(), ask);
+                } else {
+                    self.abort();
+                }
+            }
+            return true;
+        }
+        if action == Some(Code::Enter) {
+            if state == ShortcutState::Pressed {
+                let pipeline = self.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = pipeline.stop().await {
+                        tracing::warn!("Recording Enter stop failed: {error}");
+                    }
+                });
+            }
+            return true;
+        }
+        false
     }
 
     pub fn current_state(&self) -> PipelineState {
@@ -1395,6 +1452,7 @@ impl PipelineHandle {
             return Ok(());
         }
         self.invalidate_session();
+        crate::capsule_window::capture_recording_monitor(&self.app_handle);
         self.set_state(PipelineState::Preparing);
         self.live_typing
             .store(options.live_typing, Ordering::SeqCst);
@@ -1869,12 +1927,32 @@ impl PipelineHandle {
                 if current != PipelineState::Recording {
                     break;
                 }
-                let vol = audio_handle_ref
+                let (vol, capture_error) = audio_handle_ref
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
                     .as_ref()
-                    .map(|h| h.get_volume())
-                    .unwrap_or(0.0);
+                    .map(|handle| (handle.get_volume(), handle.runtime_error()))
+                    .unwrap_or((0.0, None));
+                if let Some(message) = capture_error {
+                    let pipeline = app_handle.state::<PipelineHandle>();
+                    let session_id = pipeline.active_stt_session_id.load(Ordering::SeqCst);
+                    let error = crate::error::AppError::Config(format!(
+                        "Audio capture interrupted: {message}"
+                    ));
+                    if let Some(user_error) = latch_stt_task_error_if_active(
+                        pipeline.abort_flag.as_ref(),
+                        pipeline.active_stt_session_id.as_ref(),
+                        pipeline.stt_error.as_ref(),
+                        session_id,
+                        &error,
+                    ) {
+                        let _ = app_handle.emit("pipeline:error", user_error);
+                    }
+                    if let Err(error) = pipeline.stop().await {
+                        tracing::error!("Could not stop interrupted recording: {error}");
+                    }
+                    break;
+                }
                 let _ = app_handle.emit("audio:volume", vol);
             }
         });
@@ -2291,6 +2369,20 @@ impl PipelineHandle {
         {
             let mut handle = self.audio_handle.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(ref mut h) = *handle {
+                if let (Some(message), Some(control)) = (h.runtime_error(), stt_control.as_ref()) {
+                    let error = crate::error::AppError::Config(format!(
+                        "Audio capture interrupted: {message}"
+                    ));
+                    if let Some(user_error) = latch_stt_task_error_if_active(
+                        self.abort_flag.as_ref(),
+                        self.active_stt_session_id.as_ref(),
+                        self.stt_error.as_ref(),
+                        control.id,
+                        &error,
+                    ) {
+                        let _ = self.app_handle.emit("pipeline:error", user_error);
+                    }
+                }
                 h.stop();
             }
             *handle = None;
@@ -3942,6 +4034,43 @@ fn is_managed_ultra_local_config(config: &storage::AppConfig) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configured_enter_and_escape_keep_recording_controls_without_blocking_idle_start() {
+        let escape = Shortcut::new(None, Code::Escape);
+        let enter = Shortcut::new(None, Code::Enter);
+        assert_eq!(
+            recording_control_key(&escape, PipelineState::Idle, false),
+            None
+        );
+        assert_eq!(
+            recording_control_key(&enter, PipelineState::Idle, false),
+            None
+        );
+        assert_eq!(
+            recording_control_key(&escape, PipelineState::Recording, false),
+            Some(Code::Escape)
+        );
+        assert_eq!(
+            recording_control_key(&escape, PipelineState::Idle, true),
+            Some(Code::Escape)
+        );
+        assert_eq!(
+            recording_control_key(&enter, PipelineState::Recording, false),
+            Some(Code::Enter)
+        );
+        assert_eq!(
+            recording_control_key(
+                &Shortcut::new(
+                    Some(tauri_plugin_global_shortcut::Modifiers::CONTROL),
+                    Code::Enter
+                ),
+                PipelineState::Recording,
+                false
+            ),
+            None
+        );
+    }
     use std::sync::atomic::{AtomicBool, AtomicU64};
 
     #[test]

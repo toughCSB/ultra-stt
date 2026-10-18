@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useAppStore } from '../../stores/appStore'
 import { useRecording } from '../../hooks/useRecording'
 import { useCapsuleResize } from '../../hooks/useCapsuleResize'
@@ -17,6 +17,7 @@ import { CapsuleAskRecording } from './CapsuleAskRecording'
 import { CapsuleAskThinking } from './CapsuleAskThinking'
 import { TranslateTargetMenu } from './TranslateTargetChip'
 import { PolishModeChip, PolishModeMenu } from './PolishModeMenu'
+import { CAPSULE_ENTER_MS, CAPSULE_EXIT_MS } from '../../lib/capsuleMotion'
 
 const DRAG_THRESHOLD = 5
 
@@ -26,31 +27,8 @@ function getCapsuleState(pipelineState: string, hasError: boolean, hasRecovery: 
   return pipelineState
 }
 
-function getCapsuleShellSize(capsuleState: string) {
-  switch (capsuleState) {
-    case 'idle':
-      return { width: 36, height: 36 }
-    case 'preparing':
-      return { width: 180, height: 36 }
-    case 'outputting':
-      return { width: 144, height: 36 }
-    case 'recovery':
-      return { width: 304, height: 36 }
-    case 'ask_recording':
-    case 'ask_thinking':
-      return { width: 168, height: 36 }
-    case 'recording':
-      return { width: 228, height: 36 }
-    case 'transcribing':
-    case 'polishing':
-    case 'error':
-      return { width: 200, height: 36 }
-    default:
-      return { width: 36, height: 36 }
-  }
-}
-
 export function Capsule() {
+  const reducedMotion = useReducedMotion()
   const pipelineState = useAppStore((s) => s.pipelineState)
   const pipelineError = useAppStore((s) => s.pipelineError)
   const recoveryAlertId = useAppStore((s) => s.recoveryAlertId)
@@ -69,7 +47,7 @@ export function Capsule() {
   const dragStart = useRef<{ x: number; y: number } | null>(null)
   const isDragging = useRef(false)
 
-  useCapsuleResize()
+  const { visible: capsuleVisible, ...capsuleShellSize } = useCapsuleResize()
 
   const hasError = pipelineError !== null
   const recoveryEntry =
@@ -80,12 +58,13 @@ export function Capsule() {
       ? recoveryEntries.find((entry) => entry.id === recoveryAlertId)
       : undefined
   const capsuleState = getCapsuleState(pipelineState, hasError, Boolean(recoveryEntry))
-  const baseShellSize = getCapsuleShellSize(capsuleState)
-  // Live typing has no mode chip, so its larger label uses the chip's reserved space.
-  const capsuleShellSize =
-    liveTyping && (capsuleState === 'recording' || capsuleState === 'transcribing')
-      ? { ...baseShellSize, width: baseShellSize.width + 50 }
-      : baseShellSize
+  const showModeChip =
+    !contextMenuOpen &&
+    !polishModeMenuOpen &&
+    !translationTargetMenuOpen &&
+    !liveTyping &&
+    capsuleState !== 'idle' &&
+    capsuleState !== 'recovery'
   const cancel = useCallback(() => {
     const abort =
       pipelineState === 'ask_recording' || pipelineState === 'ask_thinking'
@@ -191,76 +170,79 @@ export function Capsule() {
       style={{ background: 'transparent' }}
       onContextMenu={handleContextMenu}
     >
-      {/* Persistent outer shell — jelly capsule */}
-      <motion.div
-        layout
-        transition={{ layout: { duration: 0.2, ease: [0.2, 0, 0, 1] } }}
-        className={`absolute left-3 rounded-full overflow-hidden pointer-events-auto shrink-0 ${
-          capsuleState === 'error'
-            ? 'jelly-capsule-error'
-            : capsuleState === 'idle'
-              ? 'jelly-capsule text-[#8dffc9]'
-              : liveTyping
-                ? 'live-capsule text-white'
-                : 'jelly-capsule-active text-white'
-        }`}
-        style={{ ...capsuleShellSize, top: polishModeMenuOpen ? 12 : undefined }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
-        <AnimatePresence mode="sync" initial={false}>
+      <AnimatePresence initial={false}>
+        {capsuleVisible && (
           <motion.div
-            key={capsuleState}
-            className="absolute inset-0 capsule-content"
-            initial={{ opacity: 0, filter: 'blur(2px)' }}
-            animate={{ opacity: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, filter: 'blur(2px)' }}
-            transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
+            key="capsule-shell"
+            initial={reducedMotion ? false : { opacity: 0, y: 6, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{
+              opacity: 0,
+              y: reducedMotion ? 0 : 4,
+              scale: reducedMotion ? 1 : 0.99,
+              transition: {
+                duration: reducedMotion ? 0 : CAPSULE_EXIT_MS / 1000,
+                ease: [0.4, 0, 1, 1],
+              },
+            }}
+            transition={{
+              duration: reducedMotion ? 0 : CAPSULE_ENTER_MS / 1000,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className={`absolute left-3 rounded-full overflow-hidden pointer-events-auto shrink-0 ${
+              capsuleState === 'error'
+                ? 'jelly-capsule-error'
+                : capsuleState === 'idle'
+                  ? 'jelly-capsule text-[#8dffc9]'
+                  : liveTyping
+                    ? 'live-capsule text-white'
+                    : 'jelly-capsule-active text-white'
+            }`}
+            style={capsuleShellSize}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
           >
-            {capsuleState === 'idle' && <CapsuleIdle />}
-            {capsuleState === 'preparing' && <CapsulePreparing />}
-            {capsuleState === 'recording' && <CapsuleRecording />}
-            {capsuleState === 'transcribing' && <CapsuleProcessing />}
-            {capsuleState === 'polishing' && <CapsulePolishing />}
-            {capsuleState === 'outputting' && <CapsuleComplete />}
-            {capsuleState === 'ask_recording' && <CapsuleAskRecording />}
-            {capsuleState === 'ask_thinking' && <CapsuleAskThinking />}
-            {capsuleState === 'error' && <CapsuleError />}
-            {capsuleState === 'recovery' && recoveryEntry && (
-              <CapsuleRecovery entry={recoveryEntry} />
-            )}
+            <AnimatePresence mode="sync" initial={false}>
+              <motion.div
+                key={polishModeMenuOpen ? 'polish_modes' : capsuleState}
+                className="absolute inset-0 capsule-content"
+                initial={reducedMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: reducedMotion ? 0 : 0.08, ease: 'easeOut' }}
+              >
+                {polishModeMenuOpen ? (
+                  <PolishModeMenu />
+                ) : (
+                  <>
+                    {capsuleState === 'idle' && <CapsuleIdle />}
+                    {capsuleState === 'preparing' && <CapsulePreparing />}
+                    {capsuleState === 'recording' && <CapsuleRecording />}
+                    {capsuleState === 'transcribing' && <CapsuleProcessing />}
+                    {capsuleState === 'polishing' && <CapsulePolishing />}
+                    {capsuleState === 'outputting' && <CapsuleComplete />}
+                    {capsuleState === 'ask_recording' && <CapsuleAskRecording />}
+                    {capsuleState === 'ask_thinking' && <CapsuleAskThinking />}
+                    {capsuleState === 'error' && <CapsuleError />}
+                    {capsuleState === 'recovery' && recoveryEntry && (
+                      <CapsuleRecovery entry={recoveryEntry} />
+                    )}
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
+            {showModeChip && <PolishModeChip left={capsuleShellSize.width - 156} />}
           </motion.div>
-        </AnimatePresence>
-      </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Context menu appears to the right of capsule */}
       {contextMenuOpen && contextMenuReady && (
         <div className="ml-2">
           <CapsuleContextMenu onClose={handleCloseMenu} />
         </div>
       )}
       <TranslateTargetMenu />
-      {!contextMenuOpen &&
-        !translationTargetMenuOpen &&
-        !liveTyping &&
-        capsuleState !== 'idle' &&
-        capsuleState !== 'recovery' && <PolishModeChip left={capsuleShellSize.width + 20} />}
-      {['transcribing', 'polishing', 'ask_thinking'].includes(pipelineState) &&
-        !polishModeMenuOpen &&
-        !contextMenuOpen &&
-        !translationTargetMenuOpen && (
-          <button
-            type="button"
-            title="Escape"
-            onClick={cancel}
-            className="absolute top-1/2 h-7 -translate-y-1/2 rounded-full border border-white/20 bg-[#05251b]/95 px-2 text-[10px] text-[#8dffc9] hover:border-accent"
-            style={{ left: capsuleShellSize.width + 110 }}
-          >
-            Esc
-          </button>
-        )}
-      <PolishModeMenu />
     </div>
   )
 }

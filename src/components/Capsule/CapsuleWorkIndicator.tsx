@@ -10,7 +10,7 @@ interface CapsuleWorkIndicatorProps {
 }
 
 /** The app mark sits at the front of every capsule state. */
-export function CapsuleBrand() {
+export function CapsuleBrand({ size = 64 }: { size?: number }) {
   const { t } = useTranslation()
   const style = useAppStore((state) => state.config.polish_style)
   return (
@@ -18,7 +18,7 @@ export function CapsuleBrand() {
       type="button"
       aria-label={`${t('settings.polishModeTitle')}: ${t(polishModeLabelKey(style))}`}
       title={t('settings.polishModeTitle')}
-      className="shrink-0 rounded-[22%]"
+      className="capsule-brand"
       onPointerDown={(event) => event.stopPropagation()}
       onPointerUp={(event) => event.stopPropagation()}
       onClick={(event) => {
@@ -30,7 +30,9 @@ export function CapsuleBrand() {
         src={appIconUrl}
         alt=""
         aria-hidden="true"
-        className="w-6 h-6 shrink-0 rounded-[22%] object-contain"
+        width={size}
+        height={size}
+        className="capsule-brand-image"
       />
     </button>
   )
@@ -45,7 +47,7 @@ export function CapsuleWorkIndicator({ tone = 'steady' }: CapsuleWorkIndicatorPr
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
-          className="block w-[4px] h-[4px] rounded-full bg-white/80"
+          className="capsule-work-dot"
           animate={reduced ? undefined : { opacity: [0.35, 1, 0.35], scale: [0.86, 1.08, 0.86] }}
           transition={{
             repeat: Infinity,

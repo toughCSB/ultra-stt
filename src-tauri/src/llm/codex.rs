@@ -417,7 +417,19 @@ fn preserve_dictation(req: &PolishRequest, polished: String) -> String {
     ]
     .iter()
     .any(|marker| polished.contains(marker) && !req.raw_text.contains(marker));
-    if polished.trim().is_empty() || invented_marker {
+    let normalize = |text: &str| {
+        text.chars()
+            .filter(|character| character.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect::<String>()
+    };
+    let original = normalize(&req.raw_text);
+    let cleaned = normalize(&polished);
+    let opening_only = original.chars().count() >= 200
+        && cleaned.chars().count() >= 20
+        && cleaned.chars().count().saturating_mul(3) < original.chars().count()
+        && original.starts_with(&cleaned);
+    if polished.trim().is_empty() || invented_marker || opening_only {
         tracing::warn!("AI dictation cleanup lost content or invented an audio uncertainty marker; preserving the raw transcript");
         req.raw_text.clone()
     } else {
@@ -483,6 +495,32 @@ impl LlmProvider for CodexProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dictation_cleanup_does_not_return_only_a_short_opening_prefix() {
+        let mut request = dictation_request();
+        let opening = "오늘 프로젝트 일정과 예산 그리고 담당자별 진행 상황을 설명하겠습니다.";
+        request.raw_text = format!(
+            "{opening} {} 마지막 항목도 반드시 포함합니다.",
+            "세부 일정과 계약 금액은 다음 주 회의에서 각각 확인합니다. ".repeat(12)
+        );
+        assert_eq!(
+            preserve_dictation(&request, opening.into()),
+            request.raw_text
+        );
+    }
+
+    #[test]
+    fn dictation_cleanup_keeps_complete_concise_rewrites() {
+        let mut request = dictation_request();
+        let opening = "오늘 프로젝트 일정과 예산 그리고 담당자별 진행 상황을 설명하겠습니다.";
+        request.raw_text = format!(
+            "{opening} {} 최종 결론은 계약을 유지하는 것입니다.",
+            "세부 일정은 회의에서 확인합니다. ".repeat(20)
+        );
+        let concise = format!("{opening} 최종 결론은 계약 유지입니다.");
+        assert_eq!(preserve_dictation(&request, concise.clone()), concise);
+    }
 
     #[test]
     fn dictation_does_not_invent_unclear_audio_markers_or_lose_the_original() {

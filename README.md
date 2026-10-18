@@ -9,7 +9,7 @@
   Local Whisper recognition, optional AI cleanup, and direct text insertion.
 </p>
 <p align="center">
-  <strong>Source v1.1.65</strong> · Windows x64 · macOS Apple Silicon · MIT
+  <strong>Source v1.1.68</strong> · Windows x64 · macOS Apple Silicon · MIT
 </p>
 <p align="center">
   English · <a href="README_ko.md">한국어</a> ·
@@ -27,6 +27,26 @@
 > **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
 
 ## Update history
+
+### October 18, 2026 · v1.1.68 · Bright themes and stationary mode selection
+
+- Installed on SB, Home and Mac. Home keeps its `Insert` shortcut, settings, credentials and history; remote transcription checks passed.
+- Bright green STT, blue live typing and unmistakably red errors, with a circular original brand mark.
+- Larger 44px-high LIVE/STT, cancel and mode controls. Five mode choices stay inside the same capsule without moving or expanding its native frame.
+- [Rationale and validation boundaries](docs/2026-10-18-capsule-bright-themes.md). Existing speech processing, settings and history are preserved.
+
+### October 18, 2026 · v1.1.67 · Branded capsule and active-window display
+
+- A 52px original brand mark, larger voice-reactive waveform, deep emerald surface and clearer state/timer/actions share consistent `520×96` recording, processing and error bounds.
+- Center on the display holding the active application window at recording start, with macOS Retina/external-display coordinate correction. Dragging lasts for the current take only.
+- STT/AI models and captured audio levels are unchanged. [Design, verification and installation boundaries](docs/2026-10-18-capsule-redesign-active-display.md).
+
+### October 18, 2026 · v1.1.66 · Recording reliability and visible controls
+
+- Preserve queued audio and the final tail instead of silently dropping it under backpressure; stop interrupted capture rather than reporting a partial recording as complete. Guard against AI returning only a short opening prefix.
+- Support standalone modifier taps, lock keys and F13–F24 where the OS permits registration; preserve Enter/Escape recording controls. Windows Fn and OS-reserved/intercepted keys remain limited.
+- Center each new recording on the primary monitor with a larger `420×64` capsule and matching recording/error bounds.
+- Installed on **SB and Mac** with settings/history/recovery audio preserved. **Home is offline and not updated.** Human long-dictation acceptance remains pending. [Evidence and limitations](docs/2026-10-18-recording-hotkeys-capsule.md).
 
 ### October 13, 2026 · v1.1.65 · Live typing
 

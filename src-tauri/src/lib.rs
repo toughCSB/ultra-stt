@@ -1086,6 +1086,7 @@ pub fn run() {
             app.manage(context_detector);
             app.manage(pipeline_handle);
             app.manage(recovery::RecoveryStore::default());
+            app.manage(capsule_window::RecordingMonitor::default());
             app.manage(commands::ask::AskDictationState::default());
             app.manage(HotkeyModeCache(Arc::new(Mutex::new(
                 initial_config.hotkey_mode.clone(),
@@ -1373,6 +1374,7 @@ pub fn run() {
             recovery::dismiss_recovery_entry,
             recovery::copy_recovery_entry,
             capsule_window::raise_capsule,
+            capsule_window::get_recording_monitor,
             start_recording,
             stop_recording,
             abort_recording,

@@ -1060,6 +1060,7 @@ pub(crate) async fn start_reserved_ask_dictation(
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .generation;
+    crate::capsule_window::capture_recording_monitor(&app);
     let result = async {
         let config = config_state.load().await.map_err(|e| e.to_string())?;
         let recording_context = app

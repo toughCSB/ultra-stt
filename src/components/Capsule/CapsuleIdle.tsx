@@ -22,7 +22,7 @@ export function CapsuleIdle() {
         }
         transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
       >
-        <CapsuleBrand />
+        <CapsuleBrand size={28} />
       </motion.div>
     </motion.div>
   )

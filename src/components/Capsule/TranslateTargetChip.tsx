@@ -42,7 +42,7 @@ export function TranslateTargetChip() {
         setContextMenuOpen(false)
         setMenuOpen(!menuOpen)
       }}
-      className="flex h-[22px] min-w-7 flex-shrink-0 items-center justify-center rounded-[6px] border border-white/20 bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-white/90 transition-colors hover:bg-white/18 hover:text-white"
+      className="capsule-translate-chip flex h-6 min-w-8 flex-shrink-0 items-center justify-center rounded-full px-2 text-[11px] font-semibold uppercase transition-colors"
     >
       {activeTarget}
     </button>
@@ -99,7 +99,7 @@ export function TranslateTargetMenu() {
       <div
         role="menu"
         aria-label={t('capsule.translationTargets')}
-        className="absolute left-[216px] top-1/2 z-50 w-[148px] -translate-y-1/2 py-1 rounded-[14px] jelly-card shadow-float"
+        className="capsule-translation-menu absolute left-[216px] top-1/2 z-50 w-[148px] -translate-y-1/2 py-1 rounded-[14px] jelly-card shadow-float"
       >
         {targets.map((code) => (
           <button

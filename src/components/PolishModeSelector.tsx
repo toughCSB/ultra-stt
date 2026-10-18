@@ -8,9 +8,11 @@ import { useAppStore, type PolishStyle } from '../stores/appStore'
 
 export function PolishModeSelector({
   compact = false,
+  inline = false,
   onSelected,
 }: {
   compact?: boolean
+  inline?: boolean
   onSelected?: () => void
 }) {
   const { t } = useTranslation()
@@ -34,11 +36,17 @@ export function PolishModeSelector({
   }
 
   return (
-    <div>
+    <div className={inline ? 'capsule-inline-selector' : undefined}>
       <div
         role="radiogroup"
         aria-label={t('settings.polishModeTitle')}
-        className={compact ? 'space-y-1' : 'grid grid-cols-2 gap-2 sm:grid-cols-5'}
+        className={
+          inline
+            ? 'capsule-inline-options'
+            : compact
+              ? 'space-y-1'
+              : 'grid grid-cols-2 gap-2 sm:grid-cols-5'
+        }
       >
         {POLISH_MODES.map((mode, index) => (
           <button
@@ -66,37 +74,55 @@ export function PolishModeSelector({
               buttons?.[nextIndex]?.focus()
               void select(POLISH_MODES[nextIndex].value)
             }}
-            className={`relative rounded-[12px] border text-left transition-colors disabled:opacity-60 ${compact ? 'flex w-full items-center gap-2 p-2' : 'flex min-w-0 flex-col items-center gap-2 p-3 text-center'} ${current === mode.value ? 'border-accent bg-accent/10 text-accent ring-1 ring-accent/30' : 'border-border bg-bg-secondary/70 text-text-primary hover:border-accent/50'} focus-visible:outline-2 focus-visible:outline-accent`}
+            className={
+              inline
+                ? 'capsule-inline-option'
+                : `relative rounded-[12px] border text-left transition-colors disabled:opacity-60 ${compact ? 'flex w-full items-center gap-2 p-2' : 'flex min-w-0 flex-col items-center gap-2 p-3 text-center'} ${current === mode.value ? 'border-accent bg-accent/10 text-accent ring-1 ring-accent/30' : 'border-border bg-bg-secondary/70 text-text-primary hover:border-accent/50'} focus-visible:outline-2 focus-visible:outline-accent`
+            }
           >
             <span
               aria-hidden="true"
-              className={`block shrink-0 rounded-[10px] ${compact ? 'h-7 w-7' : 'h-14 w-14'}`}
+              className={
+                inline
+                  ? 'capsule-inline-art'
+                  : `block shrink-0 rounded-[10px] ${compact ? 'h-7 w-7' : 'h-14 w-14'}`
+              }
               style={{
                 backgroundImage: `url(${modeArt})`,
                 backgroundSize: '300% 200%',
                 backgroundPosition: mode.position,
               }}
             />
-            <span className="min-w-0 flex-1">
-              <span className={`block font-semibold ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
+            <span className={inline ? 'capsule-inline-label' : 'min-w-0 flex-1'}>
+              <span
+                className={
+                  inline
+                    ? undefined
+                    : `block font-semibold ${compact ? 'text-[12px]' : 'text-[13px]'}`
+                }
+              >
                 {t(mode.labelKey)}
               </span>
-              <span className="mt-1 block text-[10px] leading-relaxed text-text-secondary">
-                {t(mode.descriptionKey)}
-              </span>
+              {!inline && (
+                <span className="mt-1 block text-[10px] leading-relaxed text-text-secondary">
+                  {t(mode.descriptionKey)}
+                </span>
+              )}
             </span>
             {current === mode.value && (
               <Check
                 size={compact ? 14 : 12}
                 aria-hidden="true"
-                className={compact ? 'shrink-0' : 'absolute right-2 top-2'}
+                className={
+                  inline ? 'capsule-inline-check' : compact ? 'shrink-0' : 'absolute right-2 top-2'
+                }
               />
             )}
           </button>
         ))}
       </div>
       {error && (
-        <p role="alert" className="mt-2 text-[11px] text-error">
+        <p role="alert" className={inline ? 'capsule-inline-error' : 'mt-2 text-[11px] text-error'}>
           {t('settings.polishModeError')}
         </p>
       )}

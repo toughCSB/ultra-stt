@@ -27,7 +27,18 @@ vi.mock('framer-motion', () => ({
       get:
         (_target, tag: string) =>
         ({ children, ...props }: React.HTMLAttributes<HTMLElement>) =>
-          React.createElement(tag, props, children),
+          React.createElement(
+            tag,
+            Object.fromEntries(
+              Object.entries(props).filter(
+                ([key]) =>
+                  !['initial', 'animate', 'exit', 'transition', 'layout', 'whileHover'].includes(
+                    key,
+                  ),
+              ),
+            ),
+            children,
+          ),
     },
   ),
   useReducedMotion: () => true,
@@ -40,7 +51,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../../../hooks/useCapsuleResize', () => ({
-  useCapsuleResize: () => ({ width: 200, height: 36 }),
+  useCapsuleResize: () => ({ width: 560, height: 112, visible: true }),
 }))
 
 vi.mock('../../../lib/tauri', () => ({
@@ -183,11 +194,30 @@ describe('Capsule flow states', () => {
     render(<Capsule />)
     fireEvent.click(screen.getByRole('button', { name: 'settings.polishModeTitle' }))
     expect(screen.getByRole('dialog', { name: 'settings.polishModeTitle' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog').closest('.jelly-capsule-active')).not.toBeNull()
+    expect(screen.getAllByRole('radio')).toHaveLength(5)
     fireEvent.click(screen.getByRole('radio', { name: 'settings.polishStyleOriginal' }))
     await waitFor(() => expect(setPolishStyle).toHaveBeenCalledWith('original'))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(useAppStore.getState().config.polish_style).toBe('original')
     expect(invoke).not.toHaveBeenCalledWith('stop_recording')
+  })
+
+  it('keeps inline mode choices available after a failed save without changing the selected mode', async () => {
+    vi.mocked(setPolishStyle).mockRejectedValueOnce(new Error('save failed'))
+    useAppStore.setState({ pipelineState: 'recording', polishModeMenuOpen: true })
+    render(<Capsule />)
+    const original = useAppStore.getState().config.polish_style
+    fireEvent.click(screen.getByRole('radio', { name: 'settings.polishStyleOriginal' }))
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('settings.polishModeError'),
+    )
+    expect(useAppStore.getState().config.polish_style).toBe(original)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getAllByRole('radio').every((button) => !button.hasAttribute('disabled'))).toBe(
+      true,
+    )
+    expect(abortRecording).not.toHaveBeenCalled()
   })
 
   it('closes the mode chooser on Escape before cancelling dictation', () => {
@@ -300,7 +330,7 @@ describe('Capsule flow states', () => {
     expect(useAppStore.getState().config.translation.active_target).toBe('ja')
   })
 
-  it('keeps the recording capsule shell at 228 by 36 and closes the target menu on Escape', async () => {
+  it('keeps the recording capsule shell at 560 by 112 and closes the target menu on Escape', async () => {
     useAppStore.setState({
       pipelineState: 'recording',
       activeVoiceMode: 'translate',
@@ -322,7 +352,7 @@ describe('Capsule flow states', () => {
     )
 
     const shell = container.querySelector('.jelly-capsule-active') as HTMLElement
-    expect(shell.style.width).toBe('228px')
-    expect(shell.style.height).toBe('36px')
+    expect(shell.style.width).toBe('560px')
+    expect(shell.style.height).toBe('112px')
   })
 })
