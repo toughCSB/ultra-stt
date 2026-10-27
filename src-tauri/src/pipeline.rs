@@ -12,7 +12,7 @@ use crate::audio::{AudioCaptureHandle, AudioConfig};
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
-use crate::dictation_session::{Phases, SessionNotifier, StateCell};
+use crate::dictation_session::{Phases, SessionClock, SessionNotifier, StateCell};
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
 use crate::storage;
@@ -161,15 +161,6 @@ fn remote_polish_options(config: &storage::AppConfig) -> Option<stt::RemotePolis
             style: config.polish_style.clone(),
             enabled: config.polish_enabled,
         })
-}
-
-fn should_finalize_stt_task(
-    abort_flag: &AtomicBool,
-    active_session_id: &AtomicU64,
-    task_session_id: u64,
-) -> bool {
-    !abort_flag.load(Ordering::SeqCst)
-        && active_session_id.load(Ordering::SeqCst) == task_session_id
 }
 
 fn no_speech_user_error() -> crate::error::UserError {
@@ -547,9 +538,8 @@ fn spawn_streaming_insert_worker(context: StreamingInsertWorkerContext) -> Strea
 
 struct StreamingInsertWorkerContext {
     app_handle: tauri::AppHandle,
-    abort_flag: Arc<AtomicBool>,
-    generation: Arc<AtomicU64>,
-    expected_generation: u64,
+    session: SessionClock,
+    session_id: u64,
     context_detector: app_detector::ContextDetectorHandle,
     strategy: output::InsertionStrategy,
     windows_sendinput_options: output::windows_sendinput::WindowsSendInputOptions,
@@ -563,9 +553,8 @@ async fn run_streaming_insert_worker(
 ) -> StreamingInsertReport {
     let StreamingInsertWorkerContext {
         app_handle,
-        abort_flag,
-        generation,
-        expected_generation,
+        session,
+        session_id,
         context_detector,
         strategy,
         windows_sendinput_options,
@@ -575,10 +564,7 @@ async fn run_streaming_insert_worker(
     let mut report = StreamingInsertReport::new(strategy);
 
     while let Some(chunk) = receiver.recv().await {
-        if abort_flag.load(Ordering::SeqCst)
-            || (expected_generation != 0
-                && generation.load(Ordering::SeqCst) != expected_generation)
-        {
+        if !session.is_live(session_id) {
             break;
         }
         if chunk.is_empty() {
@@ -654,13 +640,12 @@ fn take_matching_stt_error(
 }
 
 fn latch_stt_task_error_if_active(
-    abort_flag: &AtomicBool,
-    active_session_id: &AtomicU64,
+    session: &SessionClock,
     stt_error: &Mutex<Option<(u64, crate::error::UserError)>>,
     task_session_id: u64,
     error: &crate::error::AppError,
 ) -> Option<crate::error::UserError> {
-    if !should_finalize_stt_task(abort_flag, active_session_id, task_session_id) {
+    if !session.is_live(task_session_id) {
         return None;
     }
     let user_error = error.to_user_error();
@@ -731,11 +716,7 @@ pub struct PipelineHandle {
     accumulated_text: Arc<Mutex<String>>,
     stt_session: Arc<Mutex<Option<SttTaskControl>>>,
     stt_error: Arc<Mutex<Option<(u64, crate::error::UserError)>>>,
-    active_stt_session_id: Arc<AtomicU64>,
-    active_deadline_session_id: Arc<AtomicU64>,
-    abort_flag: Arc<AtomicBool>,
-    session_generation: Arc<AtomicU64>,
-    session_changed: tokio::sync::watch::Sender<u64>,
+    session: SessionClock,
     preloaded_config: Arc<Mutex<Option<storage::AppConfig>>>,
     preloaded_app_ctx: Arc<Mutex<Option<RecordingContext>>>,
     preloaded_dictionary: Arc<Mutex<Option<Vec<String>>>>,
@@ -1079,7 +1060,7 @@ impl SessionNotifier for TauriSessionNotifier {
                 if pipeline.current_state() == PipelineState::Idle && !ask_busy {
                     return;
                 }
-                let generation = pipeline.session_generation.load(Ordering::SeqCst);
+                let generation = pipeline.session.current();
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     let pipeline = app.state::<PipelineHandle>();
@@ -1088,7 +1069,7 @@ impl SessionNotifier for TauriSessionNotifier {
                         .filter(|state| state.is_busy())
                     {
                         let _ = crate::commands::ask::abort_ask_dictation(app.clone(), ask);
-                    } else if pipeline.session_generation.load(Ordering::SeqCst) == generation {
+                    } else if pipeline.session.is_live(generation) {
                         pipeline.abort();
                     }
                 });
@@ -1207,11 +1188,7 @@ impl PipelineHandle {
             accumulated_text: Arc::new(Mutex::new(String::new())),
             stt_session: Arc::new(Mutex::new(None)),
             stt_error: Arc::new(Mutex::new(None)),
-            active_stt_session_id: Arc::new(AtomicU64::new(0)),
-            active_deadline_session_id: Arc::new(AtomicU64::new(0)),
-            abort_flag: Arc::new(AtomicBool::new(false)),
-            session_generation: Arc::new(AtomicU64::new(0)),
-            session_changed: tokio::sync::watch::channel(0).0,
+            session: SessionClock::new(),
             preloaded_config: Arc::new(Mutex::new(None)),
             preloaded_app_ctx: Arc::new(Mutex::new(None)),
             preloaded_dictionary: Arc::new(Mutex::new(None)),
@@ -1309,19 +1286,16 @@ impl PipelineHandle {
     }
 
     /// Immediately abort the pipeline regardless of current state.
-    /// Stops audio capture, forces state to Idle, and signals any
-    /// ongoing stop() to exit early via abort_flag.
+    /// Stops audio capture, forces state to Idle, and ends the session so any
+    /// ongoing start()/stop() and background task stands down.
     pub fn abort(&self) {
         tracing::info!(
             "Pipeline abort requested (current state: {:?})",
             self.current_state()
         );
 
-        // Set abort flag so any running stop() exits early
-        self.abort_flag.store(true, Ordering::SeqCst);
-        self.invalidate_session();
-        self.active_stt_session_id.fetch_add(1, Ordering::SeqCst);
-        self.active_deadline_session_id.store(0, Ordering::SeqCst);
+        // End the session so any running start()/stop() and STT task exits early
+        self.session.end();
 
         // Stop audio capture (closes channel → STT task terminates naturally)
         {
@@ -1364,16 +1338,6 @@ impl PipelineHandle {
         self.set_state(PipelineState::Idle);
     }
 
-    fn invalidate_session(&self) -> u64 {
-        let generation = self.session_generation.fetch_add(1, Ordering::SeqCst) + 1;
-        self.session_changed.send_replace(generation);
-        generation
-    }
-
-    fn is_current_session(&self, generation: u64) -> bool {
-        self.session_generation.load(Ordering::SeqCst) == generation
-    }
-
     fn clear_stt_session(&self, session_id: u64) {
         let mut session = self.stt_session.lock().unwrap_or_else(|e| e.into_inner());
         if session.as_ref().map(|control| control.id) == Some(session_id) {
@@ -1406,9 +1370,6 @@ impl PipelineHandle {
         // partially-initialised state (preloaded_config, audio_handle, etc.).
         let _guard = self.pipeline_lock.lock().await;
 
-        // Reset abort flag for new recording
-        self.abort_flag.store(false, Ordering::SeqCst);
-
         // Atomic CAS: only one caller can transition Idle → Preparing. Recording is emitted only
         // after audio capture is ready, so the capsule does not tell users to speak too early.
         if !self
@@ -1417,7 +1378,7 @@ impl PipelineHandle {
         {
             return Ok(());
         }
-        self.invalidate_session();
+        let session_id = self.session.begin();
         crate::capsule_window::capture_recording_monitor(&self.app_handle);
         self.set_state(PipelineState::Preparing);
         self.live_typing
@@ -1761,9 +1722,9 @@ impl PipelineHandle {
         };
 
         // Store the audio handle's volume reference.
-        // Check abort_flag first — if abort() was called while we were connecting
+        // Check for a cancel first — if abort() was called while we were connecting
         // to STT, don't store the handle (it would be orphaned with nobody to stop it).
-        if self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(session_id) {
             tracing::info!("Pipeline aborted during setup, discarding audio capture");
             // handle drops here, stopping the capture thread
             *self
@@ -1788,7 +1749,7 @@ impl PipelineHandle {
         let audio_vol = handle.get_volume();
         *self.audio_volume.lock().unwrap_or_else(|e| e.into_inner()) = audio_vol;
         *self.audio_handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
-        if self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(session_id) {
             tracing::info!("Pipeline aborted after storing audio capture, stopping capture");
             {
                 let mut handle = self.audio_handle.lock().unwrap_or_else(|e| e.into_inner());
@@ -1817,7 +1778,6 @@ impl PipelineHandle {
             return Ok(());
         }
 
-        let session_id = self.active_stt_session_id.fetch_add(1, Ordering::SeqCst) + 1;
         let resolved_limit = stt::capabilities::resolve_recording_limit(
             &config_data,
             None,
@@ -1838,11 +1798,9 @@ impl PipelineHandle {
             capture_ready_at,
             effective_max_seconds,
         );
-        self.active_deadline_session_id
-            .store(session_id, Ordering::SeqCst);
         if let Some(session_token) = managed_cloud_session_token {
             let warmup_client = self.shared_client.clone();
-            let warmup_active_session_id = self.active_deadline_session_id.clone();
+            let warmup_scope = self.session.recording_scope(session_id, &self.phases);
             tokio::spawn(async move {
                 for elapsed_seconds in [240u64, 480] {
                     if elapsed_seconds >= u64::from(effective_max_seconds) {
@@ -1853,7 +1811,7 @@ impl PipelineHandle {
                             + std::time::Duration::from_secs(elapsed_seconds),
                     ))
                     .await;
-                    if warmup_active_session_id.load(Ordering::SeqCst) != session_id {
+                    if !warmup_scope.is_active() {
                         break;
                     }
                     stt::cloud::warm_managed_cloud_on_intent(
@@ -1873,7 +1831,34 @@ impl PipelineHandle {
             .unwrap_or_else(|error| error.into_inner()) = options
             .force_translate
             .then(|| TranslationOperationState::new(config_data.translation.active_target.clone()));
-        self.set_state(PipelineState::Recording);
+        // A cancel can land after the checks above; only a still-preparing session may record.
+        if !self
+            .phases
+            .advance(PipelineState::Preparing, PipelineState::Recording)
+        {
+            tracing::info!("Pipeline aborted before recording began");
+            *self
+                .active_translation_operation
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = None;
+            *self
+                .preloaded_config
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = None;
+            *self
+                .preloaded_app_ctx
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = None;
+            *self
+                .preloaded_dictionary
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = None;
+            *self
+                .preloaded_correction_rules
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = None;
+            return Ok(());
+        }
         let _ = self.app_handle.emit("pipeline:voice_mode", voice_mode);
         let _ = self
             .app_handle
@@ -1886,6 +1871,7 @@ impl PipelineHandle {
         let app_handle = self.app_handle.clone();
         let audio_handle_ref = self.audio_handle.clone();
         let state_ref = self.phases.clone();
+        let volume_session = self.session.clone();
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(VOLUME_POLL_INTERVAL_MS)).await;
@@ -1900,13 +1886,11 @@ impl PipelineHandle {
                     .unwrap_or((0.0, None));
                 if let Some(message) = capture_error {
                     let pipeline = app_handle.state::<PipelineHandle>();
-                    let session_id = pipeline.active_stt_session_id.load(Ordering::SeqCst);
                     let error = crate::error::AppError::Config(format!(
                         "Audio capture interrupted: {message}"
                     ));
                     if let Some(user_error) = latch_stt_task_error_if_active(
-                        pipeline.abort_flag.as_ref(),
-                        pipeline.active_stt_session_id.as_ref(),
+                        &volume_session,
                         pipeline.stt_error.as_ref(),
                         session_id,
                         &error,
@@ -1959,8 +1943,7 @@ impl PipelineHandle {
             journal,
         };
         *self.stt_session.lock().unwrap_or_else(|e| e.into_inner()) = Some(stt_control.clone());
-        let abort_flag_ref = self.abort_flag.clone();
-        let active_session_id_ref = self.active_stt_session_id.clone();
+        let session_ref = self.session.clone();
         let stt_error_ref = self.stt_error.clone();
         let live_session = options.live_typing;
         let live_idle_stop_seconds = config_data.live_idle_stop_seconds;
@@ -1973,11 +1956,7 @@ impl PipelineHandle {
         tokio::spawn(async move {
             // Forward audio to STT and receive transcripts
             loop {
-                if !should_finalize_stt_task(
-                    abort_flag_ref.as_ref(),
-                    active_session_id_ref.as_ref(),
-                    stt_control.id,
-                ) {
+                if !session_ref.is_live(stt_control.id) {
                     break;
                 }
 
@@ -1998,8 +1977,7 @@ impl PipelineHandle {
                                     tracing::error!("STT send audio error: {}", error);
                                     crate::error::emit_cloud_session_invalid(&app_handle, &error);
                                     if let Some(user_error) = latch_stt_task_error_if_active(
-                                        abort_flag_ref.as_ref(),
-                                        active_session_id_ref.as_ref(),
+                                        &session_ref,
                                         stt_error_ref.as_ref(),
                                         stt_control.id,
                                         &error,
@@ -2011,11 +1989,7 @@ impl PipelineHandle {
                             }
                             None => {
                                 // Audio channel closed — disconnect and capture final transcript
-                                if !should_finalize_stt_task(
-                                    abort_flag_ref.as_ref(),
-                                    active_session_id_ref.as_ref(),
-                                    stt_control.id,
-                                ) {
+                                if !session_ref.is_live(stt_control.id) {
                                     break;
                                 }
 
@@ -2027,8 +2001,7 @@ impl PipelineHandle {
                                     tracing::error!("Recording checkpoint failed: {error}");
                                     let error = crate::error::AppError::Config(format!("Recording backup failed: {error}"));
                                     if let Some(user_error) = latch_stt_task_error_if_active(
-                                        abort_flag_ref.as_ref(),
-                                        active_session_id_ref.as_ref(),
+                                        &session_ref,
                                         stt_error_ref.as_ref(),
                                         stt_control.id,
                                         &error,
@@ -2044,11 +2017,7 @@ impl PipelineHandle {
 
                                 match disconnect_result {
                                     Some(Ok(Some(text))) => {
-                                        if should_finalize_stt_task(
-                                            abort_flag_ref.as_ref(),
-                                            active_session_id_ref.as_ref(),
-                                            stt_control.id,
-                                        ) {
+                                        if session_ref.is_live(stt_control.id) {
                                             *stt_control.raw_transcript.lock().unwrap_or_else(|error| error.into_inner()) = provider.raw_transcript();
                                             let original = provider.raw_transcript().unwrap_or_else(|| text.clone());
                                             if let Err(error) = stt_control.journal.lock().unwrap_or_else(|error| error.into_inner()).save_transcript(&original) {
@@ -2064,11 +2033,7 @@ impl PipelineHandle {
                                     Some(Ok(None)) => {}
                                     Some(Err(e)) => {
                                         tracing::error!("STT disconnect error: {}", e);
-                                        if should_finalize_stt_task(
-                                            abort_flag_ref.as_ref(),
-                                            active_session_id_ref.as_ref(),
-                                            stt_control.id,
-                                        ) {
+                                        if session_ref.is_live(stt_control.id) {
                                             crate::error::emit_cloud_session_invalid(
                                                 &app_handle,
                                                 &e,
@@ -2088,22 +2053,14 @@ impl PipelineHandle {
                     transcript = provider.recv_transcript() => {
                         match transcript {
                             Ok(Some(TranscriptEvent::Partial { text })) => {
-                                if should_finalize_stt_task(
-                                    abort_flag_ref.as_ref(),
-                                    active_session_id_ref.as_ref(),
-                                    stt_control.id,
-                                ) {
+                                if session_ref.is_live(stt_control.id) {
                                     let _ = app_handle.emit("stt:partial", &text);
                                 }
                             }
                             Ok(Some(TranscriptEvent::SpeechEnded)) if live_session => {
                                 // Live typing heard nothing for a while: end the session
                                 // like a second press of the shortcut.
-                                if should_finalize_stt_task(
-                                    abort_flag_ref.as_ref(),
-                                    active_session_id_ref.as_ref(),
-                                    stt_control.id,
-                                ) {
+                                if session_ref.is_live(stt_control.id) {
                                     tracing::info!("Live typing stopped after silence");
                                     let _ = app_handle.emit(
                                         "pipeline:live_idle_stop",
@@ -2122,21 +2079,13 @@ impl PipelineHandle {
                                 // The provider's final transcript repeats this text; stop()
                                 // types whatever the worker has not inserted yet.
                                 if let Some(sender) = live_sender.as_ref() {
-                                    if should_finalize_stt_task(
-                                        abort_flag_ref.as_ref(),
-                                        active_session_id_ref.as_ref(),
-                                        stt_control.id,
-                                    ) {
+                                    if session_ref.is_live(stt_control.id) {
                                         let _ = sender.send(text);
                                     }
                                 }
                             }
                             Ok(Some(TranscriptEvent::Final { text, .. })) => {
-                                if should_finalize_stt_task(
-                                    abort_flag_ref.as_ref(),
-                                    active_session_id_ref.as_ref(),
-                                    stt_control.id,
-                                ) {
+                                if session_ref.is_live(stt_control.id) {
                                     let mut acc = accumulated.lock().unwrap_or_else(|e| e.into_inner());
                                     acc.push_str(&text);
                                     acc.push(' ');
@@ -2147,11 +2096,7 @@ impl PipelineHandle {
                             }
                             Ok(Some(TranscriptEvent::Error { message })) => {
                                 tracing::error!("STT error: {}", message);
-                                if should_finalize_stt_task(
-                                    abort_flag_ref.as_ref(),
-                                    active_session_id_ref.as_ref(),
-                                    stt_control.id,
-                                ) {
+                                if session_ref.is_live(stt_control.id) {
                                     let user_error =
                                         crate::error::AppError::Config(message.clone()).to_user_error();
                                     *stt_error_ref.lock().unwrap_or_else(|e| e.into_inner()) =
@@ -2165,11 +2110,7 @@ impl PipelineHandle {
                             }
                             Err(e) => {
                                 tracing::error!("STT recv error: {}", e);
-                                if should_finalize_stt_task(
-                                    abort_flag_ref.as_ref(),
-                                    active_session_id_ref.as_ref(),
-                                    stt_control.id,
-                                ) {
+                                if session_ref.is_live(stt_control.id) {
                                     crate::error::emit_cloud_session_invalid(&app_handle, &e);
                                     let user_error = e.to_user_error();
                                     *stt_error_ref.lock().unwrap_or_else(|e| e.into_inner()) =
@@ -2190,12 +2131,12 @@ impl PipelineHandle {
 
         let deadline_pipeline = self.clone();
         let deadline_app = self.app_handle.clone();
-        let active_deadline_session_id = self.active_deadline_session_id.clone();
+        let deadline_scope = self.session.recording_scope(session_id, &self.phases);
         let deadline_provider_id = resolved_limit.capability.provider_id;
         tokio::spawn(async move {
             let reached = crate::recording_deadline::drive_recording_deadline(
                 recording_deadline,
-                || active_deadline_session_id.load(Ordering::SeqCst) == session_id,
+                || deadline_scope.is_active(),
                 |signal| match signal {
                     crate::recording_deadline::RecordingDeadlineSignal::Warning {
                         seconds_remaining,
@@ -2242,8 +2183,8 @@ impl PipelineHandle {
         // (load config, initialize audio and connect STT) before reading shared state.
         // Released before the long stt_done wait so start() isn't blocked 120s.
         let guard = self.pipeline_lock.lock().await;
-        let generation = self.session_generation.load(Ordering::SeqCst);
-        let mut cancelled = self.session_changed.subscribe();
+        let generation = self.session.current();
+        let mut cancelled = self.session.watch();
 
         // Atomic CAS: only one caller can transition Recording → Transcribing
         if !self
@@ -2252,7 +2193,6 @@ impl PipelineHandle {
         {
             return Ok(());
         }
-        self.active_deadline_session_id.store(0, Ordering::SeqCst);
         let current_config = self.load_config().await;
         let finalized_translation_target = self
             .active_translation_operation
@@ -2322,8 +2262,7 @@ impl PipelineHandle {
                         "Audio capture interrupted: {message}"
                     ));
                     if let Some(user_error) = latch_stt_task_error_if_active(
-                        self.abort_flag.as_ref(),
-                        self.active_stt_session_id.as_ref(),
+                        &self.session,
                         self.stt_error.as_ref(),
                         control.id,
                         &error,
@@ -2445,7 +2384,7 @@ impl PipelineHandle {
         );
 
         // Check abort before entering LLM polish and output
-        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(generation) {
             tracing::info!("Pipeline aborted before LLM/output");
             if let Some(control) = &stt_control {
                 self.clear_stt_session(control.id);
@@ -2493,7 +2432,7 @@ impl PipelineHandle {
             }) => outcome,
             }
         };
-        if !self.is_current_session(generation) {
+        if !self.session.is_live(generation) {
             return Ok(());
         }
         let final_text = polish_outcome.final_text;
@@ -2519,7 +2458,7 @@ impl PipelineHandle {
         );
 
         // A new recording may have superseded this stop during output.
-        if !self.is_current_session(generation) {
+        if !self.session.is_live(generation) {
             return Ok(());
         }
         // Emit timing to frontend
@@ -2536,7 +2475,7 @@ impl PipelineHandle {
         let _ = self.app_handle.emit("pipeline:context", app_ctx.summary());
 
         // Save to history
-        if !self.is_current_session(generation) {
+        if !self.session.is_live(generation) {
             return Ok(());
         }
         let history_raw = stt_control
@@ -2579,7 +2518,7 @@ impl PipelineHandle {
             }
             self.clear_stt_session(control.id);
         }
-        if self.is_current_session(generation) {
+        if self.session.is_live(generation) {
             self.set_state(PipelineState::Idle);
         }
         Ok(())
@@ -2609,7 +2548,7 @@ impl PipelineHandle {
                 _ = tokio::time::sleep(budget) => {
                     control.abort.notify_one();
                     tracing::warn!("STT finalization timed out after {}s", budget.as_secs());
-                    if self.is_current_session(generation) {
+                    if self.session.is_live(generation) {
                         let _ = self.app_handle.emit("pipeline:error", crate::error::AppError::Timeout(budget).to_user_error());
                         self.set_state(PipelineState::Idle);
                     }
@@ -2617,16 +2556,12 @@ impl PipelineHandle {
                 }
             }
 
-            if !should_finalize_stt_task(
-                self.abort_flag.as_ref(),
-                self.active_stt_session_id.as_ref(),
-                control.id,
-            ) {
+            if !self.session.is_live(control.id) {
                 tracing::info!("Ignoring stale or aborted STT task");
                 return Ok(None);
             }
             if take_matching_stt_error(&self.stt_error, control.id).is_some() {
-                if self.is_current_session(generation) {
+                if self.session.is_live(generation) {
                     self.set_state(PipelineState::Idle);
                 }
                 return Ok(None);
@@ -2635,7 +2570,7 @@ impl PipelineHandle {
             tracing::warn!("No STT session was available to wait for");
         }
 
-        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(generation) {
             tracing::info!("Pipeline aborted after STT wait");
             return Ok(None);
         }
@@ -2648,7 +2583,7 @@ impl PipelineHandle {
             .to_string();
 
         if raw_text.is_empty() {
-            if self.is_current_session(generation) {
+            if self.session.is_live(generation) {
                 let _ = self
                     .app_handle
                     .emit("pipeline:error", no_speech_user_error());
@@ -2828,9 +2763,8 @@ impl PipelineHandle {
         let mut streaming_worker = streaming_strategy.map(|strategy| {
             spawn_streaming_insert_worker(StreamingInsertWorkerContext {
                 app_handle: self.app_handle.clone(),
-                abort_flag: self.abort_flag.clone(),
-                generation: self.session_generation.clone(),
-                expected_generation: session_generation,
+                session: self.session.clone(),
+                session_id: session_generation,
                 context_detector: self.context_detector.clone(),
                 strategy,
                 windows_sendinput_options: output::windows_sendinput::WindowsSendInputOptions {
@@ -2850,11 +2784,9 @@ impl PipelineHandle {
         // The callback remains synchronous for the LLM stream. UI updates happen
         // immediately; optional target-app insertion is drained by a worker.
         let app_handle = self.app_handle.clone();
-        let chunk_generation = self.session_generation.clone();
+        let chunk_session = self.session.clone();
         let on_chunk: llm::ChunkCallback = Box::new(move |chunk: &str| {
-            if session_generation != 0
-                && chunk_generation.load(Ordering::SeqCst) != session_generation
-            {
+            if !chunk_session.is_live(session_generation) {
                 return;
             }
             let _ = app_handle.emit("llm:chunk", chunk);
@@ -2902,7 +2834,7 @@ impl PipelineHandle {
             Some(worker) => worker.finish().await,
             None => None,
         };
-        if !self.is_current_session(session_generation) || self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(session_generation) {
             return PolishTextOutcome::normal(String::new(), llm_start.elapsed());
         }
 
@@ -3107,9 +3039,7 @@ impl PipelineHandle {
                 }
 
                 // Check abort after LLM returns — skip output if cancelled during polish.
-                if (session_generation != 0 && !self.is_current_session(session_generation))
-                    || self.abort_flag.load(Ordering::SeqCst)
-                {
+                if !self.session.is_live(session_generation) {
                     tracing::info!("Pipeline aborted after LLM polish, skipping output");
                     return PolishTextOutcome::normal(raw_text.to_string(), elapsed);
                 }
@@ -3232,9 +3162,7 @@ impl PipelineHandle {
                 }
 
                 // Check abort after LLM error — skip fallback output if cancelled.
-                if (session_generation != 0 && !self.is_current_session(session_generation))
-                    || self.abort_flag.load(Ordering::SeqCst)
-                {
+                if !self.session.is_live(session_generation) {
                     tracing::info!("Pipeline aborted after LLM error, skipping output");
                     return PolishTextOutcome::normal(String::new(), elapsed);
                 }
@@ -3307,9 +3235,8 @@ impl PipelineHandle {
         if self.current_state() != PipelineState::Idle {
             return Err("Another voice operation is already active".to_string());
         }
-        self.abort_flag.store(false, Ordering::SeqCst);
-        let generation = self.invalidate_session();
-        let mut cancelled = self.session_changed.subscribe();
+        let generation = self.session.begin();
+        let mut cancelled = self.session.watch();
 
         let dictionary_store = self.app_handle.state::<storage::DictionaryStore>();
         let dictionary_words = dictionary_store.words().await;
@@ -3353,7 +3280,7 @@ impl PipelineHandle {
                 session_generation: generation,
             }) => outcome,
         };
-        if !self.is_current_session(generation) {
+        if !self.session.is_live(generation) {
             return Err("Draft cancelled".into());
         }
         self.set_state(PipelineState::Idle);
@@ -3444,9 +3371,8 @@ impl PipelineHandle {
         };
         let worker = spawn_streaming_insert_worker(StreamingInsertWorkerContext {
             app_handle: self.app_handle.clone(),
-            abort_flag: self.abort_flag.clone(),
-            generation: self.session_generation.clone(),
-            expected_generation: self.session_generation.load(Ordering::SeqCst),
+            session: self.session.clone(),
+            session_id: self.session.current(),
             context_detector: self.context_detector.clone(),
             strategy,
             windows_sendinput_options: output::windows_sendinput::WindowsSendInputOptions {
@@ -3618,7 +3544,7 @@ impl PipelineHandle {
         reason: crate::recovery::RecoveryReason,
         chars_inserted: usize,
     ) {
-        if self.is_current_session(generation) && !self.abort_flag.load(Ordering::SeqCst) {
+        if self.session.is_live(generation) {
             crate::recovery::retain(
                 &self.app_handle,
                 generation,
@@ -3639,7 +3565,7 @@ impl PipelineHandle {
         generation: u64,
         report: &StreamingInsertReport,
     ) {
-        if !self.is_current_session(generation) || self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(generation) {
             return;
         }
         let recovery_reason = if report.target_lost {
@@ -3738,13 +3664,13 @@ impl PipelineHandle {
         config: &storage::AppConfig,
         session_generation: u64,
     ) -> Result<output::InsertResult> {
-        if !self.is_current_session(session_generation) || self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(session_generation) {
             anyhow::bail!("Output session was cancelled");
         }
         self.set_state(PipelineState::Outputting);
 
         self.restore_after_capsule_interaction(target_guard).await;
-        if !self.is_current_session(session_generation) || self.abort_flag.load(Ordering::SeqCst) {
+        if !self.session.is_live(session_generation) {
             anyhow::bail!("Output session was cancelled");
         }
 
@@ -4019,7 +3945,7 @@ mod tests {
             None
         );
     }
-    use std::sync::atomic::{AtomicBool, AtomicU64};
+    use std::sync::atomic::AtomicBool;
 
     #[test]
     fn local_cuda_pre_warm_requires_exact_managed_config() {
@@ -4587,64 +4513,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn a_new_recording_cancels_old_stop_even_after_abort_flag_resets() {
-        let generation = AtomicU64::new(7);
-        let abort_flag = AtomicBool::new(false);
-        let (tx, mut rx) = tokio::sync::watch::channel(7u64);
-        let old_stop = async {
-            rx.wait_for(|current| *current != 7).await.unwrap();
-            assert_eq!(generation.load(Ordering::SeqCst), 9);
-            assert!(!abort_flag.load(Ordering::SeqCst));
-            assert_ne!(generation.load(Ordering::SeqCst), 7);
-        };
-        let switch = async {
-            generation.store(8, Ordering::SeqCst);
-            abort_flag.store(true, Ordering::SeqCst);
-            tx.send_replace(8);
-            generation.store(9, Ordering::SeqCst);
-            abort_flag.store(false, Ordering::SeqCst);
-            tx.send_replace(9);
-        };
-        tokio::time::timeout(std::time::Duration::from_secs(2), async {
-            tokio::join!(old_stop, switch);
-        })
-        .await
-        .unwrap();
-    }
-
-    #[test]
-    fn stt_task_should_not_finalize_when_abort_flag_is_set() {
-        let abort_flag = AtomicBool::new(true);
-        let active_session_id = AtomicU64::new(7);
-
-        assert!(!should_finalize_stt_task(
-            &abort_flag,
-            &active_session_id,
-            7
-        ));
-    }
-
-    #[test]
-    fn stt_task_should_not_finalize_when_session_is_stale() {
-        let abort_flag = AtomicBool::new(false);
-        let active_session_id = AtomicU64::new(8);
-
-        assert!(!should_finalize_stt_task(
-            &abort_flag,
-            &active_session_id,
-            7
-        ));
-    }
-
-    #[test]
-    fn stt_task_should_finalize_when_session_is_active_and_not_aborted() {
-        let abort_flag = AtomicBool::new(false);
-        let active_session_id = AtomicU64::new(7);
-
-        assert!(should_finalize_stt_task(&abort_flag, &active_session_id, 7));
-    }
-
     #[test]
     fn session_error_latch_returns_matching_error() {
         let latch = Mutex::new(Some((
@@ -4678,27 +4546,26 @@ mod tests {
 
     #[test]
     fn send_audio_error_is_latched_only_for_the_active_session() {
-        let abort_flag = AtomicBool::new(false);
-        let active_session_id = AtomicU64::new(7);
+        let session = SessionClock::new();
+        let stale = session.begin();
+        let active = session.begin();
         let latch = Mutex::new(None);
         let error = crate::error::AppError::Network("socket closed".to_string());
 
-        let user_error =
-            latch_stt_task_error_if_active(&abort_flag, &active_session_id, &latch, 7, &error)
-                .expect("active send failure should be surfaced");
+        let user_error = latch_stt_task_error_if_active(&session, &latch, active, &error)
+            .expect("active send failure should be surfaced");
 
         assert_eq!(user_error.code, "stt_timeout");
         assert_eq!(
-            take_matching_stt_error(&latch, 7)
+            take_matching_stt_error(&latch, active)
                 .expect("matching error should be consumable")
                 .code,
             "stt_timeout"
         );
 
-        assert!(
-            latch_stt_task_error_if_active(&abort_flag, &active_session_id, &latch, 6, &error,)
-                .is_none()
-        );
+        assert!(latch_stt_task_error_if_active(&session, &latch, stale, &error).is_none());
+        session.end();
+        assert!(latch_stt_task_error_if_active(&session, &latch, active, &error).is_none());
     }
 
     #[test]
