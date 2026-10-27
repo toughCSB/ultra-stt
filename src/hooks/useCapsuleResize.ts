@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppStore, type PipelineState } from '../stores/appStore'
 import { isMacPlatform } from '../lib/accessibility'
 import { CAPSULE_EXIT_MS } from '../lib/capsuleMotion'
-
-interface CapsuleSize {
-  width: number
-  height: number
-}
+import type { CapsuleSize } from '../lib/capsuleView'
+import { useCapsuleView } from './useCapsuleView'
 
 interface PhysicalPoint {
   x: number
@@ -129,61 +126,11 @@ export function getCapsuleRecoveryPosition(
   return getCapsuleCenterPosition(recoveryMonitor, logicalSize)
 }
 
-export interface CapsuleVisibilityInput {
-  capsuleAutoHide: boolean
-  contextMenuOpen: boolean
-  translationTargetMenuOpen?: boolean
-  polishModeMenuOpen?: boolean
-  capsuleExpanded: boolean
-  hasError: boolean
-  hasRecovery?: boolean
-  pipelineState: PipelineState
-}
-
-export function getCapsuleVisibility({
-  capsuleAutoHide,
-  contextMenuOpen,
-  translationTargetMenuOpen = false,
-  polishModeMenuOpen = false,
-  capsuleExpanded,
-  hasError,
-  hasRecovery = false,
-  pipelineState,
-}: CapsuleVisibilityInput): boolean {
-  return (
-    !capsuleAutoHide ||
-    contextMenuOpen ||
-    translationTargetMenuOpen ||
-    polishModeMenuOpen ||
-    capsuleExpanded ||
-    hasError ||
-    hasRecovery ||
-    pipelineState !== 'idle'
-  )
-}
-
-export function getCapsuleFocusable(menuOpen = false): boolean {
-  return menuOpen
-}
-
-export function getCapsuleShellSize(
-  state: PipelineState,
-  expanded: boolean,
-  hasError: boolean,
-  hasRecovery: boolean,
-  forceActive = false,
-): CapsuleSize {
-  if (state === 'idle' && !hasError && !hasRecovery && !expanded && !forceActive)
-    return { width: 36, height: 36 }
-  return { width: 560, height: expanded ? 140 : 112 }
-}
-
 export function useCapsuleResize() {
+  const view = useCapsuleView()
   const pipelineState = useAppStore((s) => s.pipelineState)
   const capsuleExpanded = useAppStore((s) => s.capsuleExpanded)
   const pipelineError = useAppStore((s) => s.pipelineError)
-  const recoveryAlertId = useAppStore((s) => s.recoveryAlertId)
-  const recoveryEntries = useAppStore((s) => s.recoveryEntries)
   const contextMenuOpen = useAppStore((s) => s.contextMenuOpen)
   const translationTargetMenuOpen = useAppStore((s) => s.translationTargetMenuOpen)
   const polishModeMenuOpen = useAppStore((s) => s.polishModeMenuOpen)
@@ -202,34 +149,13 @@ export function useCapsuleResize() {
   const effectGeneration = useRef(0)
 
   const hasError = pipelineError !== null
-  const hasRecovery =
-    pipelineState === 'idle' &&
-    !contextMenuOpen &&
-    !translationTargetMenuOpen &&
-    !polishModeMenuOpen &&
-    recoveryEntries.some((entry) => entry.id === recoveryAlertId)
-  const shellSize = useMemo(
-    () =>
-      getCapsuleShellSize(
-        pipelineState,
-        capsuleExpanded,
-        hasError,
-        hasRecovery,
-        polishModeMenuOpen,
-      ),
-    [pipelineState, capsuleExpanded, hasError, hasRecovery, polishModeMenuOpen],
-  )
-  const compact = shellSize.width === 36
-  const shouldShow = getCapsuleVisibility({
-    capsuleAutoHide,
-    contextMenuOpen,
-    translationTargetMenuOpen,
-    polishModeMenuOpen,
-    capsuleExpanded,
-    hasError,
-    hasRecovery,
-    pipelineState,
-  })
+  const hasRecovery = view.recoveryEntry !== undefined
+  const shellSize = view.shell
+  const compact = view.compact
+  const shouldShow = view.visible
+  const focusable = view.focusable
+  const windowWidth = view.window.width
+  const windowHeight = view.window.height
 
   useEffect(() => {
     if (pipelineState === 'idle') return
@@ -258,13 +184,6 @@ export function useCapsuleResize() {
     previousPipelineState.current = pipelineState
     let cancelled = false
     const isCurrent = () => !cancelled && effectGeneration.current === generation
-    const size = translationTargetMenuOpen
-      ? { width: Math.max(shellSize.width, 360), height: 180 }
-      : contextMenuOpen
-        ? { width: Math.max(shellSize.width, 220), height: 220 }
-        : shellSize
-    const windowWidth = size.width + 24
-    const windowHeight = size.height + 24
     import('@tauri-apps/api/window')
       .then(
         async ({
@@ -302,7 +221,7 @@ export function useCapsuleResize() {
           }
           if (shouldShow) exitDeadline.current = null
           if (!isCurrent()) return
-          await win.setFocusable(getCapsuleFocusable(polishModeMenuOpen)).catch(() => {})
+          await win.setFocusable(focusable).catch(() => {})
           if (!isCurrent()) return
 
           if (!initialized.current || resetPosition.current) {
@@ -507,9 +426,11 @@ export function useCapsuleResize() {
     translationTargetMenuOpen,
     capsuleAutoHide,
     setContextMenuReady,
-    shellSize,
     compact,
     shouldShow,
+    focusable,
+    windowWidth,
+    windowHeight,
   ])
 
   return { ...shellSize, visible: nativeVisible && shouldShow && nativeCompact === compact }

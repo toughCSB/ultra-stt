@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useAppStore } from '../../stores/appStore'
 import { useRecording } from '../../hooks/useRecording'
 import { useCapsuleResize } from '../../hooks/useCapsuleResize'
+import { useCapsuleView } from '../../hooks/useCapsuleView'
 import { abortAskDictation, abortRecording, stopAskFlow } from '../../lib/tauri'
 import { CapsuleIdle } from './CapsuleIdle'
 import { CapsulePreparing } from './CapsulePreparing'
@@ -18,21 +19,20 @@ import { CapsuleAskThinking } from './CapsuleAskThinking'
 import { TranslateTargetMenu } from './TranslateTargetChip'
 import { PolishModeMenu } from './PolishModeMenu'
 import { CAPSULE_ENTER_MS, CAPSULE_EXIT_MS } from '../../lib/capsuleMotion'
+import type { CapsuleTone } from '../../lib/capsuleView'
 
 const DRAG_THRESHOLD = 5
 
-function getCapsuleState(pipelineState: string, hasError: boolean, hasRecovery: boolean) {
-  if (pipelineState === 'idle' && hasRecovery) return 'recovery'
-  if (hasError) return 'error'
-  return pipelineState
+const TONE_CLASS: Record<CapsuleTone, string> = {
+  error: 'jelly-capsule-error',
+  idle: 'jelly-capsule text-[#8dffc9]',
+  live: 'live-capsule text-white',
+  active: 'jelly-capsule-active text-white',
 }
 
 export function Capsule() {
   const reducedMotion = useReducedMotion()
   const pipelineState = useAppStore((s) => s.pipelineState)
-  const pipelineError = useAppStore((s) => s.pipelineError)
-  const recoveryAlertId = useAppStore((s) => s.recoveryAlertId)
-  const recoveryEntries = useAppStore((s) => s.recoveryEntries)
   const contextMenuOpen = useAppStore((s) => s.contextMenuOpen)
   const setContextMenuOpen = useAppStore((s) => s.setContextMenuOpen)
   const contextMenuReady = useAppStore((s) => s.contextMenuReady)
@@ -41,23 +41,13 @@ export function Capsule() {
   const setTranslationTargetMenuOpen = useAppStore((s) => s.setTranslationTargetMenuOpen)
   const polishModeMenuOpen = useAppStore((s) => s.polishModeMenuOpen)
   const setPolishModeMenuOpen = useAppStore((s) => s.setPolishModeMenuOpen)
-  const liveTyping = useAppStore((s) => s.liveTyping)
   const { stopRecording, isRecording } = useRecording()
 
   const dragStart = useRef<{ x: number; y: number } | null>(null)
   const isDragging = useRef(false)
 
   const { visible: capsuleVisible, ...capsuleShellSize } = useCapsuleResize()
-
-  const hasError = pipelineError !== null
-  const recoveryEntry =
-    pipelineState === 'idle' &&
-    !contextMenuOpen &&
-    !translationTargetMenuOpen &&
-    !polishModeMenuOpen
-      ? recoveryEntries.find((entry) => entry.id === recoveryAlertId)
-      : undefined
-  const capsuleState = getCapsuleState(pipelineState, hasError, Boolean(recoveryEntry))
+  const { state: capsuleState, recoveryEntry, tone } = useCapsuleView()
   const cancel = useCallback(() => {
     const abort =
       pipelineState === 'ask_recording' || pipelineState === 'ask_thinking'
@@ -182,15 +172,7 @@ export function Capsule() {
               duration: reducedMotion ? 0 : CAPSULE_ENTER_MS / 1000,
               ease: [0.16, 1, 0.3, 1],
             }}
-            className={`absolute left-3 rounded-full overflow-hidden pointer-events-auto shrink-0 ${
-              capsuleState === 'error'
-                ? 'jelly-capsule-error'
-                : capsuleState === 'idle'
-                  ? 'jelly-capsule text-[#8dffc9]'
-                  : liveTyping
-                    ? 'live-capsule text-white'
-                    : 'jelly-capsule-active text-white'
-            }`}
+            className={`absolute left-3 rounded-full overflow-hidden pointer-events-auto shrink-0 ${TONE_CLASS[tone]}`}
             style={capsuleShellSize}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}

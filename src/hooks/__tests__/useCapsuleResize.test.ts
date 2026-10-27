@@ -3,14 +3,16 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getCapsuleCenterPosition,
-  getCapsuleFocusable,
   getCapsuleRecoveryPosition,
-  getCapsuleShellSize,
-  getCapsuleVisibility,
   getRecordingTargetMonitor,
   isCapsuleVisibleOnAnyMonitor,
   useCapsuleResize,
 } from '../useCapsuleResize'
+import {
+  getCapsuleFocusable,
+  getCapsuleShellSize,
+  getCapsuleVisibility,
+} from '../../lib/capsuleView'
 import { useAppStore } from '../../stores/appStore'
 
 const windowApiMocks = vi.hoisted(() => ({
