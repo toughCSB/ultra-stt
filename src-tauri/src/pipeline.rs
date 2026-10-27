@@ -12,7 +12,7 @@ use crate::audio::{AudioCaptureHandle, AudioConfig};
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
-use crate::dictation_session::{Phases, SessionClock, SessionNotifier, StateCell};
+use crate::dictation_session::{Events, Phases, SessionClock, SessionNotifier, StateCell};
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
 use crate::storage;
@@ -709,6 +709,7 @@ pub struct PipelineHandle {
     app_handle: tauri::AppHandle,
     context_detector: app_detector::ContextDetectorHandle,
     phases: Phases,
+    events: Events,
     escape_event_pending: Arc<AtomicBool>,
     enter_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<AudioCaptureHandle>>>,
@@ -1167,6 +1168,14 @@ impl SessionNotifier for TauriSessionNotifier {
         }
         crate::refresh_tray(&self.app_handle);
     }
+
+    fn emit_json(&self, event: &str, payload: String) {
+        let _ = self.app_handle.emit_str(event, payload);
+    }
+
+    fn capture_recording_monitor(&self) {
+        crate::capsule_window::capture_recording_monitor(&self.app_handle);
+    }
 }
 
 impl PipelineHandle {
@@ -1176,11 +1185,13 @@ impl PipelineHandle {
         context_detector: app_detector::ContextDetectorHandle,
     ) -> Self {
         let state = StateCell::new();
-        let notifier = Arc::new(TauriSessionNotifier::new(app_handle.clone(), state.clone()));
+        let notifier: Arc<dyn SessionNotifier> =
+            Arc::new(TauriSessionNotifier::new(app_handle.clone(), state.clone()));
         Self {
             app_handle,
             context_detector,
-            phases: Phases::new(state, notifier),
+            phases: Phases::new(state, notifier.clone()),
+            events: Events::new(notifier),
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
@@ -1379,7 +1390,7 @@ impl PipelineHandle {
             return Ok(());
         }
         let session_id = self.session.begin();
-        crate::capsule_window::capture_recording_monitor(&self.app_handle);
+        self.events.capture_recording_monitor();
         self.set_state(PipelineState::Preparing);
         self.live_typing
             .store(options.live_typing, Ordering::SeqCst);
@@ -1464,7 +1475,7 @@ impl PipelineHandle {
                 Ok(secret) => secret,
                 Err(error) => {
                     tracing::warn!("Failed to read STT credential: {error}");
-                    let _ = self.app_handle.emit(
+                    self.events.send(
                         "pipeline:error",
                         "Failed to read STT credential from the system vault.",
                     );
@@ -1501,7 +1512,7 @@ impl PipelineHandle {
         if stt::config::stt_provider_requires_api_key(&config_data.stt_provider)
             && stt_api_key.is_empty()
         {
-            let _ = self.app_handle.emit(
+            self.events.send(
                 "pipeline:error",
                 "STT API key is not configured. Please set it in Settings -> Speech Recognition.",
             );
@@ -1530,7 +1541,7 @@ impl PipelineHandle {
                 match stt::config::build_custom_whisper_for_app(&config_data) {
                     Ok(cfg) => Some(cfg),
                     Err(e) => {
-                        let _ = self.app_handle.emit("pipeline:error", e);
+                        self.events.send("pipeline:error", e);
                         *self
                             .preloaded_config
                             .lock()
@@ -1623,9 +1634,8 @@ impl PipelineHandle {
             Ok(provider) => provider,
             Err(e) => {
                 tracing::error!("STT provider creation failed: {}", e);
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", format!("STT configuration failed: {e}"));
+                self.events
+                    .send("pipeline:error", format!("STT configuration failed: {e}"));
                 *self
                     .preloaded_config
                     .lock()
@@ -1654,9 +1664,8 @@ impl PipelineHandle {
             Ok(result) => result,
             Err(e) => {
                 tracing::error!("Audio capture failed: {}", e);
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", format!("Audio capture failed: {e}"));
+                self.events
+                    .send("pipeline:error", format!("Audio capture failed: {e}"));
                 *self
                     .preloaded_config
                     .lock()
@@ -1699,7 +1708,7 @@ impl PipelineHandle {
                 };
                 tracing::error!("Recording startup failed: {}", message);
                 handle.stop();
-                let _ = self.app_handle.emit("pipeline:error", message);
+                self.events.send("pipeline:error", message);
                 *self
                     .preloaded_config
                     .lock()
@@ -1859,19 +1868,18 @@ impl PipelineHandle {
                 .unwrap_or_else(|e| e.into_inner()) = None;
             return Ok(());
         }
-        let _ = self.app_handle.emit("pipeline:voice_mode", voice_mode);
-        let _ = self
-            .app_handle
-            .emit("pipeline:live_typing", options.live_typing);
-        let _ = self
-            .app_handle
-            .emit("recording:deadline", recording_deadline.event);
+        self.events.send("pipeline:voice_mode", voice_mode);
+        self.events
+            .send("pipeline:live_typing", options.live_typing);
+        self.events
+            .send("recording:deadline", recording_deadline.event);
 
         // Volume monitoring task
-        let app_handle = self.app_handle.clone();
+        let events = self.events.clone();
         let audio_handle_ref = self.audio_handle.clone();
         let state_ref = self.phases.clone();
         let volume_session = self.session.clone();
+        let volume_pipeline = self.clone();
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(VOLUME_POLL_INTERVAL_MS)).await;
@@ -1885,7 +1893,7 @@ impl PipelineHandle {
                     .map(|handle| (handle.get_volume(), handle.runtime_error()))
                     .unwrap_or((0.0, None));
                 if let Some(message) = capture_error {
-                    let pipeline = app_handle.state::<PipelineHandle>();
+                    let pipeline = &volume_pipeline;
                     let error = crate::error::AppError::Config(format!(
                         "Audio capture interrupted: {message}"
                     ));
@@ -1895,14 +1903,14 @@ impl PipelineHandle {
                         session_id,
                         &error,
                     ) {
-                        let _ = app_handle.emit("pipeline:error", user_error);
+                        events.send("pipeline:error", user_error);
                     }
                     if let Err(error) = pipeline.stop().await {
                         tracing::error!("Could not stop interrupted recording: {error}");
                     }
                     break;
                 }
-                let _ = app_handle.emit("audio:volume", vol);
+                events.send("audio:volume", vol);
             }
         });
 
@@ -1914,7 +1922,7 @@ impl PipelineHandle {
             .unwrap_or_else(|e| e.into_inner()) = None;
 
         // STT streaming task — provider is already connected
-        let app_handle = self.app_handle.clone();
+        let events = self.events.clone();
         let accumulated = self.accumulated_text.clone();
         let journal = match self
             .app_handle
@@ -1924,7 +1932,7 @@ impl PipelineHandle {
             Ok(journal) => Arc::new(Mutex::new(journal)),
             Err(error) => {
                 self.abort();
-                let _ = self.app_handle.emit(
+                self.events.send(
                     "pipeline:error",
                     crate::error::AppError::Config(format!(
                         "Recording backup unavailable: {error}"
@@ -1944,6 +1952,7 @@ impl PipelineHandle {
         };
         *self.stt_session.lock().unwrap_or_else(|e| e.into_inner()) = Some(stt_control.clone());
         let session_ref = self.session.clone();
+        let task_pipeline = self.clone();
         let stt_error_ref = self.stt_error.clone();
         let live_session = options.live_typing;
         let live_idle_stop_seconds = config_data.live_idle_stop_seconds;
@@ -1975,14 +1984,14 @@ impl PipelineHandle {
                                 };
                                 if let Err(error) = sent {
                                     tracing::error!("STT send audio error: {}", error);
-                                    crate::error::emit_cloud_session_invalid(&app_handle, &error);
+                                    events.cloud_session_invalid(&error);
                                     if let Some(user_error) = latch_stt_task_error_if_active(
                                         &session_ref,
                                         stt_error_ref.as_ref(),
                                         stt_control.id,
                                         &error,
                                     ) {
-                                        let _ = app_handle.emit("pipeline:error", user_error);
+                                        events.send("pipeline:error", user_error);
                                     }
                                     break;
                                 }
@@ -2006,7 +2015,7 @@ impl PipelineHandle {
                                         stt_control.id,
                                         &error,
                                     ) {
-                                        let _ = app_handle.emit("pipeline:error", user_error);
+                                        events.send("pipeline:error", user_error);
                                     }
                                     break;
                                 }
@@ -2027,21 +2036,19 @@ impl PipelineHandle {
                                             acc.push_str(&text);
                                             let current = acc.clone();
                                             drop(acc);
-                                            let _ = app_handle.emit("stt:final", &current);
+                                            events.send("stt:final", &current);
                                         }
                                     }
                                     Some(Ok(None)) => {}
                                     Some(Err(e)) => {
                                         tracing::error!("STT disconnect error: {}", e);
                                         if session_ref.is_live(stt_control.id) {
-                                            crate::error::emit_cloud_session_invalid(
-                                                &app_handle,
-                                                &e,
+                                            events.cloud_session_invalid(&e,
                                             );
                                             let user_error = e.to_user_error();
                                             *stt_error_ref.lock().unwrap_or_else(|e| e.into_inner()) =
                                                 Some((stt_control.id, user_error.clone()));
-                                            let _ = app_handle.emit("pipeline:error", user_error);
+                                            events.send("pipeline:error", user_error);
                                         }
                                     }
                                     None => {}
@@ -2054,7 +2061,7 @@ impl PipelineHandle {
                         match transcript {
                             Ok(Some(TranscriptEvent::Partial { text })) => {
                                 if session_ref.is_live(stt_control.id) {
-                                    let _ = app_handle.emit("stt:partial", &text);
+                                    events.send("stt:partial", &text);
                                 }
                             }
                             Ok(Some(TranscriptEvent::SpeechEnded)) if live_session => {
@@ -2062,13 +2069,12 @@ impl PipelineHandle {
                                 // like a second press of the shortcut.
                                 if session_ref.is_live(stt_control.id) {
                                     tracing::info!("Live typing stopped after silence");
-                                    let _ = app_handle.emit(
+                                    events.send(
                                         "pipeline:live_idle_stop",
                                         live_idle_stop_seconds,
                                     );
-                                    let handle = app_handle.clone();
+                                    let pipeline = task_pipeline.clone();
                                     tauri::async_runtime::spawn(async move {
-                                        let pipeline = handle.state::<PipelineHandle>();
                                         if let Err(error) = pipeline.stop().await {
                                             tracing::warn!("Live typing idle stop failed: {error}");
                                         }
@@ -2091,7 +2097,7 @@ impl PipelineHandle {
                                     acc.push(' ');
                                     let current = acc.clone();
                                     drop(acc);
-                                    let _ = app_handle.emit("stt:final", &current);
+                                    events.send("stt:final", &current);
                                 }
                             }
                             Ok(Some(TranscriptEvent::Error { message })) => {
@@ -2101,7 +2107,7 @@ impl PipelineHandle {
                                         crate::error::AppError::Config(message.clone()).to_user_error();
                                     *stt_error_ref.lock().unwrap_or_else(|e| e.into_inner()) =
                                         Some((stt_control.id, user_error.clone()));
-                                    let _ = app_handle.emit("pipeline:error", user_error);
+                                    events.send("pipeline:error", user_error);
                                 }
                                 // Break out of the loop — STT has failed, no point
                                 // continuing. Without break, the loop keeps running
@@ -2111,11 +2117,11 @@ impl PipelineHandle {
                             Err(e) => {
                                 tracing::error!("STT recv error: {}", e);
                                 if session_ref.is_live(stt_control.id) {
-                                    crate::error::emit_cloud_session_invalid(&app_handle, &e);
+                                    events.cloud_session_invalid(&e);
                                     let user_error = e.to_user_error();
                                     *stt_error_ref.lock().unwrap_or_else(|e| e.into_inner()) =
                                         Some((stt_control.id, user_error.clone()));
-                                    let _ = app_handle.emit("pipeline:error", user_error);
+                                    events.send("pipeline:error", user_error);
                                 }
                                 break;
                             }
@@ -2130,7 +2136,7 @@ impl PipelineHandle {
         });
 
         let deadline_pipeline = self.clone();
-        let deadline_app = self.app_handle.clone();
+        let deadline_events = self.events.clone();
         let deadline_scope = self.session.recording_scope(session_id, &self.phases);
         let deadline_provider_id = resolved_limit.capability.provider_id;
         tokio::spawn(async move {
@@ -2141,7 +2147,7 @@ impl PipelineHandle {
                     crate::recording_deadline::RecordingDeadlineSignal::Warning {
                         seconds_remaining,
                     } => {
-                        let _ = deadline_app.emit(
+                        deadline_events.send(
                             "recording:deadline-warning",
                             serde_json::json!({
                                 "sessionId": session_id,
@@ -2154,7 +2160,7 @@ impl PipelineHandle {
                         );
                     }
                     crate::recording_deadline::RecordingDeadlineSignal::Reached => {
-                        let _ = deadline_app.emit(
+                        deadline_events.send(
                             "recording:deadline-reached",
                             serde_json::json!({
                                 "sessionId": session_id,
@@ -2267,7 +2273,7 @@ impl PipelineHandle {
                         control.id,
                         &error,
                     ) {
-                        let _ = self.app_handle.emit("pipeline:error", user_error);
+                        self.events.send("pipeline:error", user_error);
                     }
                 }
                 h.stop();
@@ -2462,7 +2468,7 @@ impl PipelineHandle {
             return Ok(());
         }
         // Emit timing to frontend
-        let _ = self.app_handle.emit(
+        self.events.send(
             "pipeline:timing",
             serde_json::json!({
                 "stt_ms": stt_elapsed.as_millis() as u64,
@@ -2472,7 +2478,7 @@ impl PipelineHandle {
             }),
         );
 
-        let _ = self.app_handle.emit("pipeline:context", app_ctx.summary());
+        self.events.send("pipeline:context", app_ctx.summary());
 
         // Save to history
         if !self.session.is_live(generation) {
@@ -2549,7 +2555,7 @@ impl PipelineHandle {
                     control.abort.notify_one();
                     tracing::warn!("STT finalization timed out after {}s", budget.as_secs());
                     if self.session.is_live(generation) {
-                        let _ = self.app_handle.emit("pipeline:error", crate::error::AppError::Timeout(budget).to_user_error());
+                        self.events.send("pipeline:error", crate::error::AppError::Timeout(budget).to_user_error());
                         self.set_state(PipelineState::Idle);
                     }
                     return Ok(None);
@@ -2584,9 +2590,7 @@ impl PipelineHandle {
 
         if raw_text.is_empty() {
             if self.session.is_live(generation) {
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", no_speech_user_error());
+                self.events.send("pipeline:error", no_speech_user_error());
                 self.set_state(PipelineState::Idle);
             }
             return Ok(None);
@@ -2629,9 +2633,7 @@ impl PipelineHandle {
                 .await;
             if let Err(error) = &output_result {
                 tracing::error!("Output failed: {}", error);
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", output_user_error(error));
+                self.events.send("pipeline:error", output_user_error(error));
             }
             let output_metadata = history_output_metadata_for_output_result(
                 output_result.as_ref(),
@@ -2650,7 +2652,7 @@ impl PipelineHandle {
             crate::voice_intent::plan_voice_provider_work(voice_mode, raw_text, &voice_intent);
         let Some(provider_text) = provider_plan.provider_input.as_deref() else {
             let message = "Search must bypass the language model and use the safe search executor.";
-            let _ = self.app_handle.emit(
+            self.events.send(
                 "pipeline:error",
                 crate::error::UserError {
                     code: "voice_route_failed".to_string(),
@@ -2696,7 +2698,7 @@ impl PipelineHandle {
                     crate::commands::ask::show_error_window(&self.app_handle, message.to_string())
                 {
                     tracing::warn!("Failed to show selected-text no-LLM Ask error window: {error}");
-                    let _ = self.app_handle.emit(
+                    self.events.send(
                         "pipeline:error",
                         crate::error::UserError {
                             code: "llm_failed".to_string(),
@@ -2725,9 +2727,7 @@ impl PipelineHandle {
                 .await;
             if let Err(error) = &output_result {
                 tracing::error!("Output failed: {}", error);
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", output_user_error(error));
+                self.events.send("pipeline:error", output_user_error(error));
             }
             let output_metadata = history_output_metadata_for_output_result(
                 output_result.as_ref(),
@@ -2783,13 +2783,13 @@ impl PipelineHandle {
 
         // The callback remains synchronous for the LLM stream. UI updates happen
         // immediately; optional target-app insertion is drained by a worker.
-        let app_handle = self.app_handle.clone();
+        let events = self.events.clone();
         let chunk_session = self.session.clone();
         let on_chunk: llm::ChunkCallback = Box::new(move |chunk: &str| {
             if !chunk_session.is_live(session_generation) {
                 return;
             }
-            let _ = app_handle.emit("llm:chunk", chunk);
+            events.send("llm:chunk", chunk);
             if let Some(sender) = streaming_sender.as_ref() {
                 let _ = sender.send(chunk.to_string());
             }
@@ -3079,7 +3079,7 @@ impl PipelineHandle {
                     &mut backend,
                 )
                 .await;
-                let _ = self.app_handle.emit("pipeline:voice_execution", &execution);
+                self.events.send("pipeline:voice_execution", &execution);
 
                 if let Some(reason) = crate::recovery::reason_for_voice_fallback(
                     execution.fallback_reason,
@@ -3124,14 +3124,13 @@ impl PipelineHandle {
                 )
             }
             Err(e) => {
-                crate::error::emit_cloud_session_invalid(&self.app_handle, &e);
+                self.events.cloud_session_invalid(&e);
                 let elapsed = llm_start.elapsed();
                 if let Some(report) = streaming_report.as_ref() {
                     if report.has_inserted_text() {
                         tracing::error!("LLM polish failed after partial streaming insert: {}", e);
-                        let _ = self
-                            .app_handle
-                            .emit("pipeline:error", llm_polish_user_error(&e));
+                        self.events
+                            .send("pipeline:error", llm_polish_user_error(&e));
                         let mut partial_report = report.clone();
                         partial_report.failed = true;
                         partial_report.error_message = Some(format!("LLM polish failed: {}", e));
@@ -3168,9 +3167,8 @@ impl PipelineHandle {
                 }
                 tracing::error!("LLM polish failed: {}", e);
 
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", llm_polish_user_error(&e));
+                self.events
+                    .send("pipeline:error", llm_polish_user_error(&e));
                 if config.llm_provider == "codex-cli"
                     || selected_text_has_content(selected_text_for_execution.as_deref())
                     || voice_intent_requires_generated_output(voice_intent.kind)
@@ -3193,9 +3191,8 @@ impl PipelineHandle {
                     .await;
                 if let Err(output_error) = &output_result {
                     tracing::error!("Output failed: {}", output_error);
-                    let _ = self
-                        .app_handle
-                        .emit("pipeline:error", output_user_error(output_error));
+                    self.events
+                        .send("pipeline:error", output_user_error(output_error));
                 }
                 let output_metadata = history_output_metadata_with_prior_error(
                     output_result.as_ref(),
@@ -3422,9 +3419,7 @@ impl PipelineHandle {
                 .await;
             if let Err(error) = &output_result {
                 tracing::error!("Output failed: {}", error);
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", output_user_error(error));
+                self.events.send("pipeline:error", output_user_error(error));
             }
             let output_metadata = history_output_metadata_for_output_result(
                 output_result.as_ref(),
@@ -3527,13 +3522,11 @@ impl PipelineHandle {
             report.attempted_chunks,
             chars_inserted
         );
-        let _ = self
-            .app_handle
-            .emit("pipeline:insert_result", &insert_result);
+        self.events.send("pipeline:insert_result", &insert_result);
         if let Some(user_error) = warning {
-            let _ = self.app_handle.emit("pipeline:warning", &user_error);
+            self.events.send("pipeline:warning", &user_error);
         }
-        let _ = self.app_handle.emit("pipeline:target_app", app_name);
+        self.events.send("pipeline:target_app", app_name);
     }
 
     fn retain_recovery(
@@ -3623,18 +3616,16 @@ impl PipelineHandle {
         {
             Ok(mut outcome) => {
                 outcome.insert_result = outcome.insert_result.with_warning(&warning);
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:insert_result", &outcome.insert_result);
-                let _ = self.app_handle.emit("pipeline:warning", &warning);
-                let _ = self.app_handle.emit("pipeline:target_app", app_name);
+                self.events
+                    .send("pipeline:insert_result", &outcome.insert_result);
+                self.events.send("pipeline:warning", &warning);
+                self.events.send("pipeline:target_app", app_name);
             }
             Err(error) => {
                 tracing::error!("Failed to copy streaming recovery text to clipboard: {error}");
                 let error = anyhow::anyhow!(error);
-                let _ = self
-                    .app_handle
-                    .emit("pipeline:error", output_user_error(&error));
+                self.events
+                    .send("pipeline:error", output_user_error(&error));
             }
         }
     }
@@ -3706,7 +3697,7 @@ impl PipelineHandle {
                         details: None,
                         retry_count: 0,
                     };
-                    let _ = self.app_handle.emit("pipeline:warning", &ue);
+                    self.events.send("pipeline:warning", &ue);
                     output::InsertionStrategy::ClipboardPaste
                 } else {
                     tracing::warn!("xdotool not found, keyboard output may fail: {}", reason);
@@ -3782,16 +3773,14 @@ impl PipelineHandle {
                 insert_result.chars_inserted,
             );
         }
-        let _ = self
-            .app_handle
-            .emit("pipeline:insert_result", &insert_result);
+        self.events.send("pipeline:insert_result", &insert_result);
 
         if let Some(user_error) = output_outcome.warning {
             tracing::info!("Output completed with warning: {}", user_error.code);
-            let _ = self.app_handle.emit("pipeline:warning", &user_error);
+            self.events.send("pipeline:warning", &user_error);
         }
 
-        let _ = self.app_handle.emit("pipeline:target_app", app_name);
+        self.events.send("pipeline:target_app", app_name);
         Ok(insert_result)
     }
 

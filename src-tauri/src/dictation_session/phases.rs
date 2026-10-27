@@ -11,6 +11,10 @@ pub(crate) trait SessionNotifier: Send + Sync {
     fn hold_enter(&self, hold: bool);
     /// Tell the capsule and the tray that a phase was entered.
     fn phase_entered(&self, state: PipelineState);
+    /// Send a session event (`pipeline:error`, `stt:partial`, ...) with a JSON payload.
+    fn emit_json(&self, event: &str, payload: String);
+    /// Remember the monitor the user is working on, so the capsule appears there.
+    fn capture_recording_monitor(&self);
 }
 
 /// The one place where a dictation session changes phase. Every change updates the
@@ -74,6 +78,8 @@ pub(crate) mod testing {
         Escape(bool),
         Enter(bool),
         Phase(PipelineState),
+        Event(String, serde_json::Value),
+        CaptureMonitor,
     }
 
     /// Records what a session told the screen, in order.
@@ -95,6 +101,16 @@ pub(crate) mod testing {
         }
         fn phase_entered(&self, state: PipelineState) {
             self.0.lock().unwrap().push(Note::Phase(state));
+        }
+        fn emit_json(&self, event: &str, payload: String) {
+            let payload = serde_json::from_str(&payload).expect("events carry JSON");
+            self.0
+                .lock()
+                .unwrap()
+                .push(Note::Event(event.to_string(), payload));
+        }
+        fn capture_recording_monitor(&self) {
+            self.0.lock().unwrap().push(Note::CaptureMonitor);
         }
     }
 }
