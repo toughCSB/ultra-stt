@@ -12,9 +12,10 @@ use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
 use crate::dictation_session::{
-    correction_rules_for_polish, AppLlmProviders, AppSttProviders, Events, LlmProviders,
-    Microphone, Phases, Recorder, SessionClock, SessionNotifier, SessionSettings, SessionStores,
-    StateCell, SttProviders, SystemMicrophone, SystemTextInput, TextInput,
+    correction_rules_for_polish, AppLlmProviders, AppSttProviders, AskWindows, Events,
+    LlmProviders, Microphone, Phases, Recorder, SessionClock, SessionNotifier, SessionPorts,
+    SessionSettings, SessionStores, StateCell, SttProviders, SystemMicrophone, SystemTextInput,
+    TextInput,
 };
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
@@ -710,7 +711,6 @@ fn apply_pipeline_start_options(
 
 #[derive(Clone)]
 pub struct PipelineHandle {
-    app_handle: tauri::AppHandle,
     context_detector: app_detector::ContextDetectorHandle,
     phases: Phases,
     events: Events,
@@ -720,6 +720,7 @@ pub struct PipelineHandle {
     stt_providers: Arc<dyn SttProviders>,
     llm_providers: Arc<dyn LlmProviders>,
     input: Arc<dyn TextInput>,
+    ask: Arc<dyn AskWindows>,
     escape_event_pending: Arc<AtomicBool>,
     enter_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<Box<dyn Recorder>>>>,
@@ -862,9 +863,7 @@ impl crate::voice_intent::executor::VoiceExecutionBackend for PipelineVoiceExecu
         &mut self,
         guard: &TargetAppGuard,
     ) -> std::result::Result<bool, String> {
-        if let Some(window) = self.pipeline.app_handle.get_webview_window("ask") {
-            let _ = window.hide();
-        }
+        self.pipeline.ask.hide_answer();
         let detector = self.pipeline.context_detector.clone();
         let guard = guard.clone();
         tokio::task::spawn_blocking(move || detector.restore_target_application(&guard))
@@ -902,8 +901,7 @@ impl crate::voice_intent::executor::VoiceExecutionBackend for PipelineVoiceExecu
         if !self.popup_fallback_enabled {
             return Err("popup fallback is owned by the Ask caller".to_string());
         }
-        crate::commands::ask::show_answer_window_with_metadata(
-            &self.pipeline.app_handle,
+        self.pipeline.ask.show_answer(
             self.question.to_string(),
             text.to_string(),
             self.intent_kind,
@@ -1282,6 +1280,57 @@ impl SessionStores for TauriSessionStorage {
     }
 }
 
+/// Tauri adapter for the Ask windows and the Ask recording state.
+struct TauriAskWindows {
+    app_handle: tauri::AppHandle,
+}
+
+impl AskWindows for TauriAskWindows {
+    fn busy(&self) -> bool {
+        self.app_handle
+            .try_state::<crate::commands::ask::AskDictationState>()
+            .is_some_and(|ask| ask.is_busy())
+    }
+
+    fn abort(&self) {
+        if let Some(ask) = self
+            .app_handle
+            .try_state::<crate::commands::ask::AskDictationState>()
+            .filter(|ask| ask.is_busy())
+        {
+            let _ = crate::commands::ask::abort_ask_dictation(self.app_handle.clone(), ask);
+        }
+    }
+
+    fn hide_answer(&self) {
+        if let Some(window) = self.app_handle.get_webview_window("ask") {
+            let _ = window.hide();
+        }
+    }
+
+    fn show_answer(
+        &self,
+        question: String,
+        answer: String,
+        intent: crate::voice_intent::VoiceIntentKind,
+        used_selected_text: bool,
+        selected_text_truncated: bool,
+    ) -> std::result::Result<(), String> {
+        crate::commands::ask::show_answer_window_with_metadata(
+            &self.app_handle,
+            question,
+            answer,
+            intent,
+            used_selected_text,
+            selected_text_truncated,
+        )
+    }
+
+    fn show_error(&self, message: String) -> std::result::Result<(), String> {
+        crate::commands::ask::show_error_window(&self.app_handle, message)
+    }
+}
+
 impl PipelineHandle {
     pub fn new(
         app_handle: tauri::AppHandle,
@@ -1289,19 +1338,11 @@ impl PipelineHandle {
         context_detector: app_detector::ContextDetectorHandle,
     ) -> Self {
         let state = StateCell::new();
-        let notifier: Arc<dyn SessionNotifier> =
-            Arc::new(TauriSessionNotifier::new(app_handle.clone(), state.clone()));
         let storage = Arc::new(TauriSessionStorage {
             app_handle: app_handle.clone(),
         });
-        let input = Arc::new(SystemTextInput {
-            app_handle: app_handle.clone(),
-        });
-        Self {
-            app_handle,
-            context_detector,
-            phases: Phases::new(state, notifier.clone()),
-            events: Events::new(notifier),
+        let ports = SessionPorts {
+            notifier: Arc::new(TauriSessionNotifier::new(app_handle.clone(), state.clone())),
             settings: storage.clone(),
             stores: storage,
             microphone: Arc::new(SystemMicrophone),
@@ -1311,7 +1352,32 @@ impl PipelineHandle {
             llm_providers: Arc::new(AppLlmProviders {
                 client: shared_client.clone(),
             }),
-            input,
+            input: Arc::new(SystemTextInput {
+                app_handle: app_handle.clone(),
+            }),
+            ask: Arc::new(TauriAskWindows { app_handle }),
+        };
+        Self::with_ports(ports, state, shared_client, context_detector)
+    }
+
+    /// Builds a session on `ports`. `state` is the phase cell the notifier may read back.
+    pub(crate) fn with_ports(
+        ports: SessionPorts,
+        state: StateCell,
+        shared_client: reqwest::Client,
+        context_detector: app_detector::ContextDetectorHandle,
+    ) -> Self {
+        Self {
+            context_detector,
+            phases: Phases::new(state, ports.notifier.clone()),
+            events: Events::new(ports.notifier),
+            settings: ports.settings,
+            stores: ports.stores,
+            microphone: ports.microphone,
+            stt_providers: ports.stt_providers,
+            llm_providers: ports.llm_providers,
+            input: ports.input,
+            ask: ports.ask,
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
@@ -1361,19 +1427,11 @@ impl PipelineHandle {
         shortcut: &Shortcut,
         state: ShortcutState,
     ) -> bool {
-        let ask_busy = self
-            .app_handle
-            .try_state::<crate::commands::ask::AskDictationState>()
-            .is_some_and(|ask| ask.is_busy());
-        let action = recording_control_key(shortcut, self.current_state(), ask_busy);
+        let action = recording_control_key(shortcut, self.current_state(), self.ask.busy());
         if action == Some(Code::Escape) {
             if state == ShortcutState::Pressed {
-                if let Some(ask) = self
-                    .app_handle
-                    .try_state::<crate::commands::ask::AskDictationState>()
-                    .filter(|ask| ask.is_busy())
-                {
-                    let _ = crate::commands::ask::abort_ask_dictation(self.app_handle.clone(), ask);
+                if self.ask.busy() {
+                    self.ask.abort();
                 } else {
                     self.abort();
                 }
@@ -2760,9 +2818,7 @@ impl PipelineHandle {
                 } else {
                     "This voice command needs a configured LLM provider or Cloud sign-in."
                 };
-                if let Err(error) =
-                    crate::commands::ask::show_error_window(&self.app_handle, message.to_string())
-                {
+                if let Err(error) = self.ask.show_error(message.to_string()) {
                     tracing::warn!("Failed to show selected-text no-LLM Ask error window: {error}");
                     self.events.send(
                         "pipeline:error",
