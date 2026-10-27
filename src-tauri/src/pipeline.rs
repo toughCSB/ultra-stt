@@ -12,7 +12,10 @@ use crate::audio::{AudioCaptureHandle, AudioConfig};
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
-use crate::dictation_session::{Events, Phases, SessionClock, SessionNotifier, StateCell};
+use crate::dictation_session::{
+    correction_rules_for_polish, Events, Phases, SessionClock, SessionNotifier, SessionSettings,
+    SessionStores, StateCell,
+};
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
 use crate::storage;
@@ -710,6 +713,8 @@ pub struct PipelineHandle {
     context_detector: app_detector::ContextDetectorHandle,
     phases: Phases,
     events: Events,
+    settings: Arc<dyn SessionSettings>,
+    stores: Arc<dyn SessionStores>,
     escape_event_pending: Arc<AtomicBool>,
     enter_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<AudioCaptureHandle>>>,
@@ -1178,6 +1183,76 @@ impl SessionNotifier for TauriSessionNotifier {
     }
 }
 
+/// Tauri adapter for settings, secrets and records: the app's managed config, dictionary,
+/// history and recovery stores, and the system credential vault.
+struct TauriSessionStorage {
+    app_handle: tauri::AppHandle,
+}
+
+#[async_trait::async_trait]
+impl SessionSettings for TauriSessionStorage {
+    async fn load_config(&self) -> storage::AppConfig {
+        self.app_handle
+            .state::<storage::ConfigManager>()
+            .load()
+            .await
+            .unwrap_or_default()
+    }
+
+    fn cloud_session_token(&self) -> String {
+        self.app_handle
+            .state::<SessionTokenStore>()
+            .0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    fn stt_secret(&self, config: &storage::AppConfig) -> Result<String> {
+        resolve_stt_config_secret(config, &SystemCredentialVault)
+    }
+
+    fn llm_secret(&self, config: &storage::AppConfig) -> Result<String> {
+        resolve_llm_config_secret(config, &SystemCredentialVault)
+    }
+}
+
+#[async_trait::async_trait]
+impl SessionStores for TauriSessionStorage {
+    async fn dictionary_words(&self) -> Vec<String> {
+        self.app_handle
+            .state::<storage::DictionaryStore>()
+            .words()
+            .await
+    }
+
+    async fn correction_rules(&self) -> Vec<llm::CorrectionRule> {
+        correction_rules_for_polish(
+            self.app_handle
+                .state::<storage::DictionaryStore>()
+                .enabled_correction_rules()
+                .await,
+        )
+    }
+
+    fn begin_recording(&self) -> std::io::Result<crate::recording_archive::RecordingJournal> {
+        self.app_handle
+            .state::<crate::recording_archive::RecordingArchive>()
+            .begin()
+    }
+
+    async fn add_history(
+        &self,
+        entry: storage::HistoryEntry,
+        policy: &storage::HistoryRetentionPolicy,
+    ) -> Result<()> {
+        self.app_handle
+            .state::<storage::HistoryStore>()
+            .add_with_policy(entry, policy)
+            .await
+    }
+}
+
 impl PipelineHandle {
     pub fn new(
         app_handle: tauri::AppHandle,
@@ -1187,11 +1262,16 @@ impl PipelineHandle {
         let state = StateCell::new();
         let notifier: Arc<dyn SessionNotifier> =
             Arc::new(TauriSessionNotifier::new(app_handle.clone(), state.clone()));
+        let storage = Arc::new(TauriSessionStorage {
+            app_handle: app_handle.clone(),
+        });
         Self {
             app_handle,
             context_detector,
             phases: Phases::new(state, notifier.clone()),
             events: Events::new(notifier),
+            settings: storage.clone(),
+            stores: storage,
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
@@ -1364,11 +1444,7 @@ impl PipelineHandle {
     }
 
     async fn load_config(&self) -> storage::AppConfig {
-        self.app_handle
-            .state::<storage::ConfigManager>()
-            .load()
-            .await
-            .unwrap_or_default()
+        self.settings.load_config().await
     }
 
     pub async fn start(&self) -> Result<()> {
@@ -1428,19 +1504,8 @@ impl PipelineHandle {
             self.context_detector
                 .snapshot_for_recording_enabled(config_data.context_adaptation_enabled),
         );
-        let dictionary_store = self.app_handle.state::<storage::DictionaryStore>();
-        let dict_words = dictionary_store.words().await;
-        let correction_rules = dictionary_store
-            .enabled_correction_rules()
-            .await
-            .into_iter()
-            .map(|rule| llm::CorrectionRule {
-                id: rule.id,
-                pattern: rule.pattern,
-                replacement: rule.replacement,
-                enabled: rule.enabled,
-            })
-            .collect::<Vec<_>>();
+        let dict_words = self.stores.dictionary_words().await;
+        let correction_rules = self.stores.correction_rules().await;
         // Live typing has no AI polish: the dictionary guides recognition and correction
         // rules are applied before each word is typed.
         let live_hints = options.live_typing.then(|| {
@@ -1464,14 +1529,9 @@ impl PipelineHandle {
         {
             String::new()
         } else if config_data.stt_provider == "cloud" {
-            self.app_handle
-                .state::<SessionTokenStore>()
-                .0
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .clone()
+            self.settings.cloud_session_token()
         } else {
-            match resolve_stt_config_secret(&config_data, &SystemCredentialVault) {
+            match self.settings.stt_secret(&config_data) {
                 Ok(secret) => secret,
                 Err(error) => {
                     tracing::warn!("Failed to read STT credential: {error}");
@@ -1924,11 +1984,7 @@ impl PipelineHandle {
         // STT streaming task — provider is already connected
         let events = self.events.clone();
         let accumulated = self.accumulated_text.clone();
-        let journal = match self
-            .app_handle
-            .state::<crate::recording_archive::RecordingArchive>()
-            .begin()
-        {
+        let journal = match self.stores.begin_recording() {
             Ok(journal) => Arc::new(Mutex::new(journal)),
             Err(error) => {
                 self.abort();
@@ -2337,12 +2393,7 @@ impl PipelineHandle {
 
         // Extract session token before releasing guard (for cloud LLM)
         let session_token = if config.llm_provider == "cloud" {
-            self.app_handle
-                .state::<SessionTokenStore>()
-                .0
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .clone()
+            self.settings.cloud_session_token()
         } else {
             String::new()
         };
@@ -2672,7 +2723,7 @@ impl PipelineHandle {
         } else if config.llm_provider == "codex-cli" {
             String::new()
         } else {
-            match resolve_llm_config_secret(config, &SystemCredentialVault) {
+            match self.settings.llm_secret(config) {
                 Ok(secret) => secret,
                 Err(error) => {
                     tracing::warn!("Failed to read LLM credential: {error}");
@@ -3235,26 +3286,10 @@ impl PipelineHandle {
         let generation = self.session.begin();
         let mut cancelled = self.session.watch();
 
-        let dictionary_store = self.app_handle.state::<storage::DictionaryStore>();
-        let dictionary_words = dictionary_store.words().await;
-        let correction_rules = dictionary_store
-            .enabled_correction_rules()
-            .await
-            .into_iter()
-            .map(|rule| llm::CorrectionRule {
-                id: rule.id,
-                pattern: rule.pattern,
-                replacement: rule.replacement,
-                enabled: rule.enabled,
-            })
-            .collect::<Vec<_>>();
+        let dictionary_words = self.stores.dictionary_words().await;
+        let correction_rules = self.stores.correction_rules().await;
         let session_token = if config.llm_provider == "cloud" {
-            self.app_handle
-                .state::<SessionTokenStore>()
-                .0
-                .lock()
-                .unwrap_or_else(|error| error.into_inner())
-                .clone()
+            self.settings.cloud_session_token()
         } else {
             String::new()
         };
@@ -3333,12 +3368,7 @@ impl PipelineHandle {
             output_status: output.status,
             output_error: output.error,
         };
-        if let Err(e) = self
-            .app_handle
-            .state::<storage::HistoryStore>()
-            .add_with_policy(entry, &policy)
-            .await
-        {
+        if let Err(e) = self.stores.add_history(entry, &policy).await {
             tracing::error!("Failed to save history: {}", e);
         }
     }
