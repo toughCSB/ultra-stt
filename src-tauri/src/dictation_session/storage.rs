@@ -3,15 +3,14 @@ use async_trait::async_trait;
 use crate::llm::CorrectionRule;
 use crate::recording_archive::RecordingJournal;
 use crate::storage::{AppConfig, HistoryEntry, HistoryRetentionPolicy};
+use crate::stt::setup::SttSecrets;
 
-/// Settings and secrets a dictation session reads.
+/// Settings and secrets a dictation session reads. The speech recognition keys come
+/// through `SttSecrets`.
 #[async_trait]
-pub(crate) trait SessionSettings: Send + Sync {
+pub(crate) trait SessionSettings: SttSecrets + Send + Sync {
     /// Current settings; the defaults when they cannot be read.
     async fn load_config(&self) -> AppConfig;
-    /// Signed-in cloud session token; empty when signed out.
-    fn cloud_session_token(&self) -> String;
-    fn stt_secret(&self, config: &AppConfig) -> anyhow::Result<String>;
     fn llm_secret(&self, config: &AppConfig) -> anyhow::Result<String>;
 }
 

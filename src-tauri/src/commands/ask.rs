@@ -6,7 +6,8 @@ use crate::credentials::{
 use crate::error::{emit_cloud_session_invalid, managed_cloud_error, AppError};
 use crate::pipeline::PipelineState;
 use crate::storage;
-use crate::stt::{self, SttConfig, TranscriptEvent};
+use crate::stt::setup::{resolve_stt_setup, SttSecrets, SttSetup, SttSetupError};
+use crate::stt::{self, TranscriptEvent};
 use crate::voice_intent::{
     SearchProvider, SpeechLanguageMode, VoiceIntent, VoiceIntentKind, VoiceIntentRouter, VoiceMode,
     VoiceRouteRequest, VoiceRoutingFlags,
@@ -665,52 +666,17 @@ fn should_use_cloud(config: &storage::AppConfig) -> bool {
     config.llm_provider == "cloud"
 }
 
-fn build_ask_stt_config(
-    config: &storage::AppConfig,
-    api_key: String,
-    operation_id: String,
-) -> SttConfig {
-    SttConfig {
-        api_key,
-        language: if config.stt_language == "multi" {
-            None
-        } else {
-            Some(config.stt_language.clone())
-        },
-        smart_format: true,
-        sample_rate: 16000,
-        resource_id: if config.stt_provider == stt::volcengine::VOLCENGINE_DOUBAO_PROVIDER {
-            Some(config.stt_volcengine_resource_id.clone())
-        } else {
-            None
-        },
-        operation_id: Some(operation_id),
-        managed_audio: stt::capabilities::managed_audio_encoding_config(
-            config,
-            chrono::Utc::now().timestamp(),
-        ),
-        provider_region: (config.stt_provider == stt::aliyun_qwen3_asr::ALIYUN_QWEN3_ASR_PROVIDER)
-            .then(|| config.stt_aliyun_qwen_region.clone()),
-    }
-}
+/// Speech recognition keys for Ask: the signed-in cloud token or the system vault.
+struct AskSttSecrets<'a>(&'a SessionTokenStore);
 
-fn ask_stt_api_key(
-    config: &storage::AppConfig,
-    token_store: &SessionTokenStore,
-) -> Result<String, String> {
-    if config.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
-        && config.stt_custom_preset == "ultra-local"
-    {
-        return Ok(String::new());
+impl SttSecrets for AskSttSecrets<'_> {
+    fn cloud_session_token(&self) -> String {
+        self.0 .0.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
-    if config.stt_provider == "cloud" {
-        return Ok(token_store
-            .0
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone());
+
+    fn stt_secret(&self, config: &storage::AppConfig) -> anyhow::Result<String> {
+        resolve_stt_config_secret(config, &SystemCredentialVault)
     }
-    resolve_stt_config_secret(config, &SystemCredentialVault).map_err(|e| e.to_string())
 }
 
 fn cloud_auth_required_message() -> String {
@@ -1076,24 +1042,24 @@ pub(crate) async fn start_reserved_ask_dictation(
             tracing::info!("Ask shortcut captured selected text context");
         }
 
-        let stt_api_key = ask_stt_api_key(&config, &token_store)?;
-        if stt::config::stt_provider_requires_api_key(&config.stt_provider)
-            && stt_api_key.is_empty()
-        {
-            return Err(
-                "STT API key is not configured. Please set it in Settings -> Speech Recognition."
-                    .to_string(),
-            );
-        }
-
-        let custom_whisper_config = if config.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
-        {
-            Some(stt::config::build_custom_whisper_for_app(&config)?)
-        } else {
-            None
-        };
         let operation_id = synthetic_operation_id();
-        let stt_config = build_ask_stt_config(&config, stt_api_key, operation_id.clone());
+        let SttSetup {
+            stt_config,
+            custom_whisper: custom_whisper_config,
+        } = resolve_stt_setup(
+            &config,
+            &AskSttSecrets(&token_store),
+            Some(operation_id.clone()),
+            chrono::Utc::now().timestamp(),
+        )
+        .map_err(|error| match error {
+            SttSetupError::SecretUnavailable(error) => error.to_string(),
+            SttSetupError::MissingApiKey => {
+                "STT API key is not configured. Please set it in Settings -> Speech Recognition."
+                    .to_string()
+            }
+            SttSetupError::InvalidCustomWhisper(message) => message,
+        })?;
         let managed_cloud_session_token =
             (config.stt_provider == "cloud").then(|| stt_config.api_key.clone());
         if let Some(session_token) = managed_cloud_session_token.clone() {
@@ -1952,25 +1918,6 @@ mod tests {
             validate_ask_answer("  A concise answer.  ").unwrap(),
             "A concise answer."
         );
-    }
-
-    #[test]
-    fn ask_dictation_stt_config_uses_cloud_token_and_multi_language() {
-        let config = storage::AppConfig {
-            stt_provider: "cloud".to_string(),
-            stt_language: "multi".to_string(),
-            ..Default::default()
-        };
-
-        let stt_config = build_ask_stt_config(
-            &config,
-            "session-token".to_string(),
-            "operation-1".to_string(),
-        );
-
-        assert_eq!(stt_config.api_key, "session-token");
-        assert_eq!(stt_config.language, None);
-        assert_eq!(stt_config.operation_id.as_deref(), Some("operation-1"));
     }
 
     #[test]

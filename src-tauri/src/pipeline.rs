@@ -20,7 +20,8 @@ use crate::dictation_session::{
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
 use crate::storage;
-use crate::stt::{self, SttConfig, TranscriptEvent};
+use crate::stt::setup::{resolve_stt_setup, SttSecrets, SttSetup, SttSetupError};
+use crate::stt::{self, TranscriptEvent};
 use crate::SessionTokenStore;
 
 // ─── Timing constants ───
@@ -1198,16 +1199,7 @@ struct TauriSessionStorage {
     app_handle: tauri::AppHandle,
 }
 
-#[async_trait::async_trait]
-impl SessionSettings for TauriSessionStorage {
-    async fn load_config(&self) -> storage::AppConfig {
-        self.app_handle
-            .state::<storage::ConfigManager>()
-            .load()
-            .await
-            .unwrap_or_default()
-    }
-
+impl SttSecrets for TauriSessionStorage {
     fn cloud_session_token(&self) -> String {
         self.app_handle
             .state::<SessionTokenStore>()
@@ -1219,6 +1211,17 @@ impl SessionSettings for TauriSessionStorage {
 
     fn stt_secret(&self, config: &storage::AppConfig) -> Result<String> {
         resolve_stt_config_secret(config, &SystemCredentialVault)
+    }
+}
+
+#[async_trait::async_trait]
+impl SessionSettings for TauriSessionStorage {
+    async fn load_config(&self) -> storage::AppConfig {
+        self.app_handle
+            .state::<storage::ConfigManager>()
+            .load()
+            .await
+            .unwrap_or_default()
     }
 
     fn llm_secret(&self, config: &storage::AppConfig) -> Result<String> {
@@ -1659,91 +1662,46 @@ impl PipelineHandle {
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = Some(correction_rules);
 
-        let stt_api_key = if config_data.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER
-            && config_data.stt_custom_preset == "ultra-local"
-        {
-            String::new()
-        } else if config_data.stt_provider == "cloud" {
-            self.settings.cloud_session_token()
-        } else {
-            match self.settings.stt_secret(&config_data) {
-                Ok(secret) => secret,
-                Err(error) => {
-                    tracing::warn!("Failed to read STT credential: {error}");
-                    self.events.send(
-                        "pipeline:error",
-                        "Failed to read STT credential from the system vault.",
-                    );
-                    self.abandon_start();
-                    return Ok(());
-                }
+        // Prepare STT configuration before starting the shared audio/STT readiness phase.
+        let cloud_operation_id = generate_cloud_operation_id();
+        let SttSetup {
+            stt_config,
+            custom_whisper: custom_whisper_config,
+        } = match resolve_stt_setup(
+            &config_data,
+            self.settings.as_ref(),
+            Some(cloud_operation_id.clone()),
+            chrono::Utc::now().timestamp(),
+        ) {
+            Ok(setup) => setup,
+            Err(error) => {
+                let message = match error {
+                    SttSetupError::SecretUnavailable(error) => {
+                        tracing::warn!("Failed to read STT credential: {error}");
+                        "Failed to read STT credential from the system vault.".to_string()
+                    }
+                    SttSetupError::MissingApiKey => {
+                        "STT API key is not configured. Please set it in Settings -> Speech Recognition."
+                            .to_string()
+                    }
+                    SttSetupError::InvalidCustomWhisper(message) => message,
+                };
+                self.events.send("pipeline:error", message);
+                self.abandon_start();
+                return Ok(());
             }
         };
-
         tracing::debug!(
             "Pipeline using config: stt_provider={}, stt_key_len={}, stt_lang={}",
             config_data.stt_provider,
-            stt_api_key.len(),
+            stt_config.api_key.len(),
             config_data.stt_language
         );
-
-        // Guard: empty API key - bail before starting audio when provider requires one.
-        if stt::config::stt_provider_requires_api_key(&config_data.stt_provider)
-            && stt_api_key.is_empty()
-        {
-            self.events.send(
-                "pipeline:error",
-                "STT API key is not configured. Please set it in Settings -> Speech Recognition.",
-            );
-            self.abandon_start();
-            return Ok(());
-        }
-
-        let custom_whisper_config =
-            if config_data.stt_provider == stt::config::CUSTOM_WHISPER_PROVIDER {
-                match stt::config::build_custom_whisper_for_app(&config_data) {
-                    Ok(cfg) => Some(cfg),
-                    Err(e) => {
-                        self.events.send("pipeline:error", e);
-                        self.abandon_start();
-                        return Ok(());
-                    }
-                }
-            } else {
-                None
-            };
-
-        // Prepare STT configuration before starting the shared audio/STT readiness phase.
-        let cloud_operation_id = generate_cloud_operation_id();
         *self
             .cloud_operation_id
             .lock()
-            .unwrap_or_else(|e| e.into_inner()) = Some(cloud_operation_id.clone());
+            .unwrap_or_else(|e| e.into_inner()) = Some(cloud_operation_id);
 
-        let stt_config = SttConfig {
-            api_key: stt_api_key,
-            language: if config_data.stt_language == "multi" {
-                None
-            } else {
-                Some(config_data.stt_language.clone())
-            },
-            smart_format: true,
-            sample_rate: 16000,
-            resource_id: if config_data.stt_provider == stt::volcengine::VOLCENGINE_DOUBAO_PROVIDER
-            {
-                Some(config_data.stt_volcengine_resource_id.clone())
-            } else {
-                None
-            },
-            operation_id: Some(cloud_operation_id),
-            managed_audio: stt::capabilities::managed_audio_encoding_config(
-                &config_data,
-                chrono::Utc::now().timestamp(),
-            ),
-            provider_region: (config_data.stt_provider
-                == stt::aliyun_qwen3_asr::ALIYUN_QWEN3_ASR_PROVIDER)
-                .then(|| config_data.stt_aliyun_qwen_region.clone()),
-        };
         let managed_cloud_session_token =
             (config_data.stt_provider == "cloud").then(|| stt_config.api_key.clone());
         if let Some(session_token) = managed_cloud_session_token.clone() {

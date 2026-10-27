@@ -31,6 +31,7 @@ use crate::recovery::RecoveryReason;
 use crate::storage::{
     AppConfig, DictionaryStore, HistoryEntry, HistoryRetentionPolicy, HistoryStore,
 };
+use crate::stt::setup::SttSecrets;
 use crate::stt::whisper_compat::WhisperCompatConfig;
 use crate::stt::{SttConfig, SttProvider, TranscriptEvent};
 
@@ -38,16 +39,19 @@ use crate::stt::{SttConfig, SttProvider, TranscriptEvent};
 
 struct MemorySettings(AppConfig);
 
-#[async_trait]
-impl SessionSettings for MemorySettings {
-    async fn load_config(&self) -> AppConfig {
-        self.0.clone()
-    }
+impl SttSecrets for MemorySettings {
     fn cloud_session_token(&self) -> String {
         String::new()
     }
     fn stt_secret(&self, _config: &AppConfig) -> anyhow::Result<String> {
         Ok("test-key".into())
+    }
+}
+
+#[async_trait]
+impl SessionSettings for MemorySettings {
+    async fn load_config(&self) -> AppConfig {
+        self.0.clone()
     }
     fn llm_secret(&self, _config: &AppConfig) -> anyhow::Result<String> {
         Ok("test-key".into())
@@ -383,8 +387,10 @@ struct Scenario {
 
 impl Scenario {
     fn new() -> Self {
-        let mut config = AppConfig::default();
-        config.polish_enabled = false;
+        let config = AppConfig {
+            polish_enabled: false,
+            ..AppConfig::default()
+        };
         let screen = Arc::new(RecordingNotifier::default());
         let stores = Arc::new(TempStores::new());
         let microphone = Arc::new(FakeMicrophone::default());
