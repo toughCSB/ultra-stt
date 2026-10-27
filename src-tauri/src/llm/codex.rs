@@ -265,6 +265,7 @@ fn parse_final(stdout: &[u8]) -> Result<String, AppError> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReasoningEffort {
+    Low,
     Medium,
     High,
 }
@@ -272,6 +273,7 @@ enum ReasoningEffort {
 impl ReasoningEffort {
     fn config_override(self) -> &'static str {
         match self {
+            Self::Low => "model_reasoning_effort=\"low\"",
             Self::Medium => "model_reasoning_effort=\"medium\"",
             Self::High => "model_reasoning_effort=\"high\"",
         }
@@ -279,6 +281,14 @@ impl ReasoningEffort {
 }
 
 fn polish_effort(req: &PolishRequest) -> ReasoningEffort {
+    if matches!(
+        req.voice_intent.kind,
+        crate::voice_intent::VoiceIntentKind::AskSelection
+            | crate::voice_intent::VoiceIntentKind::OpenQuestion
+            | crate::voice_intent::VoiceIntentKind::Search
+    ) {
+        return ReasoningEffort::High;
+    }
     if req.voice_intent.kind == crate::voice_intent::VoiceIntentKind::DictateInsert
         && req
             .selected_text
@@ -288,14 +298,11 @@ fn polish_effort(req: &PolishRequest) -> ReasoningEffort {
         && req.mapped_scene_prompt.trim().is_empty()
         && req.active_scene_prompt.trim().is_empty()
         && req.polish_custom_prompt.trim().is_empty()
-        && req.dictionary.is_empty()
-        && !req.correction_rules.iter().any(|rule| rule.enabled)
         && matches!(req.polish_style.trim(), "original" | "clean" | "minimal")
-        && req.raw_text.chars().count() <= 1024
     {
-        ReasoningEffort::Medium
+        ReasoningEffort::Low
     } else {
-        ReasoningEffort::High
+        ReasoningEffort::Medium
     }
 }
 
@@ -639,17 +646,20 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_dictation_uses_medium_fast_and_preserves_prompt_constraints() {
+    fn ordinary_dictation_uses_low_fast_and_preserves_prompt_constraints() {
         let mut request = dictation_request();
         request.selected_text = Some("  ".into());
         for style in ["original", "clean", "minimal"] {
             request.polish_style = style.into();
-            assert_eq!(polish_effort(&request), ReasoningEffort::Medium);
+            assert_eq!(
+                polish_effort(&request).config_override(),
+                "model_reasoning_effort=\"low\""
+            );
         }
         let args = exec_args("gpt-6-luna", polish_effort(&request));
         assert!(args
             .windows(2)
-            .any(|pair| pair == ["-c", "model_reasoning_effort=\"medium\""]));
+            .any(|pair| pair == ["-c", "model_reasoning_effort=\"low\""]));
         assert!(args
             .windows(2)
             .any(|pair| pair == ["-c", "service_tier=\"priority\""]));
@@ -659,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    fn complex_polishing_keeps_high_reasoning() {
+    fn formatting_translation_and_custom_instructions_use_medium_fast() {
         let base = dictation_request();
         let mut variants = vec![];
         let mut selected = base.clone();
@@ -677,22 +687,6 @@ mod tests {
         let mut custom = base.clone();
         custom.polish_custom_prompt = "Custom".into();
         variants.push(custom);
-        let mut dictionary = base.clone();
-        dictionary.dictionary.push("Ultra STT".into());
-        variants.push(dictionary);
-        let mut corrected = base.clone();
-        corrected
-            .correction_rules
-            .push(super::super::CorrectionRule {
-                id: 1,
-                pattern: "따이프리스".into(),
-                replacement: "Typeless".into(),
-                enabled: true,
-            });
-        variants.push(corrected);
-        let mut long = base.clone();
-        long.raw_text = "가".repeat(1025);
-        variants.push(long);
         for style in ["structured", "professional", "unknown"] {
             let mut styled = base.clone();
             styled.polish_style = style.into();
@@ -703,20 +697,61 @@ mod tests {
             crate::voice_intent::VoiceIntentKind::RewriteSelection,
             crate::voice_intent::VoiceIntentKind::TranslateInsert,
             crate::voice_intent::VoiceIntentKind::TranslateSelection,
-            crate::voice_intent::VoiceIntentKind::AskSelection,
-            crate::voice_intent::VoiceIntentKind::OpenQuestion,
-            crate::voice_intent::VoiceIntentKind::Search,
         ] {
             let mut special = base.clone();
             special.voice_intent.kind = kind;
             variants.push(special);
         }
         for request in variants {
-            assert_eq!(polish_effort(&request), ReasoningEffort::High);
+            assert_eq!(polish_effort(&request), ReasoningEffort::Medium);
+            let args = exec_args("gpt-6-luna", polish_effort(&request));
+            assert!(args
+                .windows(2)
+                .any(|pair| pair == ["-c", "service_tier=\"priority\""]));
         }
-        let mut boundary = base;
-        boundary.raw_text = "가".repeat(1024);
-        assert_eq!(polish_effort(&boundary), ReasoningEffort::Medium);
+    }
+
+    #[test]
+    fn length_dictionary_and_corrections_do_not_raise_dictation_effort() {
+        let mut request = dictation_request();
+        request.dictionary.push("Ultra STT".into());
+        request.correction_rules.push(super::super::CorrectionRule {
+            id: 1,
+            pattern: "따이프리스".into(),
+            replacement: "Typeless".into(),
+            enabled: true,
+        });
+        for style in ["original", "minimal", "clean"] {
+            request.polish_style = style.into();
+            for length in [1024, 1025, 8192] {
+                request.raw_text = "가".repeat(length);
+                assert_eq!(
+                    polish_effort(&request).config_override(),
+                    "model_reasoning_effort=\"low\""
+                );
+                let content = polish_content(&request);
+                assert!(content.contains("TERMINOLOGY PRIORITY"));
+                assert!(content.contains("Typeless"));
+                assert!(content.contains(&request.raw_text));
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_questions_and_search_keep_high_fast() {
+        for kind in [
+            crate::voice_intent::VoiceIntentKind::AskSelection,
+            crate::voice_intent::VoiceIntentKind::OpenQuestion,
+            crate::voice_intent::VoiceIntentKind::Search,
+        ] {
+            let mut request = dictation_request();
+            request.voice_intent.kind = kind;
+            assert_eq!(polish_effort(&request), ReasoningEffort::High);
+            let args = exec_args("gpt-6-luna", polish_effort(&request));
+            assert!(args
+                .windows(2)
+                .any(|pair| pair == ["-c", "service_tier=\"priority\""]));
+        }
     }
 
     #[test]
@@ -775,8 +810,51 @@ mod tests {
             let content = polish_content(&variant);
             assert!(!content.contains("POLISH STYLE: Original"));
             assert!(!content.contains("Do not rephrase, summarize, expand, reorder"));
-            assert_eq!(polish_effort(&variant), ReasoningEffort::High);
+            assert_eq!(polish_effort(&variant), ReasoningEffort::Medium);
         }
+    }
+
+    async fn paired_effort_output(
+        config: &LlmConfig,
+        request: &PolishRequest,
+        name: &str,
+        baseline: ReasoningEffort,
+    ) -> String {
+        let candidate = polish_effort(request);
+        let content = polish_content(request);
+        let order = if name.len() % 2 == 0 {
+            [baseline, candidate]
+        } else {
+            [candidate, baseline]
+        };
+        let mut candidate_output = None;
+        for effort in order {
+            let started = Instant::now();
+            let raw_output = run_text_with_effort(&config.model, &content, effort)
+                .await
+                .unwrap();
+            let output = preserve_dictation(request, raw_output.clone());
+            assert_eq!(
+                output, raw_output,
+                "Live output required raw fallback: {name}"
+            );
+            println!(
+                "POLISH_EFFORT_SAMPLE {}",
+                serde_json::json!({
+                    "case": name,
+                    "style": request.polish_style,
+                    "effort": format!("{effort:?}"),
+                    "candidate": effort == candidate,
+                    "elapsed_ms": started.elapsed().as_millis() as u64,
+                    "raw_fallback": false,
+                    "text": output,
+                })
+            );
+            if effort == candidate {
+                candidate_output = Some(output);
+            }
+        }
+        candidate_output.unwrap()
     }
 
     #[tokio::test]
@@ -796,13 +874,15 @@ mod tests {
             request.polish_style = "original".into();
             request.context.family = crate::app_detector::types::ContextFamily::Email;
             request.raw_text = text.into();
-            assert_eq!(polish_effort(&request), ReasoningEffort::Medium);
+            assert_eq!(polish_effort(&request), ReasoningEffort::Low);
             let started = Instant::now();
-            let output = CodexProvider
-                .polish(&config, &request, None)
-                .await
-                .unwrap()
-                .polished_text;
+            let output = paired_effort_output(
+                &config,
+                &request,
+                &format!("original-{name}"),
+                ReasoningEffort::Medium,
+            )
+            .await;
             let compact: String = output
                 .chars()
                 .filter(|character| !character.is_whitespace() && !character.is_ascii_punctuation())
@@ -822,7 +902,7 @@ mod tests {
                 "Original dictation was rewritten ({name}): {output}"
             );
             println!(
-                "LIVE_ORIGINAL case={name} effort=Medium elapsed_ms={} output={output}",
+                "LIVE_ORIGINAL case={name} effort=Low elapsed_ms={} output={output}",
                 started.elapsed().as_millis()
             );
         }
@@ -892,17 +972,14 @@ mod tests {
         let mut dictionary = dictation_request();
         dictionary.raw_text = "울트라 에스티티 앱으로 테스트합니다. 예약은 취소하지 마세요.".into();
         dictionary.dictionary = vec!["Ultra STT".into()];
-        assert_eq!(polish_effort(&dictionary), ReasoningEffort::High);
-        let dictionary_output = CodexProvider
-            .polish(&config, &dictionary, None)
-            .await
-            .unwrap()
-            .polished_text;
+        assert_eq!(polish_effort(&dictionary), ReasoningEffort::Low);
+        let dictionary_output =
+            paired_effort_output(&config, &dictionary, "dictionary", ReasoningEffort::High).await;
         assert!(
             dictionary_output.contains("Ultra STT") && dictionary_output.contains("취소하지"),
             "Dictionary or negation changed: {dictionary_output}"
         );
-        println!("LIVE_HYBRID case=dictionary effort=High faithful=true");
+        println!("LIVE_HYBRID case=dictionary effort=Low faithful=true");
         let fixtures = [
             ("simple", "맥에서 음성 입력을 테스트하고 있습니다."),
             ("amount", "견적 금액은 십칠만 삼천오백 원 아니 십삼만 칠천오백 원입니다. 부가세는 별도입니다."),
@@ -913,13 +990,10 @@ mod tests {
         for (name, text) in fixtures {
             let mut request = dictation_request();
             request.raw_text = text.into();
-            assert_eq!(polish_effort(&request), ReasoningEffort::Medium);
+            assert_eq!(polish_effort(&request), ReasoningEffort::Low);
             let started = Instant::now();
-            let output = CodexProvider
-                .polish(&config, &request, None)
-                .await
-                .unwrap()
-                .polished_text;
+            let output =
+                paired_effort_output(&config, &request, name, ReasoningEffort::Medium).await;
             let compact: String = output
                 .chars()
                 .filter(|character| !character.is_whitespace() && *character != ',')
@@ -962,25 +1036,23 @@ mod tests {
             };
             assert!(faithful, "Synthetic {name} facts changed: {output}");
             println!(
-                "LIVE_HYBRID case={name} effort=Medium elapsed_ms={} faithful=true",
+                "LIVE_HYBRID case={name} effort=Low elapsed_ms={} faithful=true",
                 started.elapsed().as_millis()
             );
         }
         let mut translated = dictation_request();
         translated.translate_enabled = true;
-        let translated_output = CodexProvider
-            .polish(&config, &translated, None)
-            .await
-            .unwrap()
-            .polished_text
-            .to_lowercase();
+        let translated_output =
+            paired_effort_output(&config, &translated, "translation", ReasoningEffort::High)
+                .await
+                .to_lowercase();
         assert!(
             translated_output.contains("mac")
                 && translated_output.contains("test")
                 && (translated_output.contains("voice") || translated_output.contains("speech")),
             "Translation changed facts: {translated_output}"
         );
-        println!("LIVE_HYBRID case=translation effort=High faithful=true");
+        println!("LIVE_HYBRID case=translation effort=Medium faithful=true");
         let mut selected = dictation_request();
         selected.raw_text =
             "금액만 137,500원으로 바꿔 주세요. 부가세 별도라는 내용은 유지해 주세요.".into();
@@ -995,11 +1067,8 @@ mod tests {
             None,
         )
         .unwrap();
-        let selected_output = CodexProvider
-            .polish(&config, &selected, None)
-            .await
-            .unwrap()
-            .polished_text;
+        let selected_output =
+            paired_effort_output(&config, &selected, "selected-edit", ReasoningEffort::High).await;
         let compact = selected_output.replace([' ', ','], "");
         assert!(
             compact.contains("137500")
@@ -1008,7 +1077,7 @@ mod tests {
                 && compact.contains("별도"),
             "Selected edit changed facts: {selected_output}"
         );
-        println!("LIVE_HYBRID case=selected-edit effort=High faithful=true");
+        println!("LIVE_HYBRID case=selected-edit effort=Medium faithful=true");
         let mut corrected = dictation_request();
         corrected.raw_text =
             "따이프리스보다 빠를지는 아직 모르겠습니다. 예약은 취소하지 마세요.".into();
@@ -1018,11 +1087,13 @@ mod tests {
             replacement: "Typeless".into(),
             enabled: true,
         }];
-        let corrected_output = CodexProvider
-            .polish(&config, &corrected, None)
-            .await
-            .unwrap()
-            .polished_text;
+        let corrected_output = paired_effort_output(
+            &config,
+            &corrected,
+            "correction-uncertainty",
+            ReasoningEffort::High,
+        )
+        .await;
         assert!(
             corrected_output.contains("Typeless")
                 && !corrected_output.contains("따이프리스")
@@ -1030,16 +1101,13 @@ mod tests {
                 && corrected_output.contains("취소하지"),
             "Correction or uncertainty changed: {corrected_output}"
         );
-        assert_eq!(polish_effort(&corrected), ReasoningEffort::High);
-        println!("LIVE_HYBRID case=correction-uncertainty effort=High faithful=true");
+        assert_eq!(polish_effort(&corrected), ReasoningEffort::Low);
+        println!("LIVE_HYBRID case=correction-uncertainty effort=Low faithful=true");
         let mut structured = dictation_request();
         structured.polish_style = "structured".into();
         structured.raw_text = "할 일은 세 가지입니다. 첫째 계약서 검토, 둘째 김포 지점 전화, 셋째 영수증 세 장 정리입니다.".into();
-        let structured_output = CodexProvider
-            .polish(&config, &structured, None)
-            .await
-            .unwrap()
-            .polished_text;
+        let structured_output =
+            paired_effort_output(&config, &structured, "structured", ReasoningEffort::High).await;
         assert!(
             ["계약서", "김포", "전화", "영수증"]
                 .iter()
@@ -1049,7 +1117,52 @@ mod tests {
                     || structured_output.contains("3 장")),
             "Structured facts changed: {structured_output}"
         );
-        println!("LIVE_HYBRID case=structured effort=High faithful=true");
+        println!("LIVE_HYBRID case=structured effort=Medium faithful=true");
+        let mut professional = dictation_request();
+        professional.polish_style = "professional".into();
+        professional.raw_text = "박소연 팀장님께 전달해 주세요. 12월 18일 회의는 취소하지 마세요. 견적은 137,500원이고 부가세 별도입니다. 승인 전에는 발송하지 마세요.".into();
+        let professional_output = paired_effort_output(
+            &config,
+            &professional,
+            "professional",
+            ReasoningEffort::High,
+        )
+        .await;
+        let compact = professional_output.replace([' ', ','], "");
+        assert!(
+            [
+                "박소연",
+                "12월18일",
+                "137500",
+                "부가세",
+                "별도",
+                "취소하지",
+                "발송하지"
+            ]
+            .iter()
+            .all(|fact| compact.contains(fact)),
+            "Professional facts changed: {professional_output}"
+        );
+        println!("LIVE_HYBRID case=professional effort=Medium faithful=true");
+        let mut long = dictation_request();
+        long.raw_text = (1..=18)
+            .map(|index| format!("프로젝트 Q{index:02}는 {}만 원의 예산으로 {}일까지 진행하고, 승인 전에는 계약서를 발송하지 마세요. 비용은 부가세 별도이며 예산을 임의로 변경하지 마세요.", 100 + index, 10 + index))
+            .collect::<Vec<_>>()
+            .join("\n");
+        long.raw_text
+            .push_str("\n마지막 회신은 담당자 박소연에게만 보내고 정우진에게는 보내지 마세요.");
+        assert!(long.raw_text.chars().count() > 1024);
+        assert_eq!(polish_effort(&long), ReasoningEffort::Low);
+        let long_output =
+            paired_effort_output(&config, &long, "long-dictation", ReasoningEffort::High).await;
+        assert!(
+            (1..=18).all(|index| long_output.contains(&format!("Q{index:02}")))
+                && ["박소연", "정우진", "보내지", "부가세"]
+                    .iter()
+                    .all(|fact| long_output.contains(fact)),
+            "Long dictation lost facts: {long_output}"
+        );
+        println!("LIVE_HYBRID case=long-dictation effort=Low faithful=true");
         let answer = run_text("gpt-6-luna", "This is an explicit question operation, not dictation. What is 12 multiplied by 3? Return only the integer.").await.unwrap();
         assert_eq!(answer.trim(), "36");
         println!("LIVE_HYBRID case=question effort=High faithful=true");
