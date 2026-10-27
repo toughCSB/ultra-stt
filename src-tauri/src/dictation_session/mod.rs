@@ -6,6 +6,8 @@ mod capture;
 mod events;
 mod input;
 mod phases;
+#[cfg(test)]
+mod scenarios;
 mod session;
 mod state;
 mod storage;
