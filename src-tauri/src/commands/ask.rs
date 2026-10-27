@@ -1,12 +1,10 @@
 use crate::app_detector::types::RecordingContext;
 use crate::audio::{AudioCaptureHandle, AudioConfig};
-use crate::credentials::{
-    resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
-};
+use crate::credentials::{resolve_llm_config_secret, SystemCredentialVault};
 use crate::error::{emit_cloud_session_invalid, managed_cloud_error, AppError};
 use crate::pipeline::PipelineState;
 use crate::storage;
-use crate::stt::setup::{resolve_stt_setup, SttSecrets, SttSetup, SttSetupError};
+use crate::stt::setup::{resolve_stt_setup, AppSttSecrets, SttSetup, SttSetupError};
 use crate::stt::{self, TranscriptEvent};
 use crate::voice_intent::{
     SearchProvider, SpeechLanguageMode, VoiceIntent, VoiceIntentKind, VoiceIntentRouter, VoiceMode,
@@ -666,19 +664,6 @@ fn should_use_cloud(config: &storage::AppConfig) -> bool {
     config.llm_provider == "cloud"
 }
 
-/// Speech recognition keys for Ask: the signed-in cloud token or the system vault.
-struct AskSttSecrets<'a>(&'a SessionTokenStore);
-
-impl SttSecrets for AskSttSecrets<'_> {
-    fn cloud_session_token(&self) -> String {
-        self.0 .0.lock().unwrap_or_else(|e| e.into_inner()).clone()
-    }
-
-    fn stt_secret(&self, config: &storage::AppConfig) -> anyhow::Result<String> {
-        resolve_stt_config_secret(config, &SystemCredentialVault)
-    }
-}
-
 fn cloud_auth_required_message() -> String {
     "Sign in to use Cloud Ask, or switch to BYOK.".to_string()
 }
@@ -1048,7 +1033,7 @@ pub(crate) async fn start_reserved_ask_dictation(
             custom_whisper: custom_whisper_config,
         } = resolve_stt_setup(
             &config,
-            &AskSttSecrets(&token_store),
+            &AppSttSecrets(&token_store),
             Some(operation_id.clone()),
             chrono::Utc::now().timestamp(),
         )

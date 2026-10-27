@@ -354,23 +354,30 @@ pub async fn retry_recording_archive(app: tauri::AppHandle, id: String) -> Resul
     if config.stt_provider != crate::stt::config::CUSTOM_WHISPER_PROVIDER {
         return Err("Retry uses the configured Local / Custom Whisper provider. The original WAV remains available in the recovery folder.".into());
     }
-    let whisper = crate::stt::config::build_custom_whisper_for_app(&config)?;
+    let token_store = app.state::<crate::SessionTokenStore>();
+    let crate::stt::setup::SttSetup {
+        stt_config,
+        custom_whisper,
+    } = crate::stt::setup::resolve_stt_setup(
+        &config,
+        &crate::stt::setup::AppSttSecrets(&token_store),
+        None,
+        chrono::Utc::now().timestamp(),
+    )
+    .map_err(|error| match error {
+        crate::stt::setup::SttSetupError::SecretUnavailable(error) => error.to_string(),
+        crate::stt::setup::SttSetupError::MissingApiKey => {
+            "STT API key is not configured. Please set it in Settings -> Speech Recognition."
+                .to_string()
+        }
+        crate::stt::setup::SttSetupError::InvalidCustomWhisper(message) => message,
+    })?;
     let mut provider = crate::stt::create_provider(
         &config.stt_provider,
-        Some(whisper),
+        custom_whisper,
         Some(app.state::<reqwest::Client>().inner().clone()),
     )
     .map_err(|error| error.to_string())?;
-    let secret = crate::credentials::resolve_stt_config_secret(
-        &config,
-        &crate::credentials::SystemCredentialVault,
-    )
-    .map_err(|error| error.to_string())?;
-    let stt_config = crate::stt::SttConfig {
-        api_key: secret,
-        language: (config.stt_language != "multi").then_some(config.stt_language),
-        ..Default::default()
-    };
     let options = (config.stt_custom_preset == crate::stt::config::ULTRA_REMOTE_STT_PRESET)
         .then_some(crate::stt::RemotePolishOptions {
             style: config.polish_style,

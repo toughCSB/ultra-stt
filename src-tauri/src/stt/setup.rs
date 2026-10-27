@@ -16,6 +16,22 @@ pub trait SttSecrets {
     fn stt_secret(&self, config: &AppConfig) -> anyhow::Result<String>;
 }
 
+/// The app's keys: the signed-in cloud token and the system credential vault.
+pub struct AppSttSecrets<'a>(pub &'a crate::SessionTokenStore);
+
+impl SttSecrets for AppSttSecrets<'_> {
+    fn cloud_session_token(&self) -> String {
+        self.0 .0.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    fn stt_secret(&self, config: &AppConfig) -> anyhow::Result<String> {
+        crate::credentials::resolve_stt_config_secret(
+            config,
+            &crate::credentials::SystemCredentialVault,
+        )
+    }
+}
+
 /// Everything needed to build and connect the recognizer for one recording.
 pub struct SttSetup {
     pub stt_config: SttConfig,
