@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use tauri::Manager;
@@ -12,6 +12,7 @@ use crate::audio::{AudioCaptureHandle, AudioConfig};
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
+use crate::dictation_session::StateCell;
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
 use crate::storage;
@@ -141,46 +142,7 @@ fn generate_cloud_operation_id() -> String {
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PipelineState {
-    Idle,
-    Preparing,
-    Recording,
-    Transcribing,
-    Polishing,
-    Outputting,
-    AskRecording,
-    AskThinking,
-}
-
-impl PipelineState {
-    fn as_u8(self) -> u8 {
-        match self {
-            Self::Idle => 0,
-            Self::Preparing => 1,
-            Self::Recording => 2,
-            Self::Transcribing => 3,
-            Self::Polishing => 4,
-            Self::Outputting => 5,
-            Self::AskRecording => 6,
-            Self::AskThinking => 7,
-        }
-    }
-
-    fn from_u8(v: u8) -> Self {
-        match v {
-            1 => Self::Preparing,
-            2 => Self::Recording,
-            3 => Self::Transcribing,
-            4 => Self::Polishing,
-            5 => Self::Outputting,
-            6 => Self::AskRecording,
-            7 => Self::AskThinking,
-            _ => Self::Idle,
-        }
-    }
-}
+pub use crate::dictation_session::PipelineState;
 
 #[derive(Clone)]
 struct SttTaskControl {
@@ -761,7 +723,7 @@ fn apply_pipeline_start_options(
 pub struct PipelineHandle {
     app_handle: tauri::AppHandle,
     context_detector: app_detector::ContextDetectorHandle,
-    state: Arc<AtomicU8>,
+    state: StateCell,
     escape_registered: Arc<AtomicBool>,
     escape_event_pending: Arc<AtomicBool>,
     /// Enter finishes a recording while the capsule is recording.
@@ -1047,11 +1009,6 @@ fn consume_enter_event(pending: &AtomicBool, shortcut: &Shortcut) -> bool {
     shortcut.key == Code::Enter && shortcut.mods.is_empty() && pending.swap(false, Ordering::SeqCst)
 }
 
-/// Enter is held only while recording, so it never swallows Enter in other apps otherwise.
-fn should_hold_enter(state: PipelineState) -> bool {
-    state == PipelineState::Recording
-}
-
 fn recording_control_key(
     shortcut: &Shortcut,
     state: PipelineState,
@@ -1061,14 +1018,14 @@ fn recording_control_key(
         return None;
     }
     match shortcut.key {
-        Code::Escape if state != PipelineState::Idle || ask_busy => Some(Code::Escape),
-        Code::Enter if should_hold_enter(state) => Some(Code::Enter),
+        Code::Escape if state.holds_escape() || ask_busy => Some(Code::Escape),
+        Code::Enter if state.holds_enter() => Some(Code::Enter),
         _ => None,
     }
 }
 
 fn should_register_escape(state: PipelineState, registered: bool) -> bool {
-    state != PipelineState::Idle && !registered
+    state.holds_escape() && !registered
 }
 
 impl PipelineHandle {
@@ -1080,7 +1037,7 @@ impl PipelineHandle {
         Self {
             app_handle,
             context_detector,
-            state: Arc::new(AtomicU8::new(PipelineState::Idle.as_u8())),
+            state: StateCell::new(),
             escape_registered: Arc::new(AtomicBool::new(false)),
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             enter_registered: Arc::new(AtomicBool::new(false)),
@@ -1187,7 +1144,7 @@ impl PipelineHandle {
     /// Registers Enter as "finish recording" while recording and releases it otherwise.
     fn sync_enter_shortcut(&self, new_state: PipelineState) {
         let enter = Shortcut::new(None, Code::Enter);
-        if !should_hold_enter(new_state) {
+        if !new_state.holds_enter() {
             if self.enter_registered.swap(false, Ordering::SeqCst) {
                 if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
                     tracing::warn!("Failed to release recording Enter shortcut: {error}");
@@ -1224,7 +1181,7 @@ impl PipelineHandle {
         match registered {
             Ok(()) => {
                 self.enter_registered.store(true, Ordering::SeqCst);
-                if !should_hold_enter(self.current_state())
+                if !self.current_state().holds_enter()
                     && self.enter_registered.swap(false, Ordering::SeqCst)
                 {
                     if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
@@ -1237,7 +1194,7 @@ impl PipelineHandle {
     }
 
     fn set_state(&self, new_state: PipelineState) {
-        self.state.store(new_state.as_u8(), Ordering::SeqCst);
+        self.state.set(new_state);
         self.sync_escape_shortcut(new_state);
         self.sync_enter_shortcut(new_state);
         if new_state == PipelineState::Idle {
@@ -1315,7 +1272,7 @@ impl PipelineHandle {
     }
 
     pub fn current_state(&self) -> PipelineState {
-        PipelineState::from_u8(self.state.load(Ordering::SeqCst))
+        self.state.get()
     }
 
     pub(crate) fn switch_active_translation_target(
@@ -1439,15 +1396,9 @@ impl PipelineHandle {
 
         // Atomic CAS: only one caller can transition Idle → Preparing. Recording is emitted only
         // after audio capture is ready, so the capsule does not tell users to speak too early.
-        if self
+        if !self
             .state
-            .compare_exchange(
-                PipelineState::Idle.as_u8(),
-                PipelineState::Preparing.as_u8(),
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            )
-            .is_err()
+            .claim(PipelineState::Idle, PipelineState::Preparing)
         {
             return Ok(());
         }
@@ -1923,8 +1874,7 @@ impl PipelineHandle {
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(VOLUME_POLL_INTERVAL_MS)).await;
-                let current = PipelineState::from_u8(state_ref.load(Ordering::SeqCst));
-                if current != PipelineState::Recording {
+                if state_ref.get() != PipelineState::Recording {
                     break;
                 }
                 let (vol, capture_error) = audio_handle_ref
@@ -2281,15 +2231,9 @@ impl PipelineHandle {
         let mut cancelled = self.session_changed.subscribe();
 
         // Atomic CAS: only one caller can transition Recording → Transcribing
-        if self
+        if !self
             .state
-            .compare_exchange(
-                PipelineState::Recording.as_u8(),
-                PipelineState::Transcribing.as_u8(),
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            )
-            .is_err()
+            .claim(PipelineState::Recording, PipelineState::Transcribing)
         {
             return Ok(());
         }
@@ -4085,18 +4029,6 @@ mod tests {
     }
 
     #[test]
-    fn preparing_state_serializes_for_frontend() {
-        assert_eq!(
-            serde_json::to_value(PipelineState::Preparing).unwrap(),
-            serde_json::json!("preparing")
-        );
-        assert_eq!(
-            PipelineState::from_u8(PipelineState::Preparing.as_u8()),
-            PipelineState::Preparing
-        );
-    }
-
-    #[test]
     fn escape_cancel_event_is_consumed_before_the_global_dictation_handler() {
         let pending = AtomicBool::new(false);
         let escape = Shortcut::new(None, Code::Escape);
@@ -4113,16 +4045,7 @@ mod tests {
     }
 
     #[test]
-    fn enter_is_held_only_while_recording_and_consumed_once() {
-        assert!(should_hold_enter(PipelineState::Recording));
-        for state in [
-            PipelineState::Idle,
-            PipelineState::Preparing,
-            PipelineState::Transcribing,
-            PipelineState::Polishing,
-        ] {
-            assert!(!should_hold_enter(state));
-        }
+    fn enter_event_is_consumed_once_without_modifiers() {
         let pending = AtomicBool::new(true);
         let enter = Shortcut::new(None, Code::Enter);
         let shifted = Shortcut::new(
@@ -4136,16 +4059,9 @@ mod tests {
 
     #[test]
     fn escape_is_registered_after_start_has_already_claimed_preparing_state() {
-        let state = AtomicU8::new(PipelineState::Idle.as_u8());
-        state
-            .compare_exchange(
-                PipelineState::Idle.as_u8(),
-                PipelineState::Preparing.as_u8(),
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            )
-            .unwrap();
-        let current = PipelineState::from_u8(state.load(Ordering::SeqCst));
+        let state = StateCell::new();
+        assert!(state.claim(PipelineState::Idle, PipelineState::Preparing));
+        let current = state.get();
         assert!(should_register_escape(current, false));
         assert!(!should_register_escape(current, true));
         assert!(!should_register_escape(PipelineState::Idle, false));
@@ -4169,22 +4085,6 @@ mod tests {
         );
         config.stt_custom_preset = "custom".to_string();
         assert!(remote_polish_options(&config).is_none());
-    }
-
-    #[test]
-    fn ask_states_serialize_for_frontend() {
-        assert_eq!(
-            serde_json::to_value(PipelineState::AskRecording).unwrap(),
-            serde_json::json!("ask_recording")
-        );
-        assert_eq!(
-            serde_json::to_value(PipelineState::AskThinking).unwrap(),
-            serde_json::json!("ask_thinking")
-        );
-        assert_eq!(
-            PipelineState::from_u8(PipelineState::AskRecording.as_u8()),
-            PipelineState::AskRecording
-        );
     }
 
     #[test]

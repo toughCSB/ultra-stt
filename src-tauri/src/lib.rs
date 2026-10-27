@@ -4,6 +4,7 @@ mod autostart;
 mod capsule_window;
 pub mod commands;
 pub mod credentials;
+mod dictation_session;
 pub mod dictionary_io;
 pub mod error;
 pub mod hotkey;
