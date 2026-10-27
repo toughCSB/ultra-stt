@@ -881,12 +881,7 @@ fn dispatch_cli_action(app: &tauri::AppHandle, action: CliAction) {
                     tracing::warn!("Ignoring CLI toggle before the recording pipeline is ready");
                     return;
                 };
-                let result = if pipeline.current_state() == pipeline::PipelineState::Idle {
-                    pipeline.start().await
-                } else {
-                    pipeline.stop().await
-                };
-                if let Err(error) = result {
+                if let Err(error) = pipeline.toggle().await {
                     tracing::error!("CLI toggle failed: {error}");
                 }
             });
@@ -1174,15 +1169,8 @@ pub fn run() {
                         let handle = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let pipeline = handle.state::<pipeline::PipelineHandle>();
-                            if pipeline.current_state() == pipeline::PipelineState::Idle {
-                                if let Err(e) = pipeline.start().await {
-                                    tracing::error!("Tray start recording failed: {}", e);
-                                }
-                            } else if pipeline.current_state() == pipeline::PipelineState::Recording
-                            {
-                                if let Err(e) = pipeline.stop().await {
-                                    tracing::error!("Tray stop recording failed: {}", e);
-                                }
+                            if let Err(e) = pipeline.toggle().await {
+                                tracing::error!("Tray recording toggle failed: {}", e);
                             }
                         });
                     }

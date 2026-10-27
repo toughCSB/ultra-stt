@@ -600,3 +600,58 @@ async fn switching_apps_before_output_copies_instead_of_typing() {
     );
     assert_eq!(scenario.session.current_state(), PipelineState::Idle);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancelling_while_idle_changes_nothing() {
+    let scenario = Scenario::new();
+
+    scenario.session.abort();
+
+    assert_eq!(scenario.session.current_state(), PipelineState::Idle);
+    assert!(scenario.screen.take().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn toggle_starts_when_idle_and_finishes_while_recording() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("토글로 받아쓰기");
+
+    scenario.session.toggle().await.unwrap();
+    assert_eq!(scenario.session.current_state(), PipelineState::Recording);
+    scenario.session.toggle().await.unwrap();
+
+    assert_eq!(scenario.session.current_state(), PipelineState::Idle);
+    assert_eq!(
+        scenario.keyboard.typed(),
+        [("토글로 받아쓰기".to_string(), InsertionStrategy::Auto)]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn toggle_while_preparing_finishes_once_the_microphone_is_ready() {
+    let scenario = Arc::new(Scenario::new());
+    scenario.recognizers.will_hear("준비 중에 끝내기");
+    let warm_up = scenario.microphone.hold_ready();
+
+    let starting = {
+        let scenario = scenario.clone();
+        tokio::spawn(async move { scenario.session.toggle().await })
+    };
+    let mut seen = Vec::new();
+    scenario
+        .wait_until_shown(PipelineState::Preparing, &mut seen)
+        .await;
+    let finishing = {
+        let scenario = scenario.clone();
+        tokio::spawn(async move { scenario.session.toggle().await })
+    };
+    warm_up.notify_one();
+    starting.await.unwrap().unwrap();
+    finishing.await.unwrap().unwrap();
+
+    assert_eq!(scenario.session.current_state(), PipelineState::Idle);
+    assert_eq!(
+        scenario.keyboard.typed(),
+        [("준비 중에 끝내기".to_string(), InsertionStrategy::Auto)]
+    );
+}

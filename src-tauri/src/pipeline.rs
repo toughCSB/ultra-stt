@@ -1500,14 +1500,15 @@ impl PipelineHandle {
             .map_err(str::to_string)
     }
 
-    /// Immediately abort the pipeline regardless of current state.
+    /// Cancel: immediately ends the running session, whatever phase it is in.
     /// Stops audio capture, forces state to Idle, and ends the session so any
-    /// ongoing start()/stop() and background task stands down.
+    /// ongoing start()/stop() and background task stands down. Does nothing while idle.
     pub fn abort(&self) {
-        tracing::info!(
-            "Pipeline abort requested (current state: {:?})",
-            self.current_state()
-        );
+        let state = self.current_state();
+        if state == PipelineState::Idle {
+            return;
+        }
+        tracing::info!("Pipeline abort requested (current state: {state:?})");
 
         // End the session so any running start()/stop() and STT task exits early
         self.session.end();
@@ -1569,6 +1570,16 @@ impl PipelineHandle {
 
     async fn load_config(&self) -> storage::AppConfig {
         self.settings.load_config().await
+    }
+
+    /// Toggle: starts a recording when idle; otherwise finishes it like stop()
+    /// (waiting for a recording that is still preparing). Ignored while processing.
+    pub async fn toggle(&self) -> Result<()> {
+        if self.current_state() == PipelineState::Idle {
+            self.start().await
+        } else {
+            self.stop().await
+        }
     }
 
     pub async fn start(&self) -> Result<()> {
