@@ -28,6 +28,15 @@ pub(crate) trait SessionStores: Send + Sync {
         entry: HistoryEntry,
         policy: &HistoryRetentionPolicy,
     ) -> anyhow::Result<()>;
+    /// Keeps text that could not be inserted so the user can get it back (입력 복구).
+    fn retain_for_recovery(
+        &self,
+        session_id: u64,
+        text: &str,
+        app_name: &str,
+        reason: crate::recovery::RecoveryReason,
+        chars_inserted: usize,
+    );
 }
 
 /// Converts stored correction rules into the form the AI polish request carries.

@@ -15,6 +15,8 @@ pub(crate) trait SessionNotifier: Send + Sync {
     fn emit_json(&self, event: &str, payload: String);
     /// Remember the monitor the user is working on, so the capsule appears there.
     fn capture_recording_monitor(&self);
+    /// Whether the capsule took keyboard focus (the user clicked it during the session).
+    fn capsule_has_focus(&self) -> bool;
 }
 
 /// The one place where a dictation session changes phase. Every change updates the
@@ -111,6 +113,9 @@ pub(crate) mod testing {
         }
         fn capture_recording_monitor(&self) {
             self.0.lock().unwrap().push(Note::CaptureMonitor);
+        }
+        fn capsule_has_focus(&self) -> bool {
+            false
         }
     }
 }

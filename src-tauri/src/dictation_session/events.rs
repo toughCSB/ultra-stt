@@ -27,6 +27,10 @@ impl Events {
     pub(crate) fn capture_recording_monitor(&self) {
         self.0.capture_recording_monitor();
     }
+
+    pub(crate) fn capsule_has_focus(&self) -> bool {
+        self.0.capsule_has_focus()
+    }
 }
 
 #[cfg(test)]

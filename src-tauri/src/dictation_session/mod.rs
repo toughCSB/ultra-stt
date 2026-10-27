@@ -3,6 +3,7 @@
 
 mod capture;
 mod events;
+mod input;
 mod phases;
 mod session;
 mod state;
@@ -10,6 +11,7 @@ mod storage;
 
 pub(crate) use capture::{AppSttProviders, Microphone, Recorder, SttProviders, SystemMicrophone};
 pub(crate) use events::Events;
+pub(crate) use input::{AppLlmProviders, LlmProviders, SystemTextInput, TextInput};
 pub(crate) use phases::{Phases, SessionNotifier};
 pub(crate) use session::SessionClock;
 pub use state::PipelineState;

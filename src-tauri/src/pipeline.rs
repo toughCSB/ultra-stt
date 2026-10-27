@@ -12,9 +12,9 @@ use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
 use crate::dictation_session::{
-    correction_rules_for_polish, AppSttProviders, Events, Microphone, Phases, Recorder,
-    SessionClock, SessionNotifier, SessionSettings, SessionStores, StateCell, SttProviders,
-    SystemMicrophone,
+    correction_rules_for_polish, AppLlmProviders, AppSttProviders, Events, LlmProviders,
+    Microphone, Phases, Recorder, SessionClock, SessionNotifier, SessionSettings, SessionStores,
+    StateCell, SttProviders, SystemMicrophone, SystemTextInput, TextInput,
 };
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
@@ -540,7 +540,7 @@ fn spawn_streaming_insert_worker(context: StreamingInsertWorkerContext) -> Strea
 }
 
 struct StreamingInsertWorkerContext {
-    app_handle: tauri::AppHandle,
+    input: Arc<dyn TextInput>,
     session: SessionClock,
     session_id: u64,
     context_detector: app_detector::ContextDetectorHandle,
@@ -555,7 +555,7 @@ async fn run_streaming_insert_worker(
     mut receiver: mpsc::UnboundedReceiver<String>,
 ) -> StreamingInsertReport {
     let StreamingInsertWorkerContext {
-        app_handle,
+        input,
         session,
         session_id,
         context_detector,
@@ -585,7 +585,8 @@ async fn run_streaming_insert_worker(
         }
 
         report.attempted_chunks += 1;
-        match output::output_stream_chunk(&app_handle, &chunk, strategy, windows_sendinput_options)
+        match input
+            .insert_chunk(&chunk, strategy, windows_sendinput_options)
             .await
         {
             Ok(insert_result)
@@ -717,6 +718,8 @@ pub struct PipelineHandle {
     stores: Arc<dyn SessionStores>,
     microphone: Arc<dyn Microphone>,
     stt_providers: Arc<dyn SttProviders>,
+    llm_providers: Arc<dyn LlmProviders>,
+    input: Arc<dyn TextInput>,
     escape_event_pending: Arc<AtomicBool>,
     enter_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<Box<dyn Recorder>>>>,
@@ -1183,6 +1186,12 @@ impl SessionNotifier for TauriSessionNotifier {
     fn capture_recording_monitor(&self) {
         crate::capsule_window::capture_recording_monitor(&self.app_handle);
     }
+
+    fn capsule_has_focus(&self) -> bool {
+        self.app_handle
+            .get_webview_window("capsule")
+            .is_some_and(|capsule| capsule.is_focused().unwrap_or(false))
+    }
 }
 
 /// Tauri adapter for settings, secrets and records: the app's managed config, dictionary,
@@ -1253,6 +1262,24 @@ impl SessionStores for TauriSessionStorage {
             .add_with_policy(entry, policy)
             .await
     }
+
+    fn retain_for_recovery(
+        &self,
+        session_id: u64,
+        text: &str,
+        app_name: &str,
+        reason: crate::recovery::RecoveryReason,
+        chars_inserted: usize,
+    ) {
+        crate::recovery::retain(
+            &self.app_handle,
+            session_id,
+            text,
+            app_name,
+            reason,
+            chars_inserted,
+        );
+    }
 }
 
 impl PipelineHandle {
@@ -1267,6 +1294,9 @@ impl PipelineHandle {
         let storage = Arc::new(TauriSessionStorage {
             app_handle: app_handle.clone(),
         });
+        let input = Arc::new(SystemTextInput {
+            app_handle: app_handle.clone(),
+        });
         Self {
             app_handle,
             context_detector,
@@ -1278,6 +1308,10 @@ impl PipelineHandle {
             stt_providers: Arc::new(AppSttProviders {
                 client: shared_client.clone(),
             }),
+            llm_providers: Arc::new(AppLlmProviders {
+                client: shared_client.clone(),
+            }),
+            input,
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
@@ -1446,7 +1480,7 @@ impl PipelineHandle {
     /// Must be called when no hotkey modifier keys are physically held down.
     /// Called from async context via block_in_place, so std::thread::sleep is acceptable.
     fn capture_selected_text(&self) -> Option<String> {
-        crate::selection::capture_selected_text()
+        self.input.selected_text()
     }
 
     async fn load_config(&self) -> storage::AppConfig {
@@ -2786,7 +2820,7 @@ impl PipelineHandle {
             max_tokens: 4096,
             temperature: 0.3,
         };
-        let provider = llm::create_provider(&config.llm_provider, Some(self.shared_client.clone()));
+        let provider = self.llm_providers.create(&config.llm_provider);
 
         let streaming_strategy = (config.llm_provider != "codex-cli"
             && provider_plan.allow_streaming)
@@ -2794,7 +2828,7 @@ impl PipelineHandle {
             .flatten();
         let mut streaming_worker = streaming_strategy.map(|strategy| {
             spawn_streaming_insert_worker(StreamingInsertWorkerContext {
-                app_handle: self.app_handle.clone(),
+                input: self.input.clone(),
                 session: self.session.clone(),
                 session_id: session_generation,
                 context_detector: self.context_detector.clone(),
@@ -2911,9 +2945,7 @@ impl PipelineHandle {
                                             "Target changed before final streaming suffix",
                                         );
                                     }
-                                    match output::output_stream_chunk(
-                                        &self.app_handle,
-                                        &suffix,
+                                    match self.input.insert_chunk(&suffix,
                                         report.strategy,
                                         output::windows_sendinput::WindowsSendInputOptions {
                                             newline_mode: output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
@@ -3082,7 +3114,7 @@ impl PipelineHandle {
                     selected_text_for_execution
                         .as_deref()
                         .is_some_and(|original| {
-                            tokio::task::block_in_place(crate::selection::capture_selected_text)
+                            tokio::task::block_in_place(|| self.input.selected_text())
                                 .is_some_and(|current| current.trim() == original.trim())
                         })
                 } else {
@@ -3378,7 +3410,7 @@ impl PipelineHandle {
             return None;
         };
         let worker = spawn_streaming_insert_worker(StreamingInsertWorkerContext {
-            app_handle: self.app_handle.clone(),
+            input: self.input.clone(),
             session: self.session.clone(),
             session_id: self.session.current(),
             context_detector: self.context_detector.clone(),
@@ -3454,9 +3486,7 @@ impl PipelineHandle {
         let mut report = report;
         match streaming_recovery_action(&report, Some(raw_text), true, target_trusted) {
             StreamingRecoveryAction::InsertSuffix { suffix } => {
-                match output::output_stream_chunk(
-                    &self.app_handle,
-                    &suffix,
+                match self.input.insert_chunk(&suffix,
                     report.strategy,
                     output::windows_sendinput::WindowsSendInputOptions {
                         newline_mode:
@@ -3549,14 +3579,8 @@ impl PipelineHandle {
         chars_inserted: usize,
     ) {
         if self.session.is_live(generation) {
-            crate::recovery::retain(
-                &self.app_handle,
-                generation,
-                text,
-                app_name,
-                reason,
-                chars_inserted,
-            );
+            self.stores
+                .retain_for_recovery(generation, text, app_name, reason, chars_inserted);
         }
     }
 
@@ -3611,19 +3635,20 @@ impl PipelineHandle {
             auto_paste: false,
         };
 
-        match output::output_with_strategy(
-            &self.app_handle,
-            text,
-            output::InsertionStrategy::ClipboardCopyOnly,
-            clipboard_options,
-            output::windows_sendinput::WindowsSendInputOptions {
-                newline_mode:
-                    output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
-                        &config.windows_sendinput_newline_mode,
-                    ),
-            },
-        )
-        .await
+        match self
+            .input
+            .insert(
+                text,
+                output::InsertionStrategy::ClipboardCopyOnly,
+                clipboard_options,
+                output::windows_sendinput::WindowsSendInputOptions {
+                    newline_mode:
+                        output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
+                            &config.windows_sendinput_newline_mode,
+                        ),
+                },
+            )
+            .await
         {
             Ok(mut outcome) => {
                 outcome.insert_result = outcome.insert_result.with_warning(&warning);
@@ -3642,16 +3667,14 @@ impl PipelineHandle {
     }
 
     async fn restore_after_capsule_interaction(&self, target: &TargetAppGuard) {
-        let Some(capsule) = self.app_handle.get_webview_window("capsule") else {
-            return;
-        };
-        if !capsule.is_focused().unwrap_or(false) {
+        if !self.events.capsule_has_focus() {
             return;
         }
+        let events = self.events.clone();
         let detector = self.context_detector.clone();
         let target = target.clone();
         let _ = tokio::task::spawn_blocking(move || {
-            if capsule.is_focused().unwrap_or(false) {
+            if events.capsule_has_focus() {
                 detector.restore_target_application(&target);
             }
         })
@@ -3729,19 +3752,20 @@ impl PipelineHandle {
             auto_paste: true,
         };
 
-        let mut output_outcome = match output::output_with_strategy(
-            &self.app_handle,
-            text,
-            effective_strategy,
-            clipboard_options,
-            output::windows_sendinput::WindowsSendInputOptions {
-                newline_mode:
-                    output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
-                        &config.windows_sendinput_newline_mode,
-                    ),
-            },
-        )
-        .await
+        let mut output_outcome = match self
+            .input
+            .insert(
+                text,
+                effective_strategy,
+                clipboard_options,
+                output::windows_sendinput::WindowsSendInputOptions {
+                    newline_mode:
+                        output::windows_sendinput::WindowsSendInputNewlineMode::from_config_value(
+                            &config.windows_sendinput_newline_mode,
+                        ),
+                },
+            )
+            .await
         {
             Ok(outcome) => outcome,
             Err(e) => {
