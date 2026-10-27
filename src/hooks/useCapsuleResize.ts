@@ -1,39 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import { useAppStore, type PipelineState } from '../stores/appStore'
 import { isMacPlatform } from '../lib/accessibility'
 import { CAPSULE_EXIT_MS } from '../lib/capsuleMotion'
 import type { CapsuleSize } from '../lib/capsuleView'
+import {
+  raiseCapsule,
+  tauriCapsuleWindow,
+  type CapsuleMonitorBounds,
+  type CapsuleMonitorGeometry,
+  type CapsulePlacementMonitor,
+  type CapsuleWindowRect,
+  type PhysicalPoint,
+} from '../lib/capsuleWindow'
 import { useCapsuleView } from './useCapsuleView'
-
-interface PhysicalPoint {
-  x: number
-  y: number
-}
-
-interface PhysicalDimensions {
-  width: number
-  height: number
-}
-
-export interface CapsuleWorkArea {
-  position: PhysicalPoint
-  size: PhysicalDimensions
-}
-
-export interface CapsuleMonitorBounds {
-  position: PhysicalPoint
-  size: PhysicalDimensions
-}
-
-export interface CapsulePlacementMonitor {
-  scaleFactor: number
-  workArea: CapsuleWorkArea
-}
-
-export interface CapsuleMonitorGeometry extends CapsuleMonitorBounds, CapsulePlacementMonitor {}
-
-export interface CapsuleWindowRect extends PhysicalPoint, PhysicalDimensions {}
 
 export function getRecordingTargetMonitor(
   target: CapsuleMonitorGeometry | null | undefined,
@@ -47,12 +26,6 @@ export function getRecordingTargetMonitor(
       monitor.size.width === target.size.width &&
       monitor.size.height === target.size.height &&
       monitor.scaleFactor === target.scaleFactor,
-  )
-}
-
-async function raiseCapsule(): Promise<void> {
-  await invoke('raise_capsule').catch((error) =>
-    console.warn('Could not raise recording capsule', error),
   )
 }
 
@@ -184,219 +157,74 @@ export function useCapsuleResize() {
     previousPipelineState.current = pipelineState
     let cancelled = false
     const isCurrent = () => !cancelled && effectGeneration.current === generation
-    import('@tauri-apps/api/window')
-      .then(
-        async ({
-          getCurrentWindow,
-          LogicalSize,
-          LogicalPosition,
-          PhysicalPosition,
-          availableMonitors,
-          currentMonitor,
-          primaryMonitor,
-        }) => {
+    tauriCapsuleWindow()
+      .then(async (win) => {
+        if (!isCurrent()) return
+
+        if (
+          (!shouldShow || nativeCompactRef.current !== compact) &&
+          initialized.current &&
+          (nativeVisibleRef.current || exitDeadline.current !== null)
+        ) {
+          const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+          exitDeadline.current ??= Date.now() + (reduced ? 0 : CAPSULE_EXIT_MS)
+          nativeVisibleRef.current = false
+          setNativeVisible(false)
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.max(0, exitDeadline.current! - Date.now())),
+          )
+          if (!isCurrent()) return
+          await win.hide()
+          if (isCurrent()) exitDeadline.current = null
+          if (!isCurrent() || !shouldShow) return
+        }
+        if (shouldShow) exitDeadline.current = null
+        if (!isCurrent()) return
+        await win.setFocusable(focusable)
+        if (!isCurrent()) return
+
+        if (!initialized.current || resetPosition.current) {
+          if (!isCurrent()) return
+          await win.setSize({ width: windowWidth, height: windowHeight })
           if (!isCurrent()) return
 
-          const win = getCurrentWindow()
-          const windowPosition = (point: PhysicalPoint, scale: number) =>
-            isMacPlatform()
-              ? new LogicalPosition(point.x / scale, point.y / scale)
-              : new PhysicalPosition(point.x, point.y)
-          if (
-            (!shouldShow || nativeCompactRef.current !== compact) &&
-            initialized.current &&
-            (nativeVisibleRef.current || exitDeadline.current !== null)
-          ) {
-            const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-            exitDeadline.current ??= Date.now() + (reduced ? 0 : CAPSULE_EXIT_MS)
-            nativeVisibleRef.current = false
-            setNativeVisible(false)
-            await new Promise((resolve) =>
-              setTimeout(resolve, Math.max(0, exitDeadline.current! - Date.now())),
-            )
-            if (!isCurrent()) return
-            await win.hide().catch(() => {})
-            if (isCurrent()) exitDeadline.current = null
-            if (!isCurrent() || !shouldShow) return
-          }
-          if (shouldShow) exitDeadline.current = null
-          if (!isCurrent()) return
-          await win.setFocusable(focusable).catch(() => {})
-          if (!isCurrent()) return
-
-          if (!initialized.current || resetPosition.current) {
-            if (!isCurrent()) return
-            await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
+          try {
+            const monitors = await win.monitors()
             if (!isCurrent()) return
 
-            try {
-              const monitors = await availableMonitors()
-              if (!isCurrent()) return
-
-              const target = shouldShow
-                ? await invoke<CapsuleMonitorGeometry | null>('get_recording_monitor').catch(
-                    () => null,
-                  )
-                : null
-              if (!isCurrent()) return
-              let monitor =
-                getRecordingTargetMonitor(target, monitors) ??
-                (await primaryMonitor().catch(() => null))
-              if (!isCurrent()) return
-
-              if (!monitor) {
-                monitor = await currentMonitor().catch(() => null)
-                if (!isCurrent()) return
-              }
-              monitor ??= monitors[0]
-
-              if (monitor) {
-                const position = getCapsuleCenterPosition(monitor, {
-                  width: windowWidth,
-                  height: windowHeight,
-                })
-                if (!isCurrent()) return
-                await win.setPosition(windowPosition(position, monitor.scaleFactor)).catch(() => {})
-                if (!isCurrent()) return
-                await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
-                if (!isCurrent()) return
-                await win.setPosition(windowPosition(position, monitor.scaleFactor)).catch(() => {})
-                if (!isCurrent()) return
-              }
-            } catch {
-              /* ignore – monitor info unavailable */
-            }
-
+            const target = shouldShow ? await win.recordingMonitor() : null
             if (!isCurrent()) return
-            if (shouldShow) {
-              await win.show().catch(() => {})
-              if (isCurrent()) await raiseCapsule()
-              if (isCurrent()) {
-                nativeCompactRef.current = compact
-                setNativeCompact(compact)
-                nativeVisibleRef.current = true
-                setNativeVisible(true)
-              }
-            } else {
-              nativeVisibleRef.current = false
-              setNativeVisible(false)
-              await win.hide().catch(() => {})
-            }
+            let monitor =
+              getRecordingTargetMonitor(target, monitors) ?? (await win.primaryMonitor())
             if (!isCurrent()) return
 
-            initialized.current = true
-            resetPosition.current = false
-            if (!isCurrent()) return
-            prevWindowSize.current = { width: windowWidth, height: windowHeight }
-            return
-          }
-
-          const prev = prevWindowSize.current
-          if (modeMenuChanged && prev?.width === windowWidth && prev.height === windowHeight) {
-            if (shouldShow) {
-              await win.show().catch(() => {})
-              if (isCurrent()) await raiseCapsule()
-              if (isCurrent()) {
-                nativeCompactRef.current = compact
-                setNativeCompact(compact)
-                nativeVisibleRef.current = true
-                setNativeVisible(true)
-              }
-            }
-            return
-          }
-          if (prev) {
-            const pos = await win.outerPosition().catch(() => null)
-            if (!isCurrent()) return
-
-            if (pos) {
-              const monitor = await currentMonitor().catch(() => null)
-              if (!isCurrent()) return
-
-              let scale = monitor?.scaleFactor
-              if (scale === undefined) {
-                scale = await win.scaleFactor().catch(() => 1)
-                if (!isCurrent()) return
-              }
-
-              const oldSize = await win.outerSize().catch(() => null)
-              if (!isCurrent()) return
-
-              const oldHeight = oldSize?.height ?? Math.round(prev.height * scale)
-              const physicalWidth = Math.round(windowWidth * scale)
-              const physicalHeight = Math.round(windowHeight * scale)
-              let newX = pos.x
-              let newY = Math.round(pos.y + oldHeight / 2 - physicalHeight / 2)
-              let positionScale = scale
-
-              if (!isCurrent()) return
-              await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
-              if (!isCurrent()) return
-
-              try {
-                const monitors = await availableMonitors()
-                if (!isCurrent()) return
-
-                const proposedRect = {
-                  x: newX,
-                  y: newY,
-                  width: physicalWidth,
-                  height: physicalHeight,
-                }
-                if (monitors.length > 0) {
-                  const recoveryMonitor =
-                    (await primaryMonitor().catch(() => null)) ?? monitor ?? monitors[0]
-                  if (!isCurrent()) return
-
-                  const recovered = getCapsuleRecoveryPosition(
-                    proposedRect,
-                    monitors,
-                    recoveryMonitor,
-                    {
-                      width: windowWidth,
-                      height: windowHeight,
-                    },
-                    isMacPlatform() ? scale : undefined,
-                  )
-                  if (recovered) {
-                    newX = recovered.x
-                    newY = recovered.y
-                    positionScale = recoveryMonitor.scaleFactor
-                  }
-                }
-              } catch {
-                /* keep the previous position when monitor info is unavailable */
-              }
-
-              if (!isCurrent()) return
-              await win
-                .setPosition(windowPosition({ x: newX, y: newY }, positionScale))
-                .catch(() => {})
-              if (!isCurrent()) return
-            } else {
-              if (!isCurrent()) return
-              await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
+            if (!monitor) {
+              monitor = await win.currentMonitor()
               if (!isCurrent()) return
             }
-          } else {
-            if (!isCurrent()) return
-            await win.setSize(new LogicalSize(windowWidth, windowHeight)).catch(() => {})
-            if (!isCurrent()) return
-          }
+            monitor ??= monitors[0]
 
-          if (!isCurrent()) return
-          prevWindowSize.current = { width: windowWidth, height: windowHeight }
-
-          // Signal that the window has finished resizing for context menu
-          if (contextMenuOpen) {
-            if (!isCurrent()) return
-            setContextMenuReady(true)
+            if (monitor) {
+              const position = getCapsuleCenterPosition(monitor, {
+                width: windowWidth,
+                height: windowHeight,
+              })
+              if (!isCurrent()) return
+              await win.setPosition(position, monitor.scaleFactor)
+              if (!isCurrent()) return
+              await win.setSize({ width: windowWidth, height: windowHeight })
+              if (!isCurrent()) return
+              await win.setPosition(position, monitor.scaleFactor)
+              if (!isCurrent()) return
+            }
+          } catch {
+            /* ignore – monitor info unavailable */
           }
 
           if (!isCurrent()) return
           if (shouldShow) {
-            await win.show().catch(() => {})
-            if (isCurrent()) await raiseCapsule()
+            await win.show()
+            if (isCurrent()) await win.raise()
             if (isCurrent()) {
               nativeCompactRef.current = compact
               setNativeCompact(compact)
@@ -406,11 +234,133 @@ export function useCapsuleResize() {
           } else {
             nativeVisibleRef.current = false
             setNativeVisible(false)
-            await win.hide().catch(() => {})
+            await win.hide()
           }
           if (!isCurrent()) return
-        },
-      )
+
+          initialized.current = true
+          resetPosition.current = false
+          if (!isCurrent()) return
+          prevWindowSize.current = { width: windowWidth, height: windowHeight }
+          return
+        }
+
+        const prev = prevWindowSize.current
+        if (modeMenuChanged && prev?.width === windowWidth && prev.height === windowHeight) {
+          if (shouldShow) {
+            await win.show()
+            if (isCurrent()) await win.raise()
+            if (isCurrent()) {
+              nativeCompactRef.current = compact
+              setNativeCompact(compact)
+              nativeVisibleRef.current = true
+              setNativeVisible(true)
+            }
+          }
+          return
+        }
+        if (prev) {
+          const pos = await win.outerPosition()
+          if (!isCurrent()) return
+
+          if (pos) {
+            const monitor = await win.currentMonitor()
+            if (!isCurrent()) return
+
+            let scale = monitor?.scaleFactor
+            if (scale === undefined) {
+              scale = await win.scaleFactor()
+              if (!isCurrent()) return
+            }
+
+            const oldSize = await win.outerSize()
+            if (!isCurrent()) return
+
+            const oldHeight = oldSize?.height ?? Math.round(prev.height * scale)
+            const physicalWidth = Math.round(windowWidth * scale)
+            const physicalHeight = Math.round(windowHeight * scale)
+            let newX = pos.x
+            let newY = Math.round(pos.y + oldHeight / 2 - physicalHeight / 2)
+            let positionScale = scale
+
+            if (!isCurrent()) return
+            await win.setSize({ width: windowWidth, height: windowHeight })
+            if (!isCurrent()) return
+
+            try {
+              const monitors = await win.monitors()
+              if (!isCurrent()) return
+
+              const proposedRect = {
+                x: newX,
+                y: newY,
+                width: physicalWidth,
+                height: physicalHeight,
+              }
+              if (monitors.length > 0) {
+                const recoveryMonitor = (await win.primaryMonitor()) ?? monitor ?? monitors[0]
+                if (!isCurrent()) return
+
+                const recovered = getCapsuleRecoveryPosition(
+                  proposedRect,
+                  monitors,
+                  recoveryMonitor,
+                  {
+                    width: windowWidth,
+                    height: windowHeight,
+                  },
+                  isMacPlatform() ? scale : undefined,
+                )
+                if (recovered) {
+                  newX = recovered.x
+                  newY = recovered.y
+                  positionScale = recoveryMonitor.scaleFactor
+                }
+              }
+            } catch {
+              /* keep the previous position when monitor info is unavailable */
+            }
+
+            if (!isCurrent()) return
+            await win.setPosition({ x: newX, y: newY }, positionScale)
+            if (!isCurrent()) return
+          } else {
+            if (!isCurrent()) return
+            await win.setSize({ width: windowWidth, height: windowHeight })
+            if (!isCurrent()) return
+          }
+        } else {
+          if (!isCurrent()) return
+          await win.setSize({ width: windowWidth, height: windowHeight })
+          if (!isCurrent()) return
+        }
+
+        if (!isCurrent()) return
+        prevWindowSize.current = { width: windowWidth, height: windowHeight }
+
+        // Signal that the window has finished resizing for context menu
+        if (contextMenuOpen) {
+          if (!isCurrent()) return
+          setContextMenuReady(true)
+        }
+
+        if (!isCurrent()) return
+        if (shouldShow) {
+          await win.show()
+          if (isCurrent()) await win.raise()
+          if (isCurrent()) {
+            nativeCompactRef.current = compact
+            setNativeCompact(compact)
+            nativeVisibleRef.current = true
+            setNativeVisible(true)
+          }
+        } else {
+          nativeVisibleRef.current = false
+          setNativeVisible(false)
+          await win.hide()
+        }
+        if (!isCurrent()) return
+      })
       .catch(() => {})
 
     return () => {
