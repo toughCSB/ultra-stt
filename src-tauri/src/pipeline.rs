@@ -1407,6 +1407,32 @@ impl PipelineHandle {
         self.phases.hold_escape_for(state);
     }
 
+    /// Drops what start() prepared for a recording that will not happen.
+    fn discard_prepared(&self) {
+        *self
+            .preloaded_config
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+        *self
+            .preloaded_app_ctx
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+        *self
+            .preloaded_dictionary
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+        *self
+            .preloaded_correction_rules
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
+    /// Ends a start() that cannot record: drops what it prepared and returns to Idle.
+    fn abandon_start(&self) {
+        self.discard_prepared();
+        self.set_state(PipelineState::Idle);
+    }
+
     fn set_state(&self, new_state: PipelineState) {
         if new_state == PipelineState::Idle {
             *self
@@ -1637,23 +1663,7 @@ impl PipelineHandle {
                         "pipeline:error",
                         "Failed to read STT credential from the system vault.",
                     );
-                    *self
-                        .preloaded_config
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner()) = None;
-                    *self
-                        .preloaded_app_ctx
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner()) = None;
-                    *self
-                        .preloaded_dictionary
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner()) = None;
-                    *self
-                        .preloaded_correction_rules
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner()) = None;
-                    self.set_state(PipelineState::Idle);
+                    self.abandon_start();
                     return Ok(());
                 }
             }
@@ -1674,23 +1684,7 @@ impl PipelineHandle {
                 "pipeline:error",
                 "STT API key is not configured. Please set it in Settings -> Speech Recognition.",
             );
-            *self
-                .preloaded_config
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_app_ctx
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_dictionary
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_correction_rules
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            self.set_state(PipelineState::Idle);
+            self.abandon_start();
             return Ok(());
         }
 
@@ -1700,23 +1694,7 @@ impl PipelineHandle {
                     Ok(cfg) => Some(cfg),
                     Err(e) => {
                         self.events.send("pipeline:error", e);
-                        *self
-                            .preloaded_config
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner()) = None;
-                        *self
-                            .preloaded_app_ctx
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner()) = None;
-                        *self
-                            .preloaded_dictionary
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner()) = None;
-                        *self
-                            .preloaded_correction_rules
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner()) = None;
-                        self.set_state(PipelineState::Idle);
+                        self.abandon_start();
                         return Ok(());
                     }
                 }
@@ -1770,23 +1748,7 @@ impl PipelineHandle {
                 tracing::error!("STT provider creation failed: {}", e);
                 self.events
                     .send("pipeline:error", format!("STT configuration failed: {e}"));
-                *self
-                    .preloaded_config
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_app_ctx
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_dictionary
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_correction_rules
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                self.set_state(PipelineState::Idle);
+                self.abandon_start();
                 return Ok(());
             }
         };
@@ -1799,23 +1761,7 @@ impl PipelineHandle {
                 tracing::error!("Audio capture failed: {}", e);
                 self.events
                     .send("pipeline:error", format!("Audio capture failed: {e}"));
-                *self
-                    .preloaded_config
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_app_ctx
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_dictionary
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_correction_rules
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                self.set_state(PipelineState::Idle);
+                self.abandon_start();
                 return Ok(());
             }
         };
@@ -1842,23 +1788,7 @@ impl PipelineHandle {
                 tracing::error!("Recording startup failed: {}", message);
                 handle.stop();
                 self.events.send("pipeline:error", message);
-                *self
-                    .preloaded_config
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_app_ctx
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_dictionary
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                *self
-                    .preloaded_correction_rules
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner()) = None;
-                self.set_state(PipelineState::Idle);
+                self.abandon_start();
                 return Ok(());
             }
         };
@@ -1869,23 +1799,7 @@ impl PipelineHandle {
         if !self.session.is_live(session_id) {
             tracing::info!("Pipeline aborted during setup, discarding audio capture");
             // handle drops here, stopping the capture thread
-            *self
-                .preloaded_config
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_app_ctx
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_dictionary
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_correction_rules
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            self.set_state(PipelineState::Idle);
+            self.abandon_start();
             return Ok(());
         }
         let audio_vol = handle.volume();
@@ -1900,23 +1814,7 @@ impl PipelineHandle {
                 }
                 *handle = None;
             }
-            *self
-                .preloaded_config
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_app_ctx
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_dictionary
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_correction_rules
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            self.set_state(PipelineState::Idle);
+            self.abandon_start();
             return Ok(());
         }
 
@@ -1983,22 +1881,7 @@ impl PipelineHandle {
                 .active_translation_operation
                 .lock()
                 .unwrap_or_else(|error| error.into_inner()) = None;
-            *self
-                .preloaded_config
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_app_ctx
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_dictionary
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
-            *self
-                .preloaded_correction_rules
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = None;
+            self.discard_prepared();
             return Ok(());
         }
         self.events.send("pipeline:voice_mode", voice_mode);
