@@ -12,7 +12,7 @@ use crate::audio::{AudioCaptureHandle, AudioConfig};
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
-use crate::dictation_session::StateCell;
+use crate::dictation_session::{Phases, SessionNotifier, StateCell};
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
 use crate::storage;
@@ -723,11 +723,8 @@ fn apply_pipeline_start_options(
 pub struct PipelineHandle {
     app_handle: tauri::AppHandle,
     context_detector: app_detector::ContextDetectorHandle,
-    state: StateCell,
-    escape_registered: Arc<AtomicBool>,
+    phases: Phases,
     escape_event_pending: Arc<AtomicBool>,
-    /// Enter finishes a recording while the capsule is recording.
-    enter_registered: Arc<AtomicBool>,
     enter_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<AudioCaptureHandle>>>,
     audio_volume: Arc<Mutex<f32>>,
@@ -1024,8 +1021,171 @@ fn recording_control_key(
     }
 }
 
-fn should_register_escape(state: PipelineState, registered: bool) -> bool {
-    state.holds_escape() && !registered
+/// Tauri adapter for the session's screen-side effects: capsule events, the tray and the
+/// global Escape/Enter shortcuts that exist only while a session needs them.
+struct TauriSessionNotifier {
+    app_handle: tauri::AppHandle,
+    state: StateCell,
+    escape_registered: AtomicBool,
+    enter_registered: AtomicBool,
+}
+
+impl TauriSessionNotifier {
+    fn new(app_handle: tauri::AppHandle, state: StateCell) -> Self {
+        Self {
+            app_handle,
+            state,
+            escape_registered: AtomicBool::new(false),
+            enter_registered: AtomicBool::new(false),
+        }
+    }
+
+    fn ask_busy(&self) -> bool {
+        self.app_handle
+            .try_state::<crate::commands::ask::AskDictationState>()
+            .is_some_and(|state| state.is_busy())
+    }
+}
+
+impl SessionNotifier for TauriSessionNotifier {
+    fn hold_escape(&self, hold: bool) {
+        let escape = Shortcut::new(None, Code::Escape);
+        if !hold {
+            if self.escape_registered.swap(false, Ordering::SeqCst) {
+                if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
+                    tracing::warn!("Failed to release recording Escape shortcut: {error}");
+                }
+            }
+            return;
+        }
+        if self.escape_registered.load(Ordering::SeqCst)
+            || self.app_handle.global_shortcut().is_registered(escape)
+        {
+            return;
+        }
+        let registered = self
+            .app_handle
+            .global_shortcut()
+            .on_shortcut(escape, |app, _, event| {
+                let pipeline = app.state::<PipelineHandle>();
+                // The plugin calls its global handler after this per-shortcut handler.
+                pipeline.escape_event_pending.store(true, Ordering::SeqCst);
+                if event.state != ShortcutState::Pressed {
+                    return;
+                }
+                let ask_busy = app
+                    .try_state::<crate::commands::ask::AskDictationState>()
+                    .is_some_and(|state| state.is_busy());
+                if pipeline.current_state() == PipelineState::Idle && !ask_busy {
+                    return;
+                }
+                let generation = pipeline.session_generation.load(Ordering::SeqCst);
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let pipeline = app.state::<PipelineHandle>();
+                    if let Some(ask) = app
+                        .try_state::<crate::commands::ask::AskDictationState>()
+                        .filter(|state| state.is_busy())
+                    {
+                        let _ = crate::commands::ask::abort_ask_dictation(app.clone(), ask);
+                    } else if pipeline.session_generation.load(Ordering::SeqCst) == generation {
+                        pipeline.abort();
+                    }
+                });
+            });
+        match registered {
+            Ok(()) => {
+                self.escape_registered.store(true, Ordering::SeqCst);
+                if !self.state.get().holds_escape()
+                    && !self.ask_busy()
+                    && self.escape_registered.swap(false, Ordering::SeqCst)
+                {
+                    if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
+                        tracing::warn!("Failed to release recording Escape shortcut: {error}");
+                    }
+                }
+            }
+            Err(error) => tracing::warn!("Recording Escape shortcut is unavailable: {error}"),
+        }
+    }
+
+    fn hold_enter(&self, hold: bool) {
+        let enter = Shortcut::new(None, Code::Enter);
+        if !hold {
+            if self.enter_registered.swap(false, Ordering::SeqCst) {
+                if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
+                    tracing::warn!("Failed to release recording Enter shortcut: {error}");
+                }
+            }
+            return;
+        }
+        if self.enter_registered.load(Ordering::SeqCst)
+            || self.app_handle.global_shortcut().is_registered(enter)
+        {
+            return;
+        }
+        let registered = self
+            .app_handle
+            .global_shortcut()
+            .on_shortcut(enter, |app, _, event| {
+                let pipeline = app.state::<PipelineHandle>();
+                // The plugin calls its global handler after this per-shortcut handler.
+                pipeline.enter_event_pending.store(true, Ordering::SeqCst);
+                if event.state != ShortcutState::Pressed
+                    || pipeline.current_state() != PipelineState::Recording
+                {
+                    return;
+                }
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let pipeline = app.state::<PipelineHandle>();
+                    if let Err(error) = pipeline.stop().await {
+                        tracing::warn!("Enter could not finish the recording: {error}");
+                    }
+                });
+            });
+        match registered {
+            Ok(()) => {
+                self.enter_registered.store(true, Ordering::SeqCst);
+                if !self.state.get().holds_enter()
+                    && self.enter_registered.swap(false, Ordering::SeqCst)
+                {
+                    if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
+                        tracing::warn!("Failed to release recording Enter shortcut: {error}");
+                    }
+                }
+            }
+            Err(error) => tracing::warn!("Recording Enter shortcut is unavailable: {error}"),
+        }
+    }
+
+    fn phase_entered(&self, state: PipelineState) {
+        if state == PipelineState::Idle {
+            let _ = self.app_handle.emit(
+                "pipeline:voice_mode",
+                Option::<crate::voice_intent::VoiceMode>::None,
+            );
+        }
+        let _ = self.app_handle.emit("pipeline:state", state);
+
+        // Update tray tooltip + menu to reflect pipeline state
+        if let Some(tray_handle) = self.app_handle.try_state::<crate::TrayHandle>() {
+            let tooltip = match state {
+                PipelineState::Preparing => "Ultra STT - Preparing...",
+                PipelineState::Recording => "Ultra STT - Recording...",
+                PipelineState::Transcribing => "Ultra STT - Transcribing...",
+                PipelineState::Polishing => "Ultra STT - Polishing...",
+                PipelineState::Outputting => "Ultra STT - Outputting...",
+                PipelineState::AskRecording => "Ultra STT - Ask...",
+                PipelineState::AskThinking => "Ultra STT - Answering...",
+                PipelineState::Idle => "Ultra STT",
+            };
+            if let Ok(t) = tray_handle.tray.lock() {
+                let _ = t.set_tooltip(Some(tooltip));
+            }
+        }
+        crate::refresh_tray(&self.app_handle);
+    }
 }
 
 impl PipelineHandle {
@@ -1034,13 +1194,13 @@ impl PipelineHandle {
         shared_client: reqwest::Client,
         context_detector: app_detector::ContextDetectorHandle,
     ) -> Self {
+        let state = StateCell::new();
+        let notifier = Arc::new(TauriSessionNotifier::new(app_handle.clone(), state.clone()));
         Self {
             app_handle,
             context_detector,
-            state: StateCell::new(),
-            escape_registered: Arc::new(AtomicBool::new(false)),
+            phases: Phases::new(state, notifier),
             escape_event_pending: Arc::new(AtomicBool::new(false)),
-            enter_registered: Arc::new(AtomicBool::new(false)),
             enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
             audio_volume: Arc::new(Mutex::new(0.0)),
@@ -1068,164 +1228,19 @@ impl PipelineHandle {
         }
     }
 
-    pub(crate) fn sync_escape_shortcut(&self, new_state: PipelineState) {
-        {
-            let escape = Shortcut::new(None, Code::Escape);
-            if new_state == PipelineState::Idle {
-                if self.escape_registered.swap(false, Ordering::SeqCst) {
-                    if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
-                        tracing::warn!("Failed to release recording Escape shortcut: {error}");
-                    }
-                }
-            } else if should_register_escape(
-                new_state,
-                self.escape_registered.load(Ordering::SeqCst)
-                    || self.app_handle.global_shortcut().is_registered(escape),
-            ) {
-                let registered =
-                    self.app_handle
-                        .global_shortcut()
-                        .on_shortcut(escape, |app, _, event| {
-                            let pipeline = app.state::<PipelineHandle>();
-                            // The plugin calls its global handler after this per-shortcut handler.
-                            pipeline.escape_event_pending.store(true, Ordering::SeqCst);
-                            if event.state != ShortcutState::Pressed {
-                                return;
-                            }
-                            let ask_busy = app
-                                .try_state::<crate::commands::ask::AskDictationState>()
-                                .is_some_and(|state| state.is_busy());
-                            if pipeline.current_state() == PipelineState::Idle && !ask_busy {
-                                return;
-                            }
-                            let generation = pipeline.session_generation.load(Ordering::SeqCst);
-                            let app = app.clone();
-                            tauri::async_runtime::spawn(async move {
-                                let pipeline = app.state::<PipelineHandle>();
-                                if let Some(ask) = app
-                                    .try_state::<crate::commands::ask::AskDictationState>()
-                                    .filter(|state| state.is_busy())
-                                {
-                                    let _ =
-                                        crate::commands::ask::abort_ask_dictation(app.clone(), ask);
-                                } else if pipeline.session_generation.load(Ordering::SeqCst)
-                                    == generation
-                                {
-                                    pipeline.abort();
-                                }
-                            });
-                        });
-                match registered {
-                    Ok(()) => {
-                        self.escape_registered.store(true, Ordering::SeqCst);
-                        if self.current_state() == PipelineState::Idle
-                            && !self
-                                .app_handle
-                                .try_state::<crate::commands::ask::AskDictationState>()
-                                .is_some_and(|state| state.is_busy())
-                            && self.escape_registered.swap(false, Ordering::SeqCst)
-                        {
-                            if let Err(error) = self.app_handle.global_shortcut().unregister(escape)
-                            {
-                                tracing::warn!(
-                                    "Failed to release recording Escape shortcut: {error}"
-                                );
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        tracing::warn!("Recording Escape shortcut is unavailable: {error}")
-                    }
-                }
-            }
-        }
-    }
-
-    /// Registers Enter as "finish recording" while recording and releases it otherwise.
-    fn sync_enter_shortcut(&self, new_state: PipelineState) {
-        let enter = Shortcut::new(None, Code::Enter);
-        if !new_state.holds_enter() {
-            if self.enter_registered.swap(false, Ordering::SeqCst) {
-                if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
-                    tracing::warn!("Failed to release recording Enter shortcut: {error}");
-                }
-            }
-            return;
-        }
-        if self.enter_registered.load(Ordering::SeqCst) {
-            return;
-        }
-        if self.app_handle.global_shortcut().is_registered(enter) {
-            return;
-        }
-        let registered = self
-            .app_handle
-            .global_shortcut()
-            .on_shortcut(enter, |app, _, event| {
-                let pipeline = app.state::<PipelineHandle>();
-                // The plugin calls its global handler after this per-shortcut handler.
-                pipeline.enter_event_pending.store(true, Ordering::SeqCst);
-                if event.state != ShortcutState::Pressed
-                    || pipeline.current_state() != PipelineState::Recording
-                {
-                    return;
-                }
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let pipeline = app.state::<PipelineHandle>();
-                    if let Err(error) = pipeline.stop().await {
-                        tracing::warn!("Enter could not finish the recording: {error}");
-                    }
-                });
-            });
-        match registered {
-            Ok(()) => {
-                self.enter_registered.store(true, Ordering::SeqCst);
-                if !self.current_state().holds_enter()
-                    && self.enter_registered.swap(false, Ordering::SeqCst)
-                {
-                    if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
-                        tracing::warn!("Failed to release recording Enter shortcut: {error}");
-                    }
-                }
-            }
-            Err(error) => tracing::warn!("Recording Enter shortcut is unavailable: {error}"),
-        }
+    /// Syncs Escape for an Ask phase, which is not stored in this session yet.
+    pub(crate) fn sync_escape_shortcut(&self, state: PipelineState) {
+        self.phases.hold_escape_for(state);
     }
 
     fn set_state(&self, new_state: PipelineState) {
-        self.state.set(new_state);
-        self.sync_escape_shortcut(new_state);
-        self.sync_enter_shortcut(new_state);
         if new_state == PipelineState::Idle {
             *self
                 .active_translation_operation
                 .lock()
                 .unwrap_or_else(|error| error.into_inner()) = None;
-            let _ = self.app_handle.emit(
-                "pipeline:voice_mode",
-                Option::<crate::voice_intent::VoiceMode>::None,
-            );
         }
-        let _ = self.app_handle.emit("pipeline:state", new_state);
-
-        // Update tray tooltip + menu to reflect pipeline state
-        if let Some(tray_handle) = self.app_handle.try_state::<crate::TrayHandle>() {
-            let tooltip = match new_state {
-                PipelineState::Preparing => "Ultra STT - Preparing...",
-                PipelineState::Recording => "Ultra STT - Recording...",
-                PipelineState::Transcribing => "Ultra STT - Transcribing...",
-                PipelineState::Polishing => "Ultra STT - Polishing...",
-                PipelineState::Outputting => "Ultra STT - Outputting...",
-                PipelineState::AskRecording => "Ultra STT - Ask...",
-                PipelineState::AskThinking => "Ultra STT - Answering...",
-                PipelineState::Idle => "Ultra STT",
-            };
-            if let Ok(t) = tray_handle.tray.lock() {
-                let _ = t.set_tooltip(Some(tooltip));
-            }
-        }
-        crate::refresh_tray(&self.app_handle);
+        self.phases.enter(new_state);
     }
 
     pub(crate) fn take_escape_event_for_global(&self, shortcut: &Shortcut) -> bool {
@@ -1272,7 +1287,7 @@ impl PipelineHandle {
     }
 
     pub fn current_state(&self) -> PipelineState {
-        self.state.get()
+        self.phases.get()
     }
 
     pub(crate) fn switch_active_translation_target(
@@ -1397,7 +1412,7 @@ impl PipelineHandle {
         // Atomic CAS: only one caller can transition Idle → Preparing. Recording is emitted only
         // after audio capture is ready, so the capsule does not tell users to speak too early.
         if !self
-            .state
+            .phases
             .claim(PipelineState::Idle, PipelineState::Preparing)
         {
             return Ok(());
@@ -1870,7 +1885,7 @@ impl PipelineHandle {
         // Volume monitoring task
         let app_handle = self.app_handle.clone();
         let audio_handle_ref = self.audio_handle.clone();
-        let state_ref = self.state.clone();
+        let state_ref = self.phases.clone();
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(VOLUME_POLL_INTERVAL_MS)).await;
@@ -2232,30 +2247,19 @@ impl PipelineHandle {
 
         // Atomic CAS: only one caller can transition Recording → Transcribing
         if !self
-            .state
-            .claim(PipelineState::Recording, PipelineState::Transcribing)
+            .phases
+            .advance(PipelineState::Recording, PipelineState::Transcribing)
         {
             return Ok(());
         }
         self.active_deadline_session_id.store(0, Ordering::SeqCst);
         let current_config = self.load_config().await;
-        let _ = self
-            .app_handle
-            .emit("pipeline:state", PipelineState::Transcribing);
         let finalized_translation_target = self
             .active_translation_operation
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .as_mut()
             .map(TranslationOperationState::finalize);
-        // Update tray for transcribing state
-        if let Some(tray_handle) = self.app_handle.try_state::<crate::TrayHandle>() {
-            if let Ok(t) = tray_handle.tray.lock() {
-                let _ = t.set_tooltip(Some("Ultra STT - Transcribing..."));
-            }
-        }
-        crate::refresh_tray(&self.app_handle);
-
         let stop_start = std::time::Instant::now();
 
         let original_target = self
@@ -4055,17 +4059,6 @@ mod tests {
         assert!(!consume_enter_event(&pending, &shifted));
         assert!(consume_enter_event(&pending, &enter));
         assert!(!consume_enter_event(&pending, &enter));
-    }
-
-    #[test]
-    fn escape_is_registered_after_start_has_already_claimed_preparing_state() {
-        let state = StateCell::new();
-        assert!(state.claim(PipelineState::Idle, PipelineState::Preparing));
-        let current = state.get();
-        assert!(should_register_escape(current, false));
-        assert!(!should_register_escape(current, true));
-        assert!(!should_register_escape(PipelineState::Idle, false));
-        assert!(should_register_escape(PipelineState::Polishing, false));
     }
 
     #[test]
