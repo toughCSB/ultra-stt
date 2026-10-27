@@ -8,6 +8,7 @@ pub mod deepgram;
 pub mod live_agreement;
 pub mod managed_audio;
 pub mod processing_budget;
+pub mod setup;
 pub mod ultra_local;
 pub mod volcengine;
 pub mod whisper_compat;
