@@ -8,13 +8,13 @@ use tokio::sync::{mpsc, Notify};
 
 use crate::app_detector;
 use crate::app_detector::types::{RecordingContext, TargetAppGuard};
-use crate::audio::{AudioCaptureHandle, AudioConfig};
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
 use crate::dictation_session::{
-    correction_rules_for_polish, Events, Phases, SessionClock, SessionNotifier, SessionSettings,
-    SessionStores, StateCell,
+    correction_rules_for_polish, AppSttProviders, Events, Microphone, Phases, Recorder,
+    SessionClock, SessionNotifier, SessionSettings, SessionStores, StateCell, SttProviders,
+    SystemMicrophone,
 };
 use crate::llm::{self, LlmConfig, PolishRequest};
 use crate::output;
@@ -715,9 +715,11 @@ pub struct PipelineHandle {
     events: Events,
     settings: Arc<dyn SessionSettings>,
     stores: Arc<dyn SessionStores>,
+    microphone: Arc<dyn Microphone>,
+    stt_providers: Arc<dyn SttProviders>,
     escape_event_pending: Arc<AtomicBool>,
     enter_event_pending: Arc<AtomicBool>,
-    audio_handle: Arc<Mutex<Option<AudioCaptureHandle>>>,
+    audio_handle: Arc<Mutex<Option<Box<dyn Recorder>>>>,
     audio_volume: Arc<Mutex<f32>>,
     accumulated_text: Arc<Mutex<String>>,
     stt_session: Arc<Mutex<Option<SttTaskControl>>>,
@@ -1272,6 +1274,10 @@ impl PipelineHandle {
             events: Events::new(notifier),
             settings: storage.clone(),
             stores: storage,
+            microphone: Arc::new(SystemMicrophone),
+            stt_providers: Arc::new(AppSttProviders {
+                client: shared_client.clone(),
+            }),
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),
@@ -1663,33 +1669,9 @@ impl PipelineHandle {
             stt::cloud::warm_managed_cloud_on_intent(self.shared_client.clone(), session_token);
         }
 
-        let provider_result = if let Some((dictionary, corrections)) = live_hints {
-            // Clients of the owner's recognition PC (Mac, home) run live passes there.
-            let backend = match custom_whisper_config.as_ref() {
-                Some(remote)
-                    if config_data.stt_custom_preset == stt::config::ULTRA_REMOTE_STT_PRESET =>
-                {
-                    stt::ultra_local::LiveBackend::Remote {
-                        endpoint: stt::ultra_local::live_endpoint_for(&remote.endpoint),
-                        token: stt_config.api_key.clone(),
-                        client: self.shared_client.clone(),
-                    }
-                }
-                _ => stt::ultra_local::LiveBackend::Local,
-            };
-            Ok(Box::new(stt::ultra_local::UltraLocalLiveProvider::new(
-                &dictionary,
-                corrections,
-                backend,
-                config_data.live_idle_stop_seconds as usize * 1000,
-            )) as Box<dyn stt::SttProvider>)
-        } else {
-            stt::create_provider(
-                &config_data.stt_provider,
-                custom_whisper_config,
-                Some(self.shared_client.clone()),
-            )
-        };
+        let provider_result =
+            self.stt_providers
+                .create(&config_data, &stt_config, custom_whisper_config, live_hints);
         let mut provider = match provider_result {
             Ok(provider) => provider,
             Err(e) => {
@@ -1719,8 +1701,7 @@ impl PipelineHandle {
         // Start the platform audio backend before connecting STT. Both readiness
         // operations are then polled concurrently, so speech captured while a
         // network provider connects remains queued instead of being clipped.
-        let config = AudioConfig::default();
-        let (mut handle, mut audio_rx) = match AudioCaptureHandle::start(config) {
+        let (mut handle, mut audio_rx) = match self.microphone.start() {
             Ok(result) => result,
             Err(e) => {
                 tracing::error!("Audio capture failed: {}", e);
@@ -1815,7 +1796,7 @@ impl PipelineHandle {
             self.set_state(PipelineState::Idle);
             return Ok(());
         }
-        let audio_vol = handle.get_volume();
+        let audio_vol = handle.volume();
         *self.audio_volume.lock().unwrap_or_else(|e| e.into_inner()) = audio_vol;
         *self.audio_handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
         if !self.session.is_live(session_id) {
@@ -1950,7 +1931,7 @@ impl PipelineHandle {
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
                     .as_ref()
-                    .map(|handle| (handle.get_volume(), handle.runtime_error()))
+                    .map(|handle| (handle.volume(), handle.runtime_error()))
                     .unwrap_or((0.0, None));
                 if let Some(message) = capture_error {
                     let pipeline = &volume_pipeline;
