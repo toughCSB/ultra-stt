@@ -1,13 +1,13 @@
 import { createElement } from 'react'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useCapsuleResize } from '../useCapsuleResize'
 import {
   getCapsuleCenterPosition,
   getCapsuleRecoveryPosition,
   getRecordingTargetMonitor,
   isCapsuleVisibleOnAnyMonitor,
-  useCapsuleResize,
-} from '../useCapsuleResize'
+} from '../../lib/capsuleWindow'
 import {
   getCapsuleFocusable,
   getCapsuleShellSize,
