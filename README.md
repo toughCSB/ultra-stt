@@ -9,7 +9,7 @@
   Local Whisper recognition, optional AI cleanup, and direct text insertion.
 </p>
 <p align="center">
-  <strong>Source v1.1.69</strong> · Windows x64 · macOS Apple Silicon · MIT
+  <strong>Source v1.1.70</strong> · Windows x64 · macOS Apple Silicon · MIT
 </p>
 <p align="center">
   English · <a href="README_ko.md">한국어</a> ·
@@ -27,6 +27,13 @@
 > **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
 
 ## Update history
+
+### October 20, 2026 · v1.1.70 · Task-based reasoning effort
+
+- Original, Minimal and Clean dictation request Low + Fast, including long transcripts and configured terminology. Structured/Professional formatting, translation and selection editing request Medium + Fast; explicit questions/search retain High + Fast.
+- Length alone no longer raises reasoning effort. The model, subscription authentication, prompts and input/audio safeguards are unchanged.
+- Installed on SB, Home and Mac with settings, credentials, history and recovery audio preserved. Synthetic Mac→SB and Home→SB requests verified the actual Low/Medium routing and Fast request setting; physical microphone/cursor acceptance is separate. Android requests use the same updated server policy without an APK change. Fold7's original app confirmed HTTPS authentication to SB, with Minimal and AI cleanup enabled and settings unchanged; a fresh spoken-input test remains separate.
+- Live fidelity checks passed, but the paired sample did not establish a general speed improvement: median 4.3s before vs 5.4s after, with long outliers on both sides. See [measurements and limitations](docs/2026-10-20-polish-reasoning-effort.md).
 
 ### October 18, 2026 · v1.1.69 · Approved Argon capsule design
 
