@@ -293,11 +293,8 @@ pub fn show_ask_popup_window(handle: &tauri::AppHandle) -> tauri::Result<tauri::
 async fn show_ask_window(
     app: tauri::AppHandle,
     state: tauri::State<'_, commands::ask::AskDictationState>,
-    config_state: tauri::State<'_, storage::ConfigManager>,
-    token_store: tauri::State<'_, SessionTokenStore>,
-    client: tauri::State<'_, reqwest::Client>,
 ) -> Result<(), String> {
-    commands::ask::start_ask_flow(app, state, config_state, token_store, client).await
+    commands::ask::start_ask_flow(app, state).await
 }
 
 #[cfg(test)]
@@ -897,17 +894,8 @@ fn dispatch_cli_action(app: &tauri::AppHandle, action: CliAction) {
                     return;
                 }
                 let ask_state = app_handle.state::<commands::ask::AskDictationState>();
-                let config_state = app_handle.state::<storage::ConfigManager>();
-                let token_store = app_handle.state::<SessionTokenStore>();
-                let client = app_handle.state::<reqwest::Client>();
-                if let Err(error) = commands::ask::start_ask_flow(
-                    app_handle.clone(),
-                    ask_state,
-                    config_state,
-                    token_store,
-                    client,
-                )
-                .await
+                if let Err(error) =
+                    commands::ask::start_ask_flow(app_handle.clone(), ask_state).await
                 {
                     tracing::error!("CLI ask failed: {error}");
                 }

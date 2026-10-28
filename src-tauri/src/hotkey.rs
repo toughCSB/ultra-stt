@@ -873,19 +873,9 @@ fn start_ask_shortcut(handle: tauri::AppHandle) {
 
     tauri::async_runtime::spawn(async move {
         let ask_state = handle.state::<commands::ask::AskDictationState>();
-        let config_state = handle.state::<storage::ConfigManager>();
-        let token_store = handle.state::<SessionTokenStore>();
-        let client = handle.state::<reqwest::Client>();
 
-        if let Err(message) = commands::ask::start_reserved_ask_dictation(
-            handle.clone(),
-            ask_state,
-            config_state,
-            token_store,
-            client,
-            true,
-        )
-        .await
+        if let Err(message) =
+            commands::ask::start_reserved_ask_dictation(handle.clone(), ask_state, true).await
         {
             show_ask_error_window(&handle, message);
             return;

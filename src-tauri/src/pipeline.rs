@@ -1,3 +1,5 @@
+pub(crate) mod ask_recording;
+
 use anyhow::Result;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -726,6 +728,8 @@ pub struct PipelineHandle {
     llm_providers: Arc<dyn LlmProviders>,
     input: Arc<dyn TextInput>,
     ask: Arc<dyn AskWindows>,
+    /// The Ask recording in progress, while an Ask holds the session.
+    ask_take: Arc<Mutex<Option<ask_recording::AskTake>>>,
     escape_event_pending: Arc<AtomicBool>,
     enter_event_pending: Arc<AtomicBool>,
     audio_handle: Arc<Mutex<Option<Box<dyn Recorder>>>>,
@@ -1336,6 +1340,14 @@ impl AskWindows for TauriAskWindows {
     fn show_error(&self, message: String) -> std::result::Result<(), String> {
         crate::commands::ask::show_error_window(&self.app_handle, message)
     }
+
+    fn stop_requested(&self) {
+        crate::commands::ask::stop_ask_at_limit(self.app_handle.clone());
+    }
+
+    fn recording_failed(&self, message: String) {
+        crate::commands::ask::surface_async_recording_error(&self.app_handle, message);
+    }
 }
 
 impl PipelineHandle {
@@ -1385,6 +1397,7 @@ impl PipelineHandle {
             llm_providers: ports.llm_providers,
             input: ports.input,
             ask: ports.ask,
+            ask_take: Arc::new(Mutex::new(None)),
             escape_event_pending: Arc::new(AtomicBool::new(false)),
             enter_event_pending: Arc::new(AtomicBool::new(false)),
             audio_handle: Arc::new(Mutex::new(None)),

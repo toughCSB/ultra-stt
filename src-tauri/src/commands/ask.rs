@@ -1,18 +1,13 @@
-use crate::app_detector::types::RecordingContext;
-use crate::audio::{AudioCaptureHandle, AudioConfig};
 use crate::credentials::{resolve_llm_config_secret, SystemCredentialVault};
 use crate::error::{emit_cloud_session_invalid, managed_cloud_error, AppError};
 use crate::pipeline::PipelineState;
 use crate::storage;
-use crate::stt::setup::{resolve_stt_setup, AppSttSecrets, SttSetup, SttSetupError};
-use crate::stt::{self, TranscriptEvent};
 use crate::voice_intent::{
     SearchProvider, SpeechLanguageMode, VoiceIntent, VoiceIntentKind, VoiceIntentRouter, VoiceMode,
     VoiceRouteRequest, VoiceRoutingFlags,
 };
 use crate::{api_base_url, with_desktop_client_version, SessionTokenStore};
 use serde_json::json;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
@@ -21,8 +16,6 @@ use tokio::sync::Notify;
 pub const ASK_MAX_QUESTION_CHARS: usize = 500;
 pub const ASK_MAX_SELECTED_TEXT_CHARS: usize = 4_000;
 pub const ASK_OUTPUT_TOKEN_LIMIT: u32 = 80;
-const ASK_STT_FINALIZE_TIMEOUT_SECS: u64 = 12;
-static ASK_RECORDING_SESSION_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,23 +35,20 @@ struct AskDictationStateInner {
     cancellation: Arc<Notify>,
     starting: bool,
     stop_after_start: bool,
-    session: Option<AskDictationSession>,
+    /// The Ask recording runs in the dictation session; this marks that it does.
+    recording: bool,
     processing: bool,
     pending_message: Option<PendingAskMessage>,
 }
 
 impl AskDictationState {
     pub fn is_recording(&self) -> bool {
-        self.0
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .session
-            .is_some()
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).recording
     }
 
     pub fn is_busy(&self) -> bool {
         let guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        guard.starting || guard.session.is_some() || guard.processing
+        guard.starting || guard.recording || guard.processing
     }
 
     pub fn is_starting(&self) -> bool {
@@ -67,7 +57,7 @@ impl AskDictationState {
 
     pub(crate) fn try_begin_starting(&self) -> bool {
         let mut guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        if guard.starting || guard.session.is_some() || guard.processing {
+        if guard.starting || guard.recording || guard.processing {
             return false;
         }
         guard.starting = true;
@@ -133,27 +123,15 @@ impl AskDictationState {
         should_stop
     }
 
-    fn abort_starting_or_recording(&self) -> (Option<AskDictationSession>, bool) {
+    fn abort_starting_or_recording(&self) {
         let mut guard = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        let was_starting = guard.starting;
         guard.cancellation.notify_one();
         guard.generation = guard.generation.wrapping_add(1);
         guard.processing = false;
         guard.starting = false;
         guard.stop_after_start = false;
-        (guard.session.take(), was_starting)
+        guard.recording = false;
     }
-}
-
-pub struct AskDictationSession {
-    handle: AudioCaptureHandle,
-    recording_session_id: u64,
-    operation_id: String,
-    recording_context: RecordingContext,
-    selected_text: Option<String>,
-    transcript: Arc<Mutex<String>>,
-    error: Arc<Mutex<Option<String>>>,
-    done: Arc<Notify>,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
@@ -358,42 +336,36 @@ fn show_ask_error_window(app: &tauri::AppHandle, message: &str) {
     }
 }
 
-fn should_surface_async_recording_error(
-    session_operation_id: Option<&str>,
-    processing: bool,
-    operation_id: &str,
-) -> bool {
-    !processing && session_operation_id == Some(operation_id)
-}
-
-fn surface_async_recording_error(
-    app: &tauri::AppHandle,
-    state: &Arc<Mutex<AskDictationStateInner>>,
-    operation_id: &str,
-    message: String,
-) {
-    let session = {
-        let mut guard = state.lock().unwrap_or_else(|e| e.into_inner());
-        if !should_surface_async_recording_error(
-            guard
-                .session
-                .as_ref()
-                .map(|session| session.operation_id.as_str()),
-            guard.processing,
-            operation_id,
-        ) {
+/// The recognizer failed while the Ask was still recording: stop it and show the error.
+pub(crate) fn surface_async_recording_error(app: &tauri::AppHandle, message: String) {
+    {
+        let state = app.state::<AskDictationState>();
+        let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
+        if guard.processing || !guard.recording {
             return;
         }
-
         guard.pending_message = Some(PendingAskMessage::Error(message.clone()));
-        guard.session.take()
-    };
-
-    if let Some(mut session) = session {
-        session.handle.stop();
+        guard.recording = false;
     }
+    app.state::<crate::pipeline::PipelineHandle>()
+        .cancel_ask_recording();
     set_ask_phase(app, PipelineState::Idle);
     show_ask_error_window(app, &message);
+}
+
+/// Finishes an Ask that reached its recording limit and answers what was heard.
+pub(crate) fn stop_ask_at_limit(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let ask_state = app.state::<AskDictationState>();
+        let config_state = app.state::<storage::ConfigManager>();
+        let token_store = app.state::<SessionTokenStore>();
+        let client = app.state::<reqwest::Client>();
+        if let Err(error) =
+            stop_ask_flow(app.clone(), ask_state, config_state, token_store, client).await
+        {
+            tracing::error!("Failed to stop Ask at the provider deadline: {error}");
+        }
+    });
 }
 
 fn synthetic_operation_id() -> String {
@@ -685,39 +657,6 @@ fn cloud_auth_required_message() -> String {
     "Sign in to use Cloud Ask, or switch to BYOK.".to_string()
 }
 
-fn map_audio_capture_error(message: &str) -> String {
-    let normalized = message.to_ascii_lowercase();
-    if normalized.contains("permission")
-        || normalized.contains("access denied")
-        || normalized.contains("not authorized")
-    {
-        return "Microphone permission is required.".to_string();
-    }
-
-    if normalized.contains("no input device")
-        || normalized.contains("default input")
-        || normalized.contains("device")
-    {
-        return "Microphone unavailable. Check your input device.".to_string();
-    }
-
-    "Microphone unavailable. Check your input device.".to_string()
-}
-
-fn append_final_transcript(transcript: &Arc<Mutex<String>>, text: &str) -> String {
-    let text = text.trim();
-    if text.is_empty() {
-        return transcript.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    }
-
-    let mut current = transcript.lock().unwrap_or_else(|e| e.into_inner());
-    if !current.trim().is_empty() && !current.ends_with(' ') {
-        current.push(' ');
-    }
-    current.push_str(text);
-    current.trim().to_string()
-}
-
 async fn answer_question(
     config: &storage::AppConfig,
     client: &reqwest::Client,
@@ -982,33 +921,26 @@ pub async fn ask_anything(
 pub async fn start_ask_dictation(
     app: tauri::AppHandle,
     state: tauri::State<'_, AskDictationState>,
-    config_state: tauri::State<'_, storage::ConfigManager>,
-    token_store: tauri::State<'_, SessionTokenStore>,
-    client: tauri::State<'_, reqwest::Client>,
 ) -> Result<AskDictationStartResult, String> {
     if !try_reserve_ask(&app, &state) {
         return Ok(AskDictationStartResult::empty());
     }
 
-    start_reserved_ask_dictation(app, state, config_state, token_store, client, false).await
+    start_reserved_ask_dictation(app, state, false).await
 }
 
 #[tauri::command]
 pub async fn start_ask_flow(
     app: tauri::AppHandle,
     state: tauri::State<'_, AskDictationState>,
-    config_state: tauri::State<'_, storage::ConfigManager>,
-    token_store: tauri::State<'_, SessionTokenStore>,
-    client: tauri::State<'_, reqwest::Client>,
 ) -> Result<(), String> {
     if !try_reserve_ask(&app, &state) {
         return Ok(());
     }
 
-    let result =
-        start_reserved_ask_dictation(app.clone(), state, config_state, token_store, client, true)
-            .await
-            .map(|_| ());
+    let result = start_reserved_ask_dictation(app.clone(), state, true)
+        .await
+        .map(|_| ());
     if let Err(message) = &result {
         let _ = show_error_window(&app, message.clone());
     }
@@ -1018,9 +950,6 @@ pub async fn start_ask_flow(
 pub(crate) async fn start_reserved_ask_dictation(
     app: tauri::AppHandle,
     state: tauri::State<'_, AskDictationState>,
-    config_state: tauri::State<'_, storage::ConfigManager>,
-    token_store: tauri::State<'_, SessionTokenStore>,
-    client: tauri::State<'_, reqwest::Client>,
     include_selected_text: bool,
 ) -> Result<AskDictationStartResult, String> {
     let generation = state
@@ -1028,131 +957,34 @@ pub(crate) async fn start_reserved_ask_dictation(
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .generation;
-    crate::capsule_window::capture_recording_monitor(&app);
-    let ask_app = app.clone();
+    let pipeline = app.state::<crate::pipeline::PipelineHandle>();
     let result = async {
-        let config = config_state.load().await.map_err(|e| e.to_string())?;
-        let recording_context = app
-            .state::<crate::app_detector::ContextDetectorHandle>()
-            .snapshot_for_recording_enabled(config.context_adaptation_enabled);
-        let selected_text = if include_selected_text && config.selected_text_enabled {
-            tokio::task::block_in_place(crate::selection::capture_selected_text)
-        } else {
-            None
-        };
-        let start_result = AskDictationStartResult::from_selected_text(selected_text.as_deref());
-        if selected_text.is_some() {
+        let prepared = pipeline
+            .prepare_ask_recording(include_selected_text, synthetic_operation_id())
+            .await?;
+        let start_result =
+            AskDictationStartResult::from_selected_text(prepared.context.selected_text.as_deref());
+        if prepared.context.selected_text.is_some() {
             tracing::info!("Ask shortcut captured selected text context");
         }
-
-        let operation_id = synthetic_operation_id();
-        let SttSetup {
-            stt_config,
-            custom_whisper: custom_whisper_config,
-        } = resolve_stt_setup(
-            &config,
-            &AppSttSecrets(&token_store),
-            Some(operation_id.clone()),
-            chrono::Utc::now().timestamp(),
-        )
-        .map_err(|error| match error {
-            SttSetupError::SecretUnavailable(error) => error.to_string(),
-            SttSetupError::MissingApiKey => {
-                "STT API key is not configured. Please set it in Settings -> Speech Recognition."
-                    .to_string()
-            }
-            SttSetupError::InvalidCustomWhisper(message) => message,
-        })?;
-        let managed_cloud_session_token =
-            (config.stt_provider == "cloud").then(|| stt_config.api_key.clone());
-        if let Some(session_token) = managed_cloud_session_token.clone() {
-            stt::cloud::warm_managed_cloud_on_intent(client.inner().clone(), session_token);
-        }
-        let mut provider = stt::create_provider(
-            &config.stt_provider,
-            custom_whisper_config,
-            Some(client.inner().clone()),
-        )
-        .map_err(|e| e.to_string())?;
-        let (mut handle, mut audio_rx) = AudioCaptureHandle::start(AudioConfig::default())
-            .map_err(|e| map_audio_capture_error(&e.to_string()))?;
-        let capture_ready_at = match crate::audio::await_recording_startup(
-            handle.wait_until_ready(),
-            provider.connect(&stt_config),
-        )
-        .await
-        {
-            Ok(capture_ready_at) => capture_ready_at,
-            Err(error) => {
-                handle.stop();
-                return Err(match error {
-                crate::audio::RecordingStartupError::Audio(error) => {
-                    map_audio_capture_error(&error.to_string())
-                }
-                crate::audio::RecordingStartupError::Stt(error) => error.to_string(),
-                crate::audio::RecordingStartupError::Timeout => {
-                    "Recording startup timed out after 30 seconds. Please try again.".to_string()
-                }
-                });
-            }
-        };
-        let recording_session_id = ASK_RECORDING_SESSION_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let resolved_limit = stt::capabilities::resolve_recording_limit(
-            &config,
-            None,
-            chrono::Utc::now().timestamp(),
-        );
-        let effective_max_seconds = provider
-            .recording_limit_override_seconds()
-            .map_or(resolved_limit.effective_max_seconds, |override_seconds| {
-                resolved_limit.effective_max_seconds.min(override_seconds)
-            });
-        let deadline_explanation_key = provider
-            .recording_limit_override_explanation_key()
-            .unwrap_or(&resolved_limit.capability.explanation_key)
-            .to_string();
-        let deadline_provider_id = resolved_limit.capability.provider_id;
-        let recording_deadline = crate::recording_deadline::RecordingDeadline::new(
-            recording_session_id,
-            crate::recording_deadline::RecordingKind::Ask,
-            capture_ready_at,
-            effective_max_seconds,
-        );
-        let mut handle = Some(handle);
-        let transcript = Arc::new(Mutex::new(String::new()));
-        let error = Arc::new(Mutex::new(None::<String>));
-        let done = Arc::new(Notify::new());
-        let task_operation_id = operation_id.clone();
 
         let should_discard_started_resources = {
             let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
             if guard.generation != generation {
                 true
-            } else if !guard.starting || guard.session.is_some() || guard.processing {
+            } else if !guard.starting || guard.recording || guard.processing {
                 guard.starting = false;
                 guard.stop_after_start = false;
                 true
             } else {
                 guard.starting = false;
-                guard.session = Some(AskDictationSession {
-                    handle: handle.take().expect("Ask audio handle was already consumed"),
-                    recording_session_id,
-                    operation_id,
-                    recording_context,
-                    selected_text,
-                    transcript: transcript.clone(),
-                    error: error.clone(),
-                    done: done.clone(),
-                });
+                guard.recording = true;
                 false
             }
         };
 
         if should_discard_started_resources {
-            if let Some(mut handle) = handle {
-                handle.stop();
-            }
-            let _ = provider.disconnect().await;
+            prepared.discard().await;
             let still_this_ask = state
                 .0
                 .lock()
@@ -1165,188 +997,8 @@ pub(crate) async fn start_reserved_ask_dictation(
             return Ok(start_result);
         }
 
-        set_ask_phase(&app, PipelineState::AskRecording);
-        let _ = app.emit("recording:deadline", recording_deadline.event);
-        let state_inner = state.0.clone();
-        let deadline_state_inner = state.0.clone();
-        let deadline_app = app.clone();
-        if let Some(session_token) = managed_cloud_session_token {
-            let warmup_client = client.inner().clone();
-            let warmup_state_inner = state.0.clone();
-            tauri::async_runtime::spawn(async move {
-                for elapsed_seconds in [240u64, 480] {
-                    if elapsed_seconds >= u64::from(effective_max_seconds) {
-                        break;
-                    }
-                    tokio::time::sleep_until(tokio::time::Instant::from_std(
-                        capture_ready_at.monotonic
-                            + std::time::Duration::from_secs(elapsed_seconds),
-                    ))
-                    .await;
-                    let is_active = warmup_state_inner
-                        .lock()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .session
-                        .as_ref()
-                        .is_some_and(|session| {
-                            session.recording_session_id == recording_session_id
-                        });
-                    if !is_active {
-                        break;
-                    }
-                    stt::cloud::warm_managed_cloud_on_intent(
-                        warmup_client.clone(),
-                        session_token.clone(),
-                    );
-                }
-            });
-        }
-
-        tauri::async_runtime::spawn(async move {
-            loop {
-                tokio::select! {
-                    chunk = audio_rx.recv() => {
-                        match chunk {
-                            Some(data) => {
-                                if let Err(e) = provider.send_audio(&data).await {
-                                    emit_cloud_session_invalid(&app, &e);
-                                    let message = e.to_string();
-                                    *error.lock().unwrap_or_else(|err| err.into_inner()) = Some(message.clone());
-                                    surface_async_recording_error(
-                                        &app,
-                                        &state_inner,
-                                        &task_operation_id,
-                                        message,
-                                    );
-                                    break;
-                                }
-                            }
-                            None => {
-                                match provider.disconnect().await {
-                                    Ok(Some(text)) => {
-                                        let current = append_final_transcript(&transcript, &text);
-                                        let _ = app.emit("ask:final", current);
-                                    }
-                                    Ok(None) => {}
-                                    Err(e) => {
-                                        emit_cloud_session_invalid(&app, &e);
-                                        let message = e.to_string();
-                                        *error.lock().unwrap_or_else(|err| err.into_inner()) = Some(message.clone());
-                                        surface_async_recording_error(
-                                            &app,
-                                            &state_inner,
-                                            &task_operation_id,
-                                            message,
-                                        );
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    event = provider.recv_transcript() => {
-                        match event {
-                            Ok(Some(TranscriptEvent::Partial { text })) => {
-                                let _ = app.emit("ask:partial", text);
-                            }
-                            Ok(Some(TranscriptEvent::Final { text, .. })) => {
-                                let current = append_final_transcript(&transcript, &text);
-                                let _ = app.emit("ask:final", current);
-                            }
-                            Ok(Some(TranscriptEvent::Error { message })) => {
-                                *error.lock().unwrap_or_else(|err| err.into_inner()) = Some(message.clone());
-                                surface_async_recording_error(
-                                    &app,
-                                    &state_inner,
-                                    &task_operation_id,
-                                    message,
-                                );
-                                break;
-                            }
-                            Err(e) => {
-                                emit_cloud_session_invalid(&app, &e);
-                                let message = e.to_string();
-                                *error.lock().unwrap_or_else(|err| err.into_inner()) = Some(message.clone());
-                                surface_async_recording_error(
-                                    &app,
-                                    &state_inner,
-                                    &task_operation_id,
-                                    message,
-                                );
-                                break;
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            }
-
-            done.notify_waiters();
-        });
-
-        tauri::async_runtime::spawn(async move {
-            let reached = crate::recording_deadline::drive_recording_deadline(
-                recording_deadline,
-                || {
-                    deadline_state_inner
-                        .lock()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .session
-                        .as_ref()
-                        .is_some_and(|session| {
-                            session.recording_session_id == recording_session_id
-                        })
-                },
-                |signal| match signal {
-                    crate::recording_deadline::RecordingDeadlineSignal::Warning {
-                        seconds_remaining,
-                    } => {
-                        let _ = deadline_app.emit(
-                            "recording:deadline-warning",
-                            json!({
-                                "sessionId": recording_session_id,
-                                "recordingKind": "ask",
-                                "secondsRemaining": seconds_remaining,
-                                "effectiveMaxSeconds": effective_max_seconds,
-                                "providerId": deadline_provider_id.as_str(),
-                                "explanationKey": deadline_explanation_key.as_str(),
-                            }),
-                        );
-                    }
-                    crate::recording_deadline::RecordingDeadlineSignal::Reached => {
-                        let _ = deadline_app.emit(
-                            "recording:deadline-reached",
-                            json!({
-                                "sessionId": recording_session_id,
-                                "recordingKind": "ask",
-                                "effectiveMaxSeconds": effective_max_seconds,
-                                "providerId": deadline_provider_id.as_str(),
-                                "explanationKey": deadline_explanation_key.as_str(),
-                            }),
-                        );
-                    }
-                },
-            )
-            .await;
-            if reached {
-                let ask_state = deadline_app.state::<AskDictationState>();
-                let config_state = deadline_app.state::<storage::ConfigManager>();
-                let token_store = deadline_app.state::<SessionTokenStore>();
-                let client = deadline_app.state::<reqwest::Client>();
-                if let Err(error) = stop_ask_flow(
-                    deadline_app.clone(),
-                    ask_state,
-                    config_state,
-                    token_store,
-                    client,
-                )
-                .await
-                {
-                    tracing::error!("Failed to stop Ask at the provider deadline: {error}");
-                }
-            }
-        });
-
+        // A cancel that lands now has already given the session back.
+        pipeline.begin_ask_recording(prepared);
         Ok(start_result)
     }
     .await;
@@ -1360,7 +1012,7 @@ pub(crate) async fn start_reserved_ask_dictation(
             == generation
     {
         state.clear_starting();
-        set_ask_phase(&ask_app, PipelineState::Idle);
+        set_ask_phase(&app, PipelineState::Idle);
     }
     result
 }
@@ -1373,67 +1025,41 @@ pub async fn stop_ask_dictation(
     token_store: tauri::State<'_, SessionTokenStore>,
     client: tauri::State<'_, reqwest::Client>,
 ) -> Result<AskDictationResult, String> {
-    let (mut session, cancellation, generation) = {
+    let (cancellation, generation) = {
         let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
         if guard.processing {
             return Err("Ask is already processing".to_string());
         }
-        let session = guard
-            .session
-            .take()
-            .ok_or_else(|| "Ask dictation is not recording".to_string())?;
+        if !guard.recording {
+            return Err("Ask dictation is not recording".to_string());
+        }
+        guard.recording = false;
         guard.stop_after_start = false;
         guard.processing = true;
-        (session, guard.cancellation.clone(), guard.generation)
+        (guard.cancellation.clone(), guard.generation)
     };
 
     let work = async {
-        session.handle.stop();
-        set_ask_phase(&app, PipelineState::AskThinking);
-
-        let finalize_timed_out = tokio::select! {
-            _ = session.done.notified() => false,
-            _ = tokio::time::sleep(std::time::Duration::from_secs(ASK_STT_FINALIZE_TIMEOUT_SECS)) => {
-                true
-            }
-        };
-
-        if finalize_timed_out {
-            let transcript = session
-                .transcript
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .clone();
-            if let Some(message) = session
-                .error
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .clone()
-            {
+        let heard = app
+            .state::<crate::pipeline::PipelineHandle>()
+            .finish_ask_recording()
+            .await?;
+        if heard.finalize_timed_out {
+            if let Some(message) = heard.error.clone() {
                 return Err(message);
             }
-            if transcript.trim().is_empty() {
+            if heard.transcript.trim().is_empty() {
                 return Err("No speech detected. Please try again.".to_string());
             }
             tracing::warn!("Ask STT finalize timed out; continuing with collected transcript");
         }
 
-        if let Some(message) = session
-            .error
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
-        {
+        if let Some(message) = heard.error.clone() {
             return Err(message);
         }
 
-        let question = validate_ask_question(
-            &session
-                .transcript
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .clone(),
-        )?;
+        let question = validate_ask_question(&heard.transcript)?;
+        let session = heard.context;
         let selected_text_metadata = session
             .selected_text
             .as_deref()
@@ -1566,10 +1192,9 @@ pub fn abort_ask_dictation(
     app: tauri::AppHandle,
     state: tauri::State<'_, AskDictationState>,
 ) -> Result<(), String> {
-    let (session, _was_starting) = state.abort_starting_or_recording();
-    if let Some(mut session) = session {
-        session.handle.stop();
-    }
+    state.abort_starting_or_recording();
+    app.state::<crate::pipeline::PipelineHandle>()
+        .cancel_ask_recording();
     set_ask_phase(&app, PipelineState::Idle);
     Ok(())
 }
@@ -1979,11 +1604,11 @@ mod tests {
     #[test]
     fn audio_capture_errors_are_user_readable() {
         assert_eq!(
-            map_audio_capture_error("No input device available"),
+            crate::pipeline::ask_recording::microphone_error_message("No input device available"),
             "Microphone unavailable. Check your input device."
         );
         assert_eq!(
-            map_audio_capture_error("permission denied"),
+            crate::pipeline::ask_recording::microphone_error_message("permission denied"),
             "Microphone permission is required."
         );
     }
@@ -2031,30 +1656,6 @@ mod tests {
     }
 
     #[test]
-    fn async_stt_errors_surface_only_for_active_recording_session() {
-        assert!(should_surface_async_recording_error(
-            Some("operation-1"),
-            false,
-            "operation-1"
-        ));
-        assert!(!should_surface_async_recording_error(
-            Some("operation-1"),
-            true,
-            "operation-1"
-        ));
-        assert!(!should_surface_async_recording_error(
-            Some("operation-1"),
-            false,
-            "operation-2"
-        ));
-        assert!(!should_surface_async_recording_error(
-            None,
-            false,
-            "operation-1"
-        ));
-    }
-
-    #[test]
     fn ask_starting_state_blocks_duplicate_starts() {
         let state = AskDictationState::default();
 
@@ -2092,9 +1693,8 @@ mod tests {
         let state = AskDictationState::default();
         state.set_processing(true);
 
-        let (_session, was_starting) = state.abort_starting_or_recording();
+        state.abort_starting_or_recording();
 
-        assert!(!was_starting);
         assert!(!state.is_busy());
         assert!(state.try_begin_starting());
     }

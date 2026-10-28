@@ -1,6 +1,7 @@
 use crate::voice_intent::VoiceIntentKind;
 
-/// The Ask windows, and the Ask recording a dictation session must give way to.
+/// The Ask flow around an Ask recording: its windows, and the Ask state that decides
+/// whether a dictation must give way.
 pub(crate) trait AskWindows: Send + Sync {
     /// An Ask recording or answer is in progress; Escape cancels it instead of dictation.
     fn busy(&self) -> bool;
@@ -17,4 +18,8 @@ pub(crate) trait AskWindows: Send + Sync {
         selected_text_truncated: bool,
     ) -> Result<(), String>;
     fn show_error(&self, message: String) -> Result<(), String>;
+    /// The Ask recording reached its time limit: finish it and answer what was heard.
+    fn stop_requested(&self);
+    /// The recognizer failed while the Ask was still recording.
+    fn recording_failed(&self, message: String);
 }

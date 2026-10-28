@@ -199,6 +199,8 @@ struct FakeRecognizers {
     queue: Mutex<VecDeque<(String, Option<Arc<Notify>>)>>,
     /// A recording limit the next recognizers impose themselves, in seconds.
     limit_seconds: Mutex<Option<u32>>,
+    /// The next recognizers fail as soon as audio arrives.
+    send_failure: Mutex<Option<String>>,
 }
 
 impl FakeRecognizers {
@@ -207,6 +209,10 @@ impl FakeRecognizers {
             .lock()
             .unwrap()
             .push_back((transcript.to_string(), None));
+    }
+
+    fn fail_when_audio_arrives(&self, message: &str) {
+        *self.send_failure.lock().unwrap() = Some(message.to_string());
     }
 
     fn limit_recordings_to(&self, seconds: u32) {
@@ -227,6 +233,7 @@ struct FakeRecognizer {
     transcript: String,
     gate: Option<Arc<Notify>>,
     limit_seconds: Option<u32>,
+    send_failure: Option<String>,
 }
 
 #[async_trait]
@@ -235,7 +242,10 @@ impl SttProvider for FakeRecognizer {
         Ok(())
     }
     async fn send_audio(&mut self, _chunk: &[u8]) -> Result<(), AppError> {
-        Ok(())
+        match &self.send_failure {
+            Some(message) => Err(AppError::Network(message.clone())),
+            None => Ok(()),
+        }
     }
     async fn recv_transcript(&mut self) -> Result<Option<TranscriptEvent>, AppError> {
         std::future::pending().await
@@ -272,6 +282,7 @@ impl SttProviders for FakeRecognizers {
             transcript,
             gate,
             limit_seconds: *self.limit_seconds.lock().unwrap(),
+            send_failure: self.send_failure.lock().unwrap().clone(),
         }))
     }
 }
@@ -337,9 +348,14 @@ impl TextInput for FakeKeyboard {
     }
 }
 
-struct NoAsk;
+/// The Ask flow around an Ask recording; records what the session asks of it.
+#[derive(Default)]
+struct FakeAskFlow {
+    stop_requests: Mutex<usize>,
+    failures: Mutex<Vec<String>>,
+}
 
-impl AskWindows for NoAsk {
+impl AskWindows for FakeAskFlow {
     fn busy(&self) -> bool {
         false
     }
@@ -357,6 +373,12 @@ impl AskWindows for NoAsk {
     }
     fn show_error(&self, _message: String) -> Result<(), String> {
         Ok(())
+    }
+    fn stop_requested(&self) {
+        *self.stop_requests.lock().unwrap() += 1;
+    }
+    fn recording_failed(&self, message: String) {
+        self.failures.lock().unwrap().push(message);
     }
 }
 
@@ -397,6 +419,7 @@ struct Scenario {
     recognizers: Arc<FakeRecognizers>,
     keyboard: Arc<FakeKeyboard>,
     target: Arc<FakeTarget>,
+    ask: Arc<FakeAskFlow>,
 }
 
 impl Scenario {
@@ -410,6 +433,7 @@ impl Scenario {
         let microphone = Arc::new(FakeMicrophone::default());
         let recognizers = Arc::new(FakeRecognizers::default());
         let keyboard = Arc::new(FakeKeyboard::default());
+        let ask = Arc::new(FakeAskFlow::default());
         let target = Arc::new(FakeTarget(Mutex::new(FakeTarget::app(42, "TextEdit"))));
         let detector = ContextDetectorHandle::start_with_source(
             target.clone(),
@@ -425,7 +449,7 @@ impl Scenario {
             stt_providers: recognizers.clone(),
             llm_providers: Arc::new(NoPolish),
             input: keyboard.clone(),
-            ask: Arc::new(NoAsk),
+            ask: ask.clone(),
         };
         let session =
             PipelineHandle::with_ports(ports, StateCell::new(), reqwest::Client::new(), detector);
@@ -437,6 +461,7 @@ impl Scenario {
             recognizers,
             keyboard,
             target,
+            ask,
         }
     }
 
@@ -756,4 +781,144 @@ async fn reaching_the_recording_limit_types_what_was_heard_so_far() {
     assert_eq!(reached[0]["recordingKind"], "dictation");
     assert_eq!(reached[0]["effectiveMaxSeconds"], 1);
     assert!(Scenario::events_named(&seen, "pipeline:error").is_empty());
+}
+
+// ─── Ask ────────────────────────────────────────────────────────────────
+
+impl Scenario {
+    /// Records an Ask the way the Ask flow does, up to the point where it would answer.
+    async fn ask(&self) -> Result<crate::pipeline::ask_recording::AskHeard, String> {
+        assert!(self.session.begin_ask());
+        let prepared = self
+            .session
+            .prepare_ask_recording(false, "ask-op".into())
+            .await?;
+        assert!(self.session.begin_ask_recording(prepared));
+        self.session.finish_ask_recording().await
+    }
+
+    async fn begin_recording_ask(&self) {
+        assert!(self.session.begin_ask());
+        let prepared = self
+            .session
+            .prepare_ask_recording(false, "ask-op".into())
+            .await
+            .unwrap();
+        assert!(self.session.begin_ask_recording(prepared));
+    }
+}
+
+async fn wait_for(what: &str, done: impl Fn() -> bool) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !done() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{what} never happened"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_ask_records_through_the_session_and_hands_back_the_question() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("내일 날씨 어때?");
+
+    let heard = scenario.ask().await.unwrap();
+    scenario.session.end_ask();
+
+    assert_eq!(heard.transcript, "내일 날씨 어때?");
+    assert_eq!(heard.error, None);
+    assert!(!heard.finalize_timed_out);
+    assert_eq!(heard.context.operation_id, "ask-op");
+    let notes = scenario.screen.take();
+    assert_eq!(
+        scenario.phases_shown(&notes),
+        [
+            PipelineState::AskRecording,
+            PipelineState::AskThinking,
+            PipelineState::Idle,
+        ]
+    );
+    assert_eq!(
+        Scenario::events_named(&notes, "ask:final"),
+        [serde_json::json!("내일 날씨 어때?")]
+    );
+    let deadline = Scenario::events_named(&notes, "recording:deadline");
+    assert_eq!(deadline[0]["recordingKind"], "ask");
+    // An Ask keeps no recovery audio and types nothing itself.
+    assert_eq!(scenario.stores.saved_recordings(), 0);
+    assert!(scenario.keyboard.typed().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_ask_that_reaches_its_limit_asks_to_finish_with_what_was_heard() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("제한까지 한 질문");
+    scenario.recognizers.limit_recordings_to(1);
+
+    scenario.begin_recording_ask().await;
+    wait_for("the request to finish", || {
+        *scenario.ask.stop_requests.lock().unwrap() > 0
+    })
+    .await;
+    let heard = scenario.session.finish_ask_recording().await.unwrap();
+    scenario.session.end_ask();
+
+    assert_eq!(heard.transcript, "제한까지 한 질문");
+    assert_eq!(*scenario.ask.stop_requests.lock().unwrap(), 1);
+    assert!(scenario.ask.failures.lock().unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancelling_an_ask_while_the_microphone_warms_up_never_records() {
+    let scenario = Arc::new(Scenario::new());
+    scenario.recognizers.will_hear("들리면 안 되는 질문");
+    let warm_up = scenario.microphone.hold_ready();
+
+    assert!(scenario.session.begin_ask());
+    let preparing = {
+        let scenario = scenario.clone();
+        tokio::spawn(async move {
+            scenario
+                .session
+                .prepare_ask_recording(false, "ask-op".into())
+                .await
+        })
+    };
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    scenario.session.cancel_ask_recording();
+    scenario.session.end_ask();
+    warm_up.notify_one();
+    let prepared = preparing.await.unwrap().unwrap();
+
+    assert!(!scenario.session.begin_ask_recording(prepared));
+    assert_eq!(scenario.session.current_state(), PipelineState::Idle);
+    let notes = scenario.screen.take();
+    assert!(!scenario
+        .phases_shown(&notes)
+        .contains(&PipelineState::AskRecording));
+    assert!(scenario.session.finish_ask_recording().await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_recognizer_failure_during_an_ask_is_reported_once() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("실패할 질문");
+    scenario
+        .recognizers
+        .fail_when_audio_arrives("socket closed");
+
+    scenario.begin_recording_ask().await;
+    wait_for("the failure report", || {
+        !scenario.ask.failures.lock().unwrap().is_empty()
+    })
+    .await;
+    // The Ask flow stops the recording when it shows the error.
+    scenario.session.cancel_ask_recording();
+    scenario.session.end_ask();
+
+    let failures = scenario.ask.failures.lock().unwrap().clone();
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(failures[0].contains("socket closed"), "{failures:?}");
+    assert_eq!(scenario.session.current_state(), PipelineState::Idle);
 }
