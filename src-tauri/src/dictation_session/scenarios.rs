@@ -939,3 +939,27 @@ async fn an_ask_question_gets_the_users_correction_rules() {
 
     assert_eq!(heard.transcript, "Typeless 가격 알려줘");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_ask_recording_feeds_the_capsule_waveform_until_it_finishes() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("들리고 있나요?");
+
+    scenario.begin_recording_ask().await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let while_recording = scenario.screen.take();
+    scenario.session.finish_ask_recording().await.unwrap();
+    scenario.session.end_ask();
+    scenario.screen.take();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let after_finish = scenario.screen.take();
+
+    assert!(
+        !Scenario::events_named(&while_recording, "audio:volume").is_empty(),
+        "{while_recording:?}"
+    );
+    assert!(
+        Scenario::events_named(&after_finish, "audio:volume").is_empty(),
+        "{after_finish:?}"
+    );
+}

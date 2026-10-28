@@ -177,6 +177,25 @@ impl PipelineHandle {
             });
         }
 
+        // Microphone level for the capsule's waveform, until the recording ends.
+        let volume_pipeline = self.clone();
+        let volume_events = self.events.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(VOLUME_POLL_INTERVAL_MS)).await;
+                let volume = match volume_pipeline
+                    .ask_take
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .as_ref()
+                {
+                    Some(take) if take.session_id == session_id => take.recorder.volume(),
+                    _ => break,
+                };
+                volume_events.send("audio:volume", volume);
+            }
+        });
+
         // Forward audio to the recognizer and collect the question.
         let events = self.events.clone();
         let pipeline = self.clone();
