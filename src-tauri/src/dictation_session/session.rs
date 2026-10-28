@@ -57,8 +57,8 @@ impl SessionClock {
     }
 }
 
-/// Lifetime of work that only makes sense while one session is recording
-/// (the recording time limit and the cloud warm-up loop).
+/// Lifetime of work that only makes sense while one session is recording, as a dictation
+/// or an Ask (the recording time limit and the cloud warm-up loop).
 #[derive(Clone)]
 pub(crate) struct RecordingScope {
     clock: SessionClock,
@@ -68,7 +68,11 @@ pub(crate) struct RecordingScope {
 
 impl RecordingScope {
     pub(crate) fn is_active(&self) -> bool {
-        self.clock.is_live(self.id) && self.phases.get() == PipelineState::Recording
+        self.clock.is_live(self.id)
+            && matches!(
+                self.phases.get(),
+                PipelineState::Recording | PipelineState::AskRecording
+            )
     }
 }
 
@@ -130,5 +134,12 @@ mod tests {
         phases.enter(PipelineState::Recording);
         clock.end();
         assert!(!scope.is_active());
+
+        let ask = clock.begin();
+        let ask_scope = clock.recording_scope(ask, &phases);
+        phases.enter(PipelineState::AskRecording);
+        assert!(ask_scope.is_active());
+        phases.enter(PipelineState::AskThinking);
+        assert!(!ask_scope.is_active());
     }
 }

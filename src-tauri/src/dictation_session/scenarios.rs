@@ -197,6 +197,8 @@ impl Microphone for FakeMicrophone {
 #[derive(Default)]
 struct FakeRecognizers {
     queue: Mutex<VecDeque<(String, Option<Arc<Notify>>)>>,
+    /// A recording limit the next recognizers impose themselves, in seconds.
+    limit_seconds: Mutex<Option<u32>>,
 }
 
 impl FakeRecognizers {
@@ -205,6 +207,10 @@ impl FakeRecognizers {
             .lock()
             .unwrap()
             .push_back((transcript.to_string(), None));
+    }
+
+    fn limit_recordings_to(&self, seconds: u32) {
+        *self.limit_seconds.lock().unwrap() = Some(seconds);
     }
 
     fn will_hear_after_gate(&self, transcript: &str) -> Arc<Notify> {
@@ -220,6 +226,7 @@ impl FakeRecognizers {
 struct FakeRecognizer {
     transcript: String,
     gate: Option<Arc<Notify>>,
+    limit_seconds: Option<u32>,
 }
 
 #[async_trait]
@@ -238,6 +245,9 @@ impl SttProvider for FakeRecognizer {
             gate.notified().await;
         }
         Ok(Some(self.transcript.clone()))
+    }
+    fn recording_limit_override_seconds(&self) -> Option<u32> {
+        self.limit_seconds
     }
     fn name(&self) -> &str {
         "fake"
@@ -258,7 +268,11 @@ impl SttProviders for FakeRecognizers {
             .unwrap()
             .pop_front()
             .expect("a transcript was queued for this recording");
-        Ok(Box::new(FakeRecognizer { transcript, gate }))
+        Ok(Box::new(FakeRecognizer {
+            transcript,
+            gate,
+            limit_seconds: *self.limit_seconds.lock().unwrap(),
+        }))
     }
 }
 
@@ -716,4 +730,30 @@ async fn dictation_requests_are_ignored_while_an_ask_holds_the_session() {
         scenario.keyboard.typed(),
         [("Ask 이후 받아쓰기".to_string(), InsertionStrategy::Auto)]
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reaching_the_recording_limit_types_what_was_heard_so_far() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("제한 시간까지 말한 내용");
+    scenario.recognizers.limit_recordings_to(1);
+
+    scenario.session.start().await.unwrap();
+    let mut seen = Vec::new();
+    scenario
+        .wait_until_shown(PipelineState::Idle, &mut seen)
+        .await;
+
+    assert_eq!(
+        scenario.keyboard.typed(),
+        [(
+            "제한 시간까지 말한 내용".to_string(),
+            InsertionStrategy::Auto
+        )]
+    );
+    let reached = Scenario::events_named(&seen, "recording:deadline-reached");
+    assert_eq!(reached.len(), 1, "{seen:?}");
+    assert_eq!(reached[0]["recordingKind"], "dictation");
+    assert_eq!(reached[0]["effectiveMaxSeconds"], 1);
+    assert!(Scenario::events_named(&seen, "pipeline:error").is_empty());
 }

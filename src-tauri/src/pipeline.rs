@@ -8,8 +8,12 @@ use tokio::sync::{mpsc, Notify};
 
 use crate::app_detector;
 use crate::app_detector::types::{RecordingContext, TargetAppGuard};
+use crate::audio::RecordingStartupError;
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
+};
+use crate::dictation_session::recording::{
+    start_capture, CaptureStartError, RecordingLimit, RecordingWatch, StartedCapture,
 };
 use crate::dictation_session::{
     correction_rules_for_polish, AppLlmProviders, AppSttProviders, AskWindows, Events,
@@ -1740,41 +1744,27 @@ impl PipelineHandle {
                 return Ok(());
             }
         };
-        // Start the platform audio backend before connecting STT. Both readiness
-        // operations are then polled concurrently, so speech captured while a
-        // network provider connects remains queued instead of being clipped.
-        let (mut handle, mut audio_rx) = match self.microphone.start() {
-            Ok(result) => result,
-            Err(e) => {
-                tracing::error!("Audio capture failed: {}", e);
-                self.events
-                    .send("pipeline:error", format!("Audio capture failed: {e}"));
-                self.abandon_start();
-                return Ok(());
-            }
-        };
-        let startup_result = crate::audio::await_recording_startup(
-            handle.wait_until_ready(),
-            provider.connect(&stt_config),
-        )
-        .await;
-        let capture_ready_at = match startup_result {
-            Ok(capture_ready_at) => capture_ready_at,
+        let StartedCapture {
+            recorder: handle,
+            audio: mut audio_rx,
+            ready_at: capture_ready_at,
+        } = match start_capture(self.microphone.as_ref(), provider.as_mut(), &stt_config).await {
+            Ok(capture) => capture,
             Err(error) => {
                 let message = match error {
-                    crate::audio::RecordingStartupError::Audio(error) => {
+                    CaptureStartError::Microphone(error)
+                    | CaptureStartError::Startup(RecordingStartupError::Audio(error)) => {
                         format!("Audio capture failed: {error}")
                     }
-                    crate::audio::RecordingStartupError::Stt(error) => {
+                    CaptureStartError::Startup(RecordingStartupError::Stt(error)) => {
                         format!("STT connection failed: {error}")
                     }
-                    crate::audio::RecordingStartupError::Timeout => {
+                    CaptureStartError::Startup(RecordingStartupError::Timeout) => {
                         "Recording startup timed out after 30 seconds. Please try again."
                             .to_string()
                     }
                 };
                 tracing::error!("Recording startup failed: {}", message);
-                handle.stop();
                 self.events.send("pipeline:error", message);
                 self.abandon_start();
                 return Ok(());
@@ -1806,47 +1796,18 @@ impl PipelineHandle {
             return Ok(());
         }
 
-        let resolved_limit = stt::capabilities::resolve_recording_limit(
-            &config_data,
-            None,
-            chrono::Utc::now().timestamp(),
-        );
-        let effective_max_seconds = provider
-            .recording_limit_override_seconds()
-            .map_or(resolved_limit.effective_max_seconds, |override_seconds| {
-                resolved_limit.effective_max_seconds.min(override_seconds)
-            });
-        let deadline_explanation_key = provider
-            .recording_limit_override_explanation_key()
-            .unwrap_or(&resolved_limit.capability.explanation_key)
-            .to_string();
-        let recording_deadline = crate::recording_deadline::RecordingDeadline::new(
+        let watch = RecordingWatch {
+            events: self.events.clone(),
+            kind: crate::recording_deadline::RecordingKind::Dictation,
             session_id,
-            crate::recording_deadline::RecordingKind::Dictation,
-            capture_ready_at,
-            effective_max_seconds,
-        );
+            ready_at: capture_ready_at,
+            limit: RecordingLimit::for_recording(&config_data, provider.as_ref()),
+        };
+        let recording_deadline = watch.deadline();
         if let Some(session_token) = managed_cloud_session_token {
-            let warmup_client = self.shared_client.clone();
             let warmup_scope = self.session.recording_scope(session_id, &self.phases);
-            tokio::spawn(async move {
-                for elapsed_seconds in [240u64, 480] {
-                    if elapsed_seconds >= u64::from(effective_max_seconds) {
-                        break;
-                    }
-                    tokio::time::sleep_until(tokio::time::Instant::from_std(
-                        capture_ready_at.monotonic
-                            + std::time::Duration::from_secs(elapsed_seconds),
-                    ))
-                    .await;
-                    if !warmup_scope.is_active() {
-                        break;
-                    }
-                    stt::cloud::warm_managed_cloud_on_intent(
-                        warmup_client.clone(),
-                        session_token.clone(),
-                    );
-                }
+            watch.spawn_cloud_warmup(self.shared_client.clone(), session_token, move || {
+                warmup_scope.is_active()
             });
         }
         *self
@@ -2136,50 +2097,15 @@ impl PipelineHandle {
         });
 
         let deadline_pipeline = self.clone();
-        let deadline_events = self.events.clone();
         let deadline_scope = self.session.recording_scope(session_id, &self.phases);
-        let deadline_provider_id = resolved_limit.capability.provider_id;
-        tokio::spawn(async move {
-            let reached = crate::recording_deadline::drive_recording_deadline(
-                recording_deadline,
-                || deadline_scope.is_active(),
-                |signal| match signal {
-                    crate::recording_deadline::RecordingDeadlineSignal::Warning {
-                        seconds_remaining,
-                    } => {
-                        deadline_events.send(
-                            "recording:deadline-warning",
-                            serde_json::json!({
-                                "sessionId": session_id,
-                                "recordingKind": "dictation",
-                                "secondsRemaining": seconds_remaining,
-                                "effectiveMaxSeconds": effective_max_seconds,
-                                "providerId": deadline_provider_id.as_str(),
-                                "explanationKey": deadline_explanation_key.as_str(),
-                            }),
-                        );
-                    }
-                    crate::recording_deadline::RecordingDeadlineSignal::Reached => {
-                        deadline_events.send(
-                            "recording:deadline-reached",
-                            serde_json::json!({
-                                "sessionId": session_id,
-                                "recordingKind": "dictation",
-                                "effectiveMaxSeconds": effective_max_seconds,
-                                "providerId": deadline_provider_id.as_str(),
-                                "explanationKey": deadline_explanation_key.as_str(),
-                            }),
-                        );
-                    }
-                },
-            )
-            .await;
-            if reached {
+        watch.spawn_deadline(
+            move || deadline_scope.is_active(),
+            move || async move {
                 if let Err(error) = deadline_pipeline.stop().await {
                     tracing::error!("Failed to stop recording at the provider deadline: {error}");
                 }
-            }
-        });
+            },
+        );
 
         Ok(())
     }

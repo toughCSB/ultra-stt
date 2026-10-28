@@ -6,6 +6,7 @@ mod capture;
 mod events;
 mod input;
 mod phases;
+pub(crate) mod recording;
 #[cfg(test)]
 mod scenarios;
 mod session;
