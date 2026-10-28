@@ -191,7 +191,7 @@ fn static_provider_capability(provider_id: &str) -> SttRecordingCapability {
         "custom-whisper" => capability(
             provider_id,
             SttTransport::FileUpload,
-            120,
+            600,
             720,
             Some(CLIENT_FILE_BUFFER_BYTES),
             RecordingLimitSource::UnknownUpstream,
@@ -439,7 +439,7 @@ mod tests {
             (
                 "custom-whisper",
                 SttTransport::FileUpload,
-                120,
+                600,
                 720,
                 RecordingLimitSource::UnknownUpstream,
             ),
@@ -488,6 +488,16 @@ mod tests {
             assert_eq!(resolved.capability.source, source, "{provider}");
             assert_eq!(resolved.effective_max_seconds, recommended, "{provider}");
         }
+    }
+
+    #[test]
+    fn local_whisper_records_ten_minutes_by_default() {
+        let mut local = AppConfig::new_ultra_local_profile();
+        local.recording_limit_mode = RecordingLimitMode::Auto;
+        let resolved = resolve_recording_limit(&local, None, NOW);
+        assert_eq!(resolved.effective_max_seconds, 600);
+        // Ten minutes of 16 kHz mono PCM fits the client upload buffer.
+        assert!(600 * 16_000 * 2 <= resolved.capability.max_upload_bytes.unwrap());
     }
 
     #[test]
