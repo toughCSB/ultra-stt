@@ -743,13 +743,333 @@ function buildChinese({ traditional }) {
   return corpus.cases
 }
 
+function buildKorean() {
+  const corpus = corpusBuilder('ko')
+  const locale = 'ko'
+  const ask = fallback('ask', false)
+  const dictate = fallback('dictate', false)
+  const dictateSelection = fallback('dictate', true)
+
+  // ── Search (Ask) ─────────────────────────────────────────────────────
+  const queries = ['오늘 날씨', '리액트 강의', 'Rust 비동기', '서울 맛집', '타우리 단축키', '파이썬 정규식']
+  const searchEndings = ['검색해줘', '검색해 줘', '검색해주세요', '검색해 주세요', '검색']
+  for (const query of queries) {
+    for (const ending of searchEndings) {
+      corpus.add({
+        id: 'search-default-google',
+        mode: 'ask',
+        locale,
+        utterance: `${query} ${ending}`,
+        expectedKind: 'search',
+        expectedPlacement: 'open_url',
+        expectedProvider: 'google',
+        expectedPayload: query,
+      })
+    }
+  }
+  const sites = [
+    ['구글', 'google'],
+    ['유튜브', 'youtube'],
+    ['아마존', 'amazon'],
+    ['깃허브', 'github'],
+    ['YouTube', 'youtube'],
+    ['GitHub', 'github'],
+  ]
+  for (const [site, provider] of sites) {
+    for (const query of queries.slice(0, 3)) {
+      for (const verb of ['검색해줘', '찾아줘', '찾아 주세요']) {
+        corpus.add({
+          id: 'search-site-first',
+          mode: 'ask',
+          locale,
+          utterance: `${site}에서 ${query} ${verb}`,
+          expectedKind: 'search',
+          expectedPlacement: 'open_url',
+          expectedProvider: provider,
+          expectedPayload: query,
+        })
+      }
+      corpus.add({
+        id: 'search-site-last',
+        mode: 'ask',
+        locale,
+        utterance: `${query} ${site}에서 검색해줘`,
+        expectedKind: 'search',
+        expectedPlacement: 'open_url',
+        expectedProvider: provider,
+        expectedPayload: query,
+      })
+    }
+  }
+  for (const utterance of ['리액트 강의 검색해줘.', '오늘 날씨 검색해 줘!']) {
+    corpus.add({
+      id: 'search-automatic-locale',
+      mode: 'ask',
+      locale: 'automatic',
+      utterance,
+      expectedKind: 'search',
+      expectedPlacement: 'open_url',
+      expectedProvider: 'google',
+      expectedPayload: utterance.split(' 검색')[0],
+    })
+  }
+
+  // ── Draft ────────────────────────────────────────────────────────────
+  const drafts = [
+    '회의 연기 안내 메일',
+    '고객 감사 답장',
+    '팀 공지',
+    '내일 휴가 신청 메시지',
+    '프로젝트 진행 보고서',
+    '생일 축하 문자',
+  ]
+  for (const payload of drafts) {
+    for (const ending of ['써줘', '써 줘', '작성해줘', '작성해 주세요']) {
+      corpus.add({
+        id: 'draft',
+        locale,
+        utterance: `${payload} ${ending}`,
+        expectedKind: 'draft_insert',
+        expectedPlacement: 'insert_at_cursor',
+        expectedPayload: payload,
+      })
+    }
+    corpus.add({
+      id: 'draft-from-ask',
+      mode: 'ask',
+      locale,
+      utterance: `${payload} 써줘`,
+      expectedKind: 'draft_insert',
+      expectedPlacement: 'insert_at_cursor',
+      expectedPayload: payload,
+    })
+  }
+
+  // ── Rewrite and translate the selection ──────────────────────────────
+  for (const target of ['이거', '이 문장', '이 부분', '이 글']) {
+    for (const ending of ['다시 써줘', '고쳐줘', '다듬어 줘', '더 짧게 줄여줘', '더 정중하게 해줘']) {
+      corpus.add({
+        id: 'rewrite-selection',
+        locale,
+        utterance: `${target} ${ending}`,
+        hasSelection: true,
+        expectedKind: 'rewrite_selection',
+        expectedPlacement: 'replace_selection',
+      })
+    }
+  }
+  for (const target of ['이거', '이 문장', '선택한 글']) {
+    for (const ending of ['영어로 번역해줘', '일본어로 번역해 주세요', '중국어로 바꿔줘']) {
+      corpus.add({
+        id: 'translate-selection',
+        locale,
+        utterance: `${target} ${ending}`,
+        hasSelection: true,
+        expectedKind: 'translate_selection',
+        expectedPlacement: 'replace_selection',
+      })
+    }
+  }
+
+  // ── Questions about the selection and plain dictation ────────────────
+  for (const utterance of ['이거 요약해줘', '이 문장 무슨 뜻이야', '이거 설명해 줘', '왜 이렇게 됐어']) {
+    corpus.add({ id: 'selection-question', locale, utterance, hasSelection: true, ...dictateSelection })
+  }
+  for (const utterance of [
+    '오늘 회의는 세 시입니다',
+    '점심 먹고 다시 이야기해요',
+    '보고서는 금요일까지 제출하겠습니다',
+    '내일 오전에 전화 드릴게요',
+    '견적은 부가세 별도입니다',
+    '자료를 공유 폴더에 올려두었습니다',
+    '다음 주 일정은 아직 미정입니다',
+    '확인 부탁드립니다',
+  ]) {
+    corpus.add({ id: 'plain-dictation', locale, utterance, ...dictate })
+  }
+  for (const utterance of ['내일 날씨 어때?', '파이썬에서 리스트 정렬은 어떻게 해?', '서울에서 부산까지 얼마나 걸려?']) {
+    corpus.add({ id: 'plain-question', mode: 'ask', locale, utterance, ...ask })
+  }
+
+  // ── Blockers: nothing destructive may run ────────────────────────────
+  // Ordinary sentences that end like a request but name nothing to write.
+  for (const utterance of [
+    '이름 여기에 써줘',
+    '숫자를 크게 써줘',
+    '날짜를 오늘로 적어줘',
+    '천천히 또박또박 써 줘',
+    '여기에 서명 작성해줘',
+    '칸에 맞게 써주세요',
+    '받는 사람 주소 정확히 적어 주세요',
+    '제목은 짧게 써 주세요',
+    '연락처 아래에 써줘',
+  ]) {
+    corpus.add({ id: 'write-without-artifact', locale, utterance, ...dictate, destructiveBlocker: true })
+  }
+  // Finding without a site stays a question for the AI.
+  for (const utterance of [
+    '이 오류 원인 찾아줘',
+    '좋은 방법 찾아 주세요',
+    '내 실수 찾아줘',
+    '빠른 길 찾아봐',
+    '비슷한 사례 찾아줘',
+    '이 코드에서 버그 찾아 주세요',
+    '잃어버린 파일 찾아줘',
+  ]) {
+    corpus.add({ id: 'find-without-site', mode: 'ask', locale, utterance, ...ask, destructiveBlocker: true })
+  }
+  // Rewrites and translations must point at the selection.
+  for (const utterance of [
+    '회의 시간을 세 시로 바꿔줘',
+    '말투를 부드럽게 해줘',
+    '문장을 다듬어 줘',
+    '영어로 번역해줘',
+    '일본어로 바꿔줘',
+    '좀 고쳐줘',
+    '글자를 크게 바꿔 주세요',
+    '내용을 짧게 줄여줘',
+  ]) {
+    corpus.add({
+      id: 'selection-command-without-pointer',
+      locale,
+      utterance,
+      hasSelection: true,
+      ...dictateSelection,
+      destructiveBlocker: true,
+    })
+  }
+  // A translation needs a target language.
+  for (const utterance of ['이거 번역해줘', '이 문장 번역해 주세요']) {
+    corpus.add({
+      id: 'translation-without-target',
+      locale,
+      utterance,
+      hasSelection: true,
+      ...dictateSelection,
+      destructiveBlocker: true,
+    })
+  }
+  // Commands with nothing to act on.
+  for (const utterance of ['검색해줘', '검색해 주세요', '구글에서 검색해줘', '유튜브에서 찾아줘']) {
+    corpus.blocked({ id: 'search-missing-query', mode: 'ask', locale, utterance, reason: 'missing_payload' })
+  }
+  // Negated requests.
+  for (const [mode, utterance, hasSelection] of [
+    ['ask', '날씨 검색하지 마', false],
+    ['ask', '유튜브에서 검색하지 말고 그냥 알려줘', false],
+    ['dictate', '메일 초안 쓰지 마', false],
+    ['dictate', '공지 작성해줘 하지 말고 기다려', false],
+    ['dictate', '이거 번역하지 마', true],
+    ['dictate', '이 문장 바꿔줘 하지 말고 그대로 둬', true],
+    ['dictate', '이거 고쳐주지 마', true],
+    ['ask', '아직 검색하지 말아줘', false],
+  ]) {
+    corpus.blocked({ id: 'negated', mode, locale, utterance, hasSelection, reason: 'negated' })
+  }
+  // Someone else's words.
+  for (const [mode, utterance, hasSelection] of [
+    ['dictate', '팀장님이 회의 메일 써달라고 했어', false],
+    ['dictate', '고객이 답장 작성해 달라고 하셨어요', false],
+    ['ask', '친구가 날씨 검색해 보라고 했어', false],
+    ['dictate', '원문은 메일 초안 써줘 입니다', false],
+    ['dictate', '그가 이거 영어로 번역해줘 라고 말했어', true],
+    ['dictate', '"이 문장 고쳐줘"라는 문구를 넣어 주세요', true],
+    ['ask', '「유튜브에서 리액트 검색해줘」라고 적혀 있어', false],
+  ]) {
+    corpus.blocked({ id: 'reported', mode, locale, utterance, hasSelection, reason: 'quoted_or_reported' })
+  }
+  // Code and identifiers.
+  for (const [mode, utterance, hasSelection] of [
+    ['dictate', 'write_mail() 함수 써줘', false],
+    ['ask', 'search_index 검색해줘', false],
+    ['dictate', 'translate.ts 파일 이거 영어로 번역해줘', true],
+  ]) {
+    corpus.blocked({ id: 'code', mode, locale, utterance, hasSelection, reason: 'code_or_identifier' })
+  }
+  // Disabled features.
+  for (const [id, mode, utterance, hasSelection, override] of [
+    ['draft-disabled', 'dictate', '회의 안내 메일 써줘', false, { draft_insert: false }],
+    ['rewrite-disabled', 'dictate', '이거 다시 써줘', true, { rewrite_selection: false }],
+    ['translate-disabled', 'dictate', '이거 영어로 번역해줘', true, { translate_selection: false }],
+    ['search-disabled', 'ask', '오늘 날씨 검색해줘', false, { search: false }],
+  ]) {
+    for (const suffix of ['', '.']) {
+      corpus.add({
+        id,
+        mode,
+        locale,
+        utterance: `${utterance}${suffix}`,
+        hasSelection,
+        routeFlags: flags(override),
+        ...fallback(mode, hasSelection),
+        expectedFallbackReason: 'feature_disabled',
+        destructiveBlocker: true,
+      })
+    }
+  }
+  // Languages without command rules leave Korean as plain dictation.
+  for (const [mode, utterance, hasSelection] of [
+    ['ask', '오늘 날씨 검색해줘', false],
+    ['dictate', '회의 안내 메일 써줘', false],
+    ['dictate', '이거 영어로 번역해줘', true],
+    ['dictate', '이거 다시 써줘', true],
+  ]) {
+    corpus.blocked({ id: 'unsupported-locale', mode, locale: 'fr', utterance, hasSelection, reason: 'unsupported_locale' })
+  }
+  // Commands in a plain Korean sentence about the future.
+  for (const [mode, utterance] of [
+    ['dictate', '나중에 메일 써줘'],
+    ['dictate', '내일 공지 작성해줘'],
+    ['dictate', '다음 주에 보고서 써줘'],
+  ]) {
+    corpus.add({
+      id: 'later-draft',
+      mode,
+      locale,
+      utterance,
+      expectedKind: 'draft_insert',
+      expectedPlacement: 'insert_at_cursor',
+      expectedPayload: utterance.replace(/ (써줘|작성해줘)$/, ''),
+    })
+  }
+
+  // Each blocker again with closing punctuation, as speech recognizers often add it.
+  for (const entry of [...corpus.cases]) {
+    if (!entry.destructiveBlocker || entry.locale === 'fr' || entry.expectedFallbackReason === 'feature_disabled') {
+      continue
+    }
+    corpus.add({
+      id: `${entry.id.replace(/^ko-\d+-/, '')}-punctuated`,
+      mode: entry.mode,
+      locale: entry.locale,
+      utterance: `${entry.utterance}.`,
+      hasSelection: entry.hasSelection,
+      routeFlags: entry.flags,
+      expectedKind: entry.expectedKind,
+      expectedPlacement: entry.expectedPlacement,
+      expectedProvider: entry.expectedProvider,
+      expectedPayload: entry.expectedPayload,
+      expectedFallbackReason: entry.expectedFallbackReason,
+      destructiveBlocker: true,
+    })
+  }
+
+  return corpus.cases
+}
+
 const corpora = {
   voice_intent_en: buildEnglish(),
   voice_intent_zh_hans: buildChinese({ traditional: false }),
   voice_intent_zh_hant: buildChinese({ traditional: true }),
+  voice_intent_ko: buildKorean(),
 }
 
+// `node generate_voice_intent_fixtures.mjs voice_intent_ko` writes only the named corpora.
+const only = process.argv.slice(2)
 for (const [name, cases] of Object.entries(corpora)) {
+  if (only.length > 0 && !only.includes(name)) {
+    continue
+  }
   if (cases.length < 250) {
     throw new Error(`${name} has only ${cases.length} cases`)
   }

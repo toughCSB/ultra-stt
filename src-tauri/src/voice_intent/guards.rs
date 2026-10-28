@@ -89,6 +89,32 @@ pub(crate) fn has_command_signal(locale: CommandLocale, raw: &str) -> bool {
         ]
         .iter()
         .any(|marker| normalized.contains(marker)),
+        CommandLocale::Ko => [
+            "써줘",
+            "써 줘",
+            "써주세요",
+            "써 주세요",
+            "작성해",
+            "작성 해",
+            "적어줘",
+            "적어 줘",
+            "초안",
+            "고쳐",
+            "다듬어",
+            "바꿔",
+            "줄여",
+            "늘려",
+            "번역",
+            "요약해",
+            "설명해",
+            "비교해",
+            "검색",
+            "찾아",
+            // A reported request: "써달라고", "작성해 달라고".
+            "달라",
+        ]
+        .iter()
+        .any(|marker| normalized.contains(marker)),
     }
 }
 
@@ -97,6 +123,7 @@ pub(crate) fn has_any_supported_command_signal(raw: &str) -> bool {
         CommandLocale::En,
         CommandLocale::ZhHans,
         CommandLocale::ZhHant,
+        CommandLocale::Ko,
     ]
     .iter()
     .any(|locale| has_command_signal(*locale, raw))
@@ -236,6 +263,21 @@ pub(crate) fn has_quoted_or_reported_command(locale: CommandLocale, raw: &str) -
         ]
         .iter()
         .any(|marker| normalized.contains(marker)),
+        // Someone else's words: "팀장님이 메일 써달라고 했어", "원문은 ...".
+        CommandLocale::Ko => [
+            "라고 했",
+            "라고 말",
+            "라고 하더",
+            "라고 하던",
+            "라고 하셨",
+            "달라고",
+            "자고 했",
+            "원문은",
+            "인용",
+            "누가 그러는데",
+        ]
+        .iter()
+        .any(|marker| normalized.contains(marker)),
     };
     reported || has_balanced_command_quotes(raw)
 }
@@ -286,6 +328,22 @@ fn has_negated_command(locale: CommandLocale, raw: &str) -> bool {
         ]
         .iter()
         .any(|prefix| normalized.starts_with(prefix)),
+        // Korean negates at the end: "메일 쓰지 마", "검색하지 말고", "안 써도 돼".
+        CommandLocale::Ko => {
+            [
+                "지 마",
+                "지 말",
+                "안 해도",
+                "안 써도",
+                "필요 없",
+                "하지 않아도",
+            ]
+            .iter()
+            .any(|marker| normalized.contains(marker))
+                || ["하지 마", "쓰지 마", "검색하지 마"]
+                    .iter()
+                    .any(|prefix| normalized.starts_with(prefix))
+        }
     }
 }
 

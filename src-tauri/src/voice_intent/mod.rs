@@ -361,6 +361,7 @@ fn resolve_locale(mode: SpeechLanguageMode<'_>, utterance: &str) -> LocaleResolu
             "zh-tw" | "zh-hk" | "zh-hant" | "zh_hant" => {
                 LocaleResolution::Supported(CommandLocale::ZhHant)
             }
+            "ko" | "ko-kr" | "korean" => LocaleResolution::Supported(CommandLocale::Ko),
             "multi" | "auto" | "automatic" => resolve_automatic_locale(utterance),
             _ => LocaleResolution::Unsupported,
         },
@@ -371,6 +372,11 @@ fn resolve_locale(mode: SpeechLanguageMode<'_>, utterance: &str) -> LocaleResolu
 fn resolve_automatic_locale(utterance: &str) -> LocaleResolution {
     if !has_any_supported_command_signal(utterance) {
         return LocaleResolution::NoCommand;
+    }
+
+    // Korean first: an English word inside a Korean request ("rust 검색해줘") is a query.
+    if utterance.chars().any(is_hangul) && has_command_signal(CommandLocale::Ko, utterance) {
+        return LocaleResolution::Supported(CommandLocale::Ko);
     }
 
     let has_ascii_command = has_command_signal(CommandLocale::En, utterance);
@@ -396,6 +402,10 @@ fn resolve_automatic_locale(utterance: &str) -> LocaleResolution {
         (_, 0) => LocaleResolution::Supported(CommandLocale::ZhHans),
         _ => LocaleResolution::Ambiguous,
     }
+}
+
+fn is_hangul(character: char) -> bool {
+    matches!(character as u32, 0xAC00..=0xD7A3 | 0x1100..=0x11FF | 0x3130..=0x318F)
 }
 
 fn is_cjk(character: char) -> bool {
@@ -445,6 +455,18 @@ fn discussed_command_reason(locale: CommandLocale, utterance: &str) -> Option<Ro
             "我想",
             "有人說",
             "計畫",
+        ]
+        .iter()
+        .any(|prefix| normalized.starts_with(prefix)),
+        CommandLocale::Ko => [
+            "나중에",
+            "내일",
+            "다음에",
+            "다음 주",
+            "아마",
+            "언젠가",
+            "우리가 ",
+            "팀에서",
         ]
         .iter()
         .any(|prefix| normalized.starts_with(prefix)),
@@ -784,6 +806,14 @@ mod tests {
         run_corpus(
             "en",
             include_str!("../../tests/fixtures/voice_intent_en.json"),
+        );
+    }
+
+    #[test]
+    fn voice_intent_corpus_ko() {
+        run_corpus(
+            "ko",
+            include_str!("../../tests/fixtures/voice_intent_ko.json"),
         );
     }
 

@@ -84,6 +84,7 @@ pub enum CommandLocale {
     En,
     ZhHans,
     ZhHant,
+    Ko,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

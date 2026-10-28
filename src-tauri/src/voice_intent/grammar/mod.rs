@@ -1,4 +1,5 @@
 mod en;
+mod ko;
 mod zh_hans;
 mod zh_hant;
 
@@ -26,6 +27,7 @@ pub(crate) fn match_draft(
         CommandLocale::En => en::match_draft(view),
         CommandLocale::ZhHans => zh_hans::match_draft(view),
         CommandLocale::ZhHant => zh_hant::match_draft(view),
+        CommandLocale::Ko => ko::match_draft(view),
     }
 }
 
@@ -34,6 +36,7 @@ pub(crate) fn matches_rewrite(locale: CommandLocale, view: &NormalizedUtterance<
         CommandLocale::En => en::matches_rewrite(view),
         CommandLocale::ZhHans => zh_hans::matches_rewrite(view),
         CommandLocale::ZhHant => zh_hant::matches_rewrite(view),
+        CommandLocale::Ko => ko::matches_rewrite(view),
     }
 }
 
@@ -42,6 +45,7 @@ pub(crate) fn matches_translation(locale: CommandLocale, view: &NormalizedUttera
         CommandLocale::En => en::matches_translation(view),
         CommandLocale::ZhHans => zh_hans::matches_translation(view),
         CommandLocale::ZhHant => zh_hant::matches_translation(view),
+        CommandLocale::Ko => ko::matches_translation(view),
     }
 }
 
@@ -50,6 +54,7 @@ pub(crate) fn matches_informational(locale: CommandLocale, view: &NormalizedUtte
         CommandLocale::En => en::matches_informational(view),
         CommandLocale::ZhHans => zh_hans::matches_informational(view),
         CommandLocale::ZhHant => zh_hant::matches_informational(view),
+        CommandLocale::Ko => ko::matches_informational(view),
     }
 }
 
@@ -61,6 +66,7 @@ pub(crate) fn match_search(
         CommandLocale::En => en::match_search(view),
         CommandLocale::ZhHans => zh_hans::match_search(view),
         CommandLocale::ZhHant => zh_hant::match_search(view),
+        CommandLocale::Ko => ko::match_search(view),
     }
 }
 

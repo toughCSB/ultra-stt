@@ -1,0 +1,5493 @@
+[
+  {
+    "id": "ko-001-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-002-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 검색해 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-003-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 검색해주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-004-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 검색해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-005-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 검색",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-006-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-007-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 검색해 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-008-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 검색해주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-009-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 검색해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-010-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 검색",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-011-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-012-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 검색해 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-013-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 검색해주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-014-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 검색해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-015-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 검색",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-016-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "서울 맛집 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "서울 맛집",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-017-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "서울 맛집 검색해 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "서울 맛집",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-018-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "서울 맛집 검색해주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "서울 맛집",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-019-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "서울 맛집 검색해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "서울 맛집",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-020-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "서울 맛집 검색",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "서울 맛집",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-021-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "타우리 단축키 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "타우리 단축키",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-022-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "타우리 단축키 검색해 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "타우리 단축키",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-023-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "타우리 단축키 검색해주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "타우리 단축키",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-024-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "타우리 단축키 검색해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "타우리 단축키",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-025-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "타우리 단축키 검색",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "타우리 단축키",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-026-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "파이썬 정규식 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "파이썬 정규식",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-027-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "파이썬 정규식 검색해 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "파이썬 정규식",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-028-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "파이썬 정규식 검색해주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "파이썬 정규식",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-029-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "파이썬 정규식 검색해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "파이썬 정규식",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-030-search-default-google",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "파이썬 정규식 검색",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "파이썬 정규식",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-031-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-032-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 오늘 날씨 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-033-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 오늘 날씨 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-034-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 구글에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-035-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 리액트 강의 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-036-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 리액트 강의 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-037-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 리액트 강의 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-038-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 구글에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-039-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 Rust 비동기 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-040-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 Rust 비동기 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-041-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 Rust 비동기 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-042-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 구글에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-043-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-044-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 오늘 날씨 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-045-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 오늘 날씨 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-046-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 유튜브에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-047-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 리액트 강의 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-048-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 리액트 강의 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-049-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 리액트 강의 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-050-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 유튜브에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-051-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 Rust 비동기 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-052-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 Rust 비동기 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-053-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 Rust 비동기 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-054-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 유튜브에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-055-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-056-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 오늘 날씨 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-057-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 오늘 날씨 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-058-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 아마존에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-059-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 리액트 강의 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-060-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 리액트 강의 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-061-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 리액트 강의 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-062-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 아마존에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-063-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 Rust 비동기 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-064-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 Rust 비동기 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-065-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아마존에서 Rust 비동기 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-066-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 아마존에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "amazon",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-067-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-068-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 오늘 날씨 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-069-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 오늘 날씨 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-070-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 깃허브에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-071-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 리액트 강의 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-072-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 리액트 강의 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-073-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 리액트 강의 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-074-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 깃허브에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-075-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 Rust 비동기 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-076-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 Rust 비동기 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-077-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "깃허브에서 Rust 비동기 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-078-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 깃허브에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-079-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-080-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 오늘 날씨 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-081-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 오늘 날씨 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-082-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 YouTube에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-083-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 리액트 강의 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-084-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 리액트 강의 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-085-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 리액트 강의 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-086-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 YouTube에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-087-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 Rust 비동기 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-088-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 Rust 비동기 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-089-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "YouTube에서 Rust 비동기 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-090-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 YouTube에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "youtube",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-091-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-092-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 오늘 날씨 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-093-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 오늘 날씨 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-094-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 GitHub에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-095-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 리액트 강의 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-096-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 리액트 강의 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-097-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 리액트 강의 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-098-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "리액트 강의 GitHub에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-099-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 Rust 비동기 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-100-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 Rust 비동기 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-101-search-site-first",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "GitHub에서 Rust 비동기 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-102-search-site-last",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "Rust 비동기 GitHub에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "github",
+    "expectedPayload": "Rust 비동기",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-103-search-automatic-locale",
+    "mode": "ask",
+    "locale": "automatic",
+    "utterance": "리액트 강의 검색해줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "리액트 강의",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-104-search-automatic-locale",
+    "mode": "ask",
+    "locale": "automatic",
+    "utterance": "오늘 날씨 검색해 줘!",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "search",
+    "expectedPlacement": "open_url",
+    "expectedProvider": "google",
+    "expectedPayload": "오늘 날씨",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-105-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 연기 안내 메일 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "회의 연기 안내 메일",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-106-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 연기 안내 메일 써 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "회의 연기 안내 메일",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-107-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 연기 안내 메일 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "회의 연기 안내 메일",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-108-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 연기 안내 메일 작성해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "회의 연기 안내 메일",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-109-draft-from-ask",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "회의 연기 안내 메일 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "회의 연기 안내 메일",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-110-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "고객 감사 답장 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "고객 감사 답장",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-111-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "고객 감사 답장 써 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "고객 감사 답장",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-112-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "고객 감사 답장 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "고객 감사 답장",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-113-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "고객 감사 답장 작성해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "고객 감사 답장",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-114-draft-from-ask",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "고객 감사 답장 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "고객 감사 답장",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-115-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "팀 공지 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "팀 공지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-116-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "팀 공지 써 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "팀 공지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-117-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "팀 공지 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "팀 공지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-118-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "팀 공지 작성해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "팀 공지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-119-draft-from-ask",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "팀 공지 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "팀 공지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-120-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내일 휴가 신청 메시지 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "내일 휴가 신청 메시지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-121-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내일 휴가 신청 메시지 써 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "내일 휴가 신청 메시지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-122-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내일 휴가 신청 메시지 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "내일 휴가 신청 메시지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-123-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내일 휴가 신청 메시지 작성해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "내일 휴가 신청 메시지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-124-draft-from-ask",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "내일 휴가 신청 메시지 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "내일 휴가 신청 메시지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-125-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "프로젝트 진행 보고서 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "프로젝트 진행 보고서",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-126-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "프로젝트 진행 보고서 써 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "프로젝트 진행 보고서",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-127-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "프로젝트 진행 보고서 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "프로젝트 진행 보고서",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-128-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "프로젝트 진행 보고서 작성해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "프로젝트 진행 보고서",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-129-draft-from-ask",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "프로젝트 진행 보고서 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "프로젝트 진행 보고서",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-130-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "생일 축하 문자 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "생일 축하 문자",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-131-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "생일 축하 문자 써 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "생일 축하 문자",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-132-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "생일 축하 문자 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "생일 축하 문자",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-133-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "생일 축하 문자 작성해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "생일 축하 문자",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-134-draft-from-ask",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "생일 축하 문자 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "생일 축하 문자",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-135-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 다시 써줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-136-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 고쳐줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-137-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 다듬어 줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-138-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 더 짧게 줄여줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-139-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 더 정중하게 해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-140-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 다시 써줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-141-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 고쳐줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-142-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 다듬어 줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-143-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 더 짧게 줄여줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-144-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 더 정중하게 해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-145-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 부분 다시 써줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-146-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 부분 고쳐줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-147-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 부분 다듬어 줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-148-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 부분 더 짧게 줄여줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-149-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 부분 더 정중하게 해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-150-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 글 다시 써줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-151-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 글 고쳐줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-152-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 글 다듬어 줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-153-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 글 더 짧게 줄여줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-154-rewrite-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 글 더 정중하게 해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "rewrite_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-155-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 영어로 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-156-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 일본어로 번역해 주세요",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-157-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 중국어로 바꿔줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-158-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 영어로 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-159-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 일본어로 번역해 주세요",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-160-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 중국어로 바꿔줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-161-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "선택한 글 영어로 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-162-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "선택한 글 일본어로 번역해 주세요",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-163-translate-selection",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "선택한 글 중국어로 바꿔줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "translate_selection",
+    "expectedPlacement": "replace_selection",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-164-selection-question",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 요약해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-165-selection-question",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 무슨 뜻이야",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-166-selection-question",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 설명해 줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-167-selection-question",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "왜 이렇게 됐어",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-168-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "오늘 회의는 세 시입니다",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-169-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "점심 먹고 다시 이야기해요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-170-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "보고서는 금요일까지 제출하겠습니다",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-171-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내일 오전에 전화 드릴게요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-172-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "견적은 부가세 별도입니다",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-173-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "자료를 공유 폴더에 올려두었습니다",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-174-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "다음 주 일정은 아직 미정입니다",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-175-plain-dictation",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "확인 부탁드립니다",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-176-plain-question",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "내일 날씨 어때?",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-177-plain-question",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "파이썬에서 리스트 정렬은 어떻게 해?",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-178-plain-question",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "서울에서 부산까지 얼마나 걸려?",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-179-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이름 여기에 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-180-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "숫자를 크게 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-181-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "날짜를 오늘로 적어줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-182-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "천천히 또박또박 써 줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-183-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "여기에 서명 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-184-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "칸에 맞게 써주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-185-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "받는 사람 주소 정확히 적어 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-186-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "제목은 짧게 써 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-187-write-without-artifact",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "연락처 아래에 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-188-find-without-site",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "이 오류 원인 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-189-find-without-site",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "좋은 방법 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-190-find-without-site",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "내 실수 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-191-find-without-site",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "빠른 길 찾아봐",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-192-find-without-site",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "비슷한 사례 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-193-find-without-site",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "이 코드에서 버그 찾아 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-194-find-without-site",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "잃어버린 파일 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-195-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 시간을 세 시로 바꿔줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-196-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "말투를 부드럽게 해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-197-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "문장을 다듬어 줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-198-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "영어로 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-199-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "일본어로 바꿔줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-200-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "좀 고쳐줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-201-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "글자를 크게 바꿔 주세요",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-202-selection-command-without-pointer",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내용을 짧게 줄여줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-203-translation-without-target",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-204-translation-without-target",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 번역해 주세요",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-205-search-missing-query",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-206-search-missing-query",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "검색해 주세요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-207-search-missing-query",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-208-search-missing-query",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 찾아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-209-negated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "날씨 검색하지 마",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-210-negated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 검색하지 말고 그냥 알려줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-211-negated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "메일 초안 쓰지 마",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-212-negated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "공지 작성해줘 하지 말고 기다려",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-213-negated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 번역하지 마",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-214-negated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 바꿔줘 하지 말고 그대로 둬",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-215-negated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 고쳐주지 마",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-216-negated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아직 검색하지 말아줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-217-reported",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "팀장님이 회의 메일 써달라고 했어",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-218-reported",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "고객이 답장 작성해 달라고 하셨어요",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-219-reported",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "친구가 날씨 검색해 보라고 했어",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-220-reported",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "원문은 메일 초안 써줘 입니다",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-221-reported",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "그가 이거 영어로 번역해줘 라고 말했어",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-222-reported",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "\"이 문장 고쳐줘\"라는 문구를 넣어 주세요",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-223-reported",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "「유튜브에서 리액트 검색해줘」라고 적혀 있어",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-224-code",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "write_mail() 함수 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "code_or_identifier",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-225-code",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "search_index 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "code_or_identifier",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-226-code",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "translate.ts 파일 이거 영어로 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "code_or_identifier",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-227-draft-disabled",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 안내 메일 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": false,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-228-draft-disabled",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 안내 메일 써줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": false,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-229-rewrite-disabled",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 다시 써줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": false,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-230-rewrite-disabled",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 다시 써줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": false,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-231-translate-disabled",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 영어로 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": false,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-232-translate-disabled",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 영어로 번역해줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": false,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-233-search-disabled",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": false
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-234-search-disabled",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "오늘 날씨 검색해줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": false
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "feature_disabled",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-235-unsupported-locale",
+    "mode": "ask",
+    "locale": "fr",
+    "utterance": "오늘 날씨 검색해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "unsupported_locale",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-236-unsupported-locale",
+    "mode": "dictate",
+    "locale": "fr",
+    "utterance": "회의 안내 메일 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "unsupported_locale",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-237-unsupported-locale",
+    "mode": "dictate",
+    "locale": "fr",
+    "utterance": "이거 영어로 번역해줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "unsupported_locale",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-238-unsupported-locale",
+    "mode": "dictate",
+    "locale": "fr",
+    "utterance": "이거 다시 써줘",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "unsupported_locale",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-239-later-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "나중에 메일 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "나중에 메일",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-240-later-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내일 공지 작성해줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "내일 공지",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-241-later-draft",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "다음 주에 보고서 써줘",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "draft_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": "다음 주에 보고서",
+    "expectedFallbackReason": null,
+    "destructiveBlocker": false
+  },
+  {
+    "id": "ko-242-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이름 여기에 써줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-243-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "숫자를 크게 써줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-244-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "날짜를 오늘로 적어줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-245-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "천천히 또박또박 써 줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-246-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "여기에 서명 작성해줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-247-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "칸에 맞게 써주세요.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-248-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "받는 사람 주소 정확히 적어 주세요.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-249-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "제목은 짧게 써 주세요.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-250-write-without-artifact-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "연락처 아래에 써줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-251-find-without-site-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "이 오류 원인 찾아줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-252-find-without-site-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "좋은 방법 찾아 주세요.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-253-find-without-site-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "내 실수 찾아줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-254-find-without-site-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "빠른 길 찾아봐.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-255-find-without-site-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "비슷한 사례 찾아줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-256-find-without-site-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "이 코드에서 버그 찾아 주세요.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-257-find-without-site-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "잃어버린 파일 찾아줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-258-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "회의 시간을 세 시로 바꿔줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-259-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "말투를 부드럽게 해줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-260-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "문장을 다듬어 줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-261-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "영어로 번역해줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-262-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "일본어로 바꿔줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-263-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "좀 고쳐줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-264-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "글자를 크게 바꿔 주세요.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-265-selection-command-without-pointer-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "내용을 짧게 줄여줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-266-translation-without-target-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 번역해줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-267-translation-without-target-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 번역해 주세요.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": null,
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-268-search-missing-query-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "검색해줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-269-search-missing-query-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "검색해 주세요.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-270-search-missing-query-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "구글에서 검색해줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-271-search-missing-query-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 찾아줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "missing_payload",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-272-negated-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "날씨 검색하지 마.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-273-negated-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "유튜브에서 검색하지 말고 그냥 알려줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-274-negated-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "메일 초안 쓰지 마.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-275-negated-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "공지 작성해줘 하지 말고 기다려.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-276-negated-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 번역하지 마.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-277-negated-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이 문장 바꿔줘 하지 말고 그대로 둬.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-278-negated-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "이거 고쳐주지 마.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-279-negated-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "아직 검색하지 말아줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "negated",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-280-reported-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "팀장님이 회의 메일 써달라고 했어.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-281-reported-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "고객이 답장 작성해 달라고 하셨어요.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-282-reported-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "친구가 날씨 검색해 보라고 했어.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-283-reported-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "원문은 메일 초안 써줘 입니다.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-284-reported-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "그가 이거 영어로 번역해줘 라고 말했어.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-285-reported-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "\"이 문장 고쳐줘\"라는 문구를 넣어 주세요.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-286-reported-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "「유튜브에서 리액트 검색해줘」라고 적혀 있어.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "quoted_or_reported",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-287-code-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "write_mail() 함수 써줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "dictate_insert",
+    "expectedPlacement": "insert_at_cursor",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "code_or_identifier",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-288-code-punctuated",
+    "mode": "ask",
+    "locale": "ko",
+    "utterance": "search_index 검색해줘.",
+    "hasSelection": false,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "open_question",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "code_or_identifier",
+    "destructiveBlocker": true
+  },
+  {
+    "id": "ko-289-code-punctuated",
+    "mode": "dictate",
+    "locale": "ko",
+    "utterance": "translate.ts 파일 이거 영어로 번역해줘.",
+    "hasSelection": true,
+    "flags": {
+      "draft_insert": true,
+      "rewrite_selection": true,
+      "translate_selection": true,
+      "search": true
+    },
+    "expectedKind": "ask_selection",
+    "expectedPlacement": "popup_answer",
+    "expectedProvider": null,
+    "expectedPayload": null,
+    "expectedFallbackReason": "code_or_identifier",
+    "destructiveBlocker": true
+  }
+]
