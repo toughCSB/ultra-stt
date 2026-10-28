@@ -14,6 +14,7 @@ use crate::audio::RecordingStartupError;
 use crate::credentials::{
     resolve_llm_config_secret, resolve_stt_config_secret, SystemCredentialVault,
 };
+use crate::dictation_session::keys::{KeyChange, RecordingKey, RecordingKeys};
 use crate::dictation_session::recording::{
     start_capture, CaptureStartError, RecordingLimit, RecordingWatch, StartedCapture,
 };
@@ -1024,137 +1025,130 @@ fn recording_control_key(
 /// global Escape/Enter shortcuts that exist only while a session needs them.
 struct TauriSessionNotifier {
     app_handle: tauri::AppHandle,
-    state: StateCell,
-    escape_registered: AtomicBool,
-    enter_registered: AtomicBool,
+    keys: Mutex<RecordingKeys>,
 }
 
 impl TauriSessionNotifier {
-    fn new(app_handle: tauri::AppHandle, state: StateCell) -> Self {
+    fn new(app_handle: tauri::AppHandle) -> Self {
         Self {
             app_handle,
-            state,
-            escape_registered: AtomicBool::new(false),
-            enter_registered: AtomicBool::new(false),
+            keys: Mutex::new(RecordingKeys::default()),
         }
     }
 
-    fn ask_busy(&self) -> bool {
-        self.app_handle
-            .try_state::<crate::commands::ask::AskDictationState>()
-            .is_some_and(|state| state.is_busy())
+    fn hold(&self, key: RecordingKey, hold: bool) {
+        let mut keys = self.keys.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(change) = keys.hold(key, hold) {
+            self.apply(&mut keys, change);
+        }
     }
+
+    /// Carries out one key change with the OS. Runs under the key lock, so a change that
+    /// races with another always sees the latest wish.
+    fn apply(&self, keys: &mut RecordingKeys, change: KeyChange) {
+        let shortcuts = self.app_handle.global_shortcut();
+        match change {
+            KeyChange::Register(key) => {
+                let shortcut = recording_key_shortcut(key);
+                // A key someone else registered is left to them.
+                let registered = !shortcuts.is_registered(shortcut)
+                    && match key {
+                        RecordingKey::Escape => {
+                            shortcuts.on_shortcut(shortcut, on_recording_escape)
+                        }
+                        RecordingKey::Enter => shortcuts.on_shortcut(shortcut, on_recording_enter),
+                    }
+                    .map_err(|error| {
+                        tracing::warn!("Recording {key:?} shortcut is unavailable: {error}")
+                    })
+                    .is_ok();
+                keys.registered(key, registered);
+            }
+            KeyChange::Unregister(key) => {
+                if let Err(error) = shortcuts.unregister(recording_key_shortcut(key)) {
+                    tracing::warn!("Failed to release recording {key:?} shortcut: {error}");
+                }
+                keys.unregistered(key);
+            }
+        }
+    }
+}
+
+fn recording_key_shortcut(key: RecordingKey) -> Shortcut {
+    match key {
+        RecordingKey::Escape => Shortcut::new(None, Code::Escape),
+        RecordingKey::Enter => Shortcut::new(None, Code::Enter),
+    }
+}
+
+/// Escape while a session runs: cancel the Ask in progress, otherwise the dictation.
+fn on_recording_escape(
+    app: &tauri::AppHandle,
+    _: &Shortcut,
+    event: tauri_plugin_global_shortcut::ShortcutEvent,
+) {
+    let pipeline = app.state::<PipelineHandle>();
+    // The plugin calls its global handler after this per-shortcut handler.
+    pipeline.escape_event_pending.store(true, Ordering::SeqCst);
+    if event.state != ShortcutState::Pressed {
+        return;
+    }
+    let ask_busy = app
+        .try_state::<crate::commands::ask::AskDictationState>()
+        .is_some_and(|state| state.is_busy());
+    if pipeline.current_state() == PipelineState::Idle && !ask_busy {
+        return;
+    }
+    let generation = pipeline.session.current();
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let pipeline = app.state::<PipelineHandle>();
+        if let Some(ask) = app
+            .try_state::<crate::commands::ask::AskDictationState>()
+            .filter(|state| state.is_busy())
+        {
+            let _ = crate::commands::ask::abort_ask_dictation(app.clone(), ask);
+        } else if pipeline.session.is_live(generation) {
+            pipeline.abort();
+        }
+    });
+}
+
+/// Enter while recording: finish the recording.
+fn on_recording_enter(
+    app: &tauri::AppHandle,
+    _: &Shortcut,
+    event: tauri_plugin_global_shortcut::ShortcutEvent,
+) {
+    let pipeline = app.state::<PipelineHandle>();
+    // The plugin calls its global handler after this per-shortcut handler.
+    pipeline.enter_event_pending.store(true, Ordering::SeqCst);
+    if event.state != ShortcutState::Pressed || pipeline.current_state() != PipelineState::Recording
+    {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let pipeline = app.state::<PipelineHandle>();
+        if let Err(error) = pipeline.stop().await {
+            tracing::warn!("Enter could not finish the recording: {error}");
+        }
+    });
 }
 
 impl SessionNotifier for TauriSessionNotifier {
     fn hold_escape(&self, hold: bool) {
-        let escape = Shortcut::new(None, Code::Escape);
-        if !hold {
-            if self.escape_registered.swap(false, Ordering::SeqCst) {
-                if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
-                    tracing::warn!("Failed to release recording Escape shortcut: {error}");
-                }
-            }
-            return;
-        }
-        if self.escape_registered.load(Ordering::SeqCst)
-            || self.app_handle.global_shortcut().is_registered(escape)
-        {
-            return;
-        }
-        let registered = self
-            .app_handle
-            .global_shortcut()
-            .on_shortcut(escape, |app, _, event| {
-                let pipeline = app.state::<PipelineHandle>();
-                // The plugin calls its global handler after this per-shortcut handler.
-                pipeline.escape_event_pending.store(true, Ordering::SeqCst);
-                if event.state != ShortcutState::Pressed {
-                    return;
-                }
-                let ask_busy = app
-                    .try_state::<crate::commands::ask::AskDictationState>()
-                    .is_some_and(|state| state.is_busy());
-                if pipeline.current_state() == PipelineState::Idle && !ask_busy {
-                    return;
-                }
-                let generation = pipeline.session.current();
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let pipeline = app.state::<PipelineHandle>();
-                    if let Some(ask) = app
-                        .try_state::<crate::commands::ask::AskDictationState>()
-                        .filter(|state| state.is_busy())
-                    {
-                        let _ = crate::commands::ask::abort_ask_dictation(app.clone(), ask);
-                    } else if pipeline.session.is_live(generation) {
-                        pipeline.abort();
-                    }
-                });
-            });
-        match registered {
-            Ok(()) => {
-                self.escape_registered.store(true, Ordering::SeqCst);
-                if !self.state.get().holds_escape()
-                    && !self.ask_busy()
-                    && self.escape_registered.swap(false, Ordering::SeqCst)
-                {
-                    if let Err(error) = self.app_handle.global_shortcut().unregister(escape) {
-                        tracing::warn!("Failed to release recording Escape shortcut: {error}");
-                    }
-                }
-            }
-            Err(error) => tracing::warn!("Recording Escape shortcut is unavailable: {error}"),
-        }
+        self.hold(RecordingKey::Escape, hold);
     }
 
     fn hold_enter(&self, hold: bool) {
-        let enter = Shortcut::new(None, Code::Enter);
-        if !hold {
-            if self.enter_registered.swap(false, Ordering::SeqCst) {
-                if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
-                    tracing::warn!("Failed to release recording Enter shortcut: {error}");
-                }
-            }
-            return;
-        }
-        if self.enter_registered.load(Ordering::SeqCst)
-            || self.app_handle.global_shortcut().is_registered(enter)
-        {
-            return;
-        }
-        let registered = self
-            .app_handle
-            .global_shortcut()
-            .on_shortcut(enter, |app, _, event| {
-                let pipeline = app.state::<PipelineHandle>();
-                // The plugin calls its global handler after this per-shortcut handler.
-                pipeline.enter_event_pending.store(true, Ordering::SeqCst);
-                if event.state != ShortcutState::Pressed
-                    || pipeline.current_state() != PipelineState::Recording
-                {
-                    return;
-                }
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let pipeline = app.state::<PipelineHandle>();
-                    if let Err(error) = pipeline.stop().await {
-                        tracing::warn!("Enter could not finish the recording: {error}");
-                    }
-                });
-            });
-        match registered {
-            Ok(()) => {
-                self.enter_registered.store(true, Ordering::SeqCst);
-                if !self.state.get().holds_enter()
-                    && self.enter_registered.swap(false, Ordering::SeqCst)
-                {
-                    if let Err(error) = self.app_handle.global_shortcut().unregister(enter) {
-                        tracing::warn!("Failed to release recording Enter shortcut: {error}");
-                    }
-                }
-            }
-            Err(error) => tracing::warn!("Recording Enter shortcut is unavailable: {error}"),
+        self.hold(RecordingKey::Enter, hold);
+    }
+
+    fn shortcuts_removed(&self, paused: bool) {
+        let mut keys = self.keys.lock().unwrap_or_else(|e| e.into_inner());
+        for change in keys.all_removed(paused) {
+            self.apply(&mut keys, change);
         }
     }
 
@@ -1361,7 +1355,7 @@ impl PipelineHandle {
             app_handle: app_handle.clone(),
         });
         let ports = SessionPorts {
-            notifier: Arc::new(TauriSessionNotifier::new(app_handle.clone(), state.clone())),
+            notifier: Arc::new(TauriSessionNotifier::new(app_handle.clone())),
             settings: storage.clone(),
             stores: storage,
             microphone: Arc::new(SystemMicrophone),
@@ -1435,6 +1429,13 @@ impl PipelineHandle {
         if self.current_state().is_ask() {
             self.phases.enter(state);
         }
+    }
+
+    /// Every global shortcut was just removed (re-registering the configured hotkeys, or
+    /// pausing them while the settings capture a key). The session's Escape/Enter come back
+    /// unless shortcuts are now paused.
+    pub(crate) fn global_shortcuts_removed(&self, paused: bool) {
+        self.events.shortcuts_removed(paused);
     }
 
     /// Gives the session back when an Ask ends. An Ask draft that already returned it

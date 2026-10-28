@@ -176,6 +176,20 @@ fn register_configured_shortcuts_guarded(
         .unregister_all()
         .map_err(|e| e.to_string())?;
 
+    let result = register_planned_shortcuts(app, &hotkeys, plan);
+    // The session's Escape/Enter went with everything else; they come back after the
+    // configured hotkeys, which keep a key the user bound themselves.
+    if let Some(pipeline) = app.try_state::<crate::pipeline::PipelineHandle>() {
+        pipeline.global_shortcuts_removed(false);
+    }
+    result
+}
+
+fn register_planned_shortcuts(
+    app: &tauri::AppHandle,
+    hotkeys: &storage::HotkeyConfig,
+    plan: crate::hotkey::HotkeyRegistrationPlan,
+) -> Result<(), String> {
     for registered in &plan.global {
         app.global_shortcut()
             .register(registered.shortcut)
@@ -1100,6 +1114,9 @@ pub fn pause_hotkey(app: tauri::AppHandle) -> Result<(), String> {
         .global_shortcut()
         .unregister_all()
         .map_err(|e| e.to_string());
+    if let Some(pipeline) = app.try_state::<crate::pipeline::PipelineHandle>() {
+        pipeline.global_shortcuts_removed(true);
+    }
 
     if let Some(native_runtime) = app.try_state::<NativeHotkeyRuntime>() {
         native_runtime.pause();

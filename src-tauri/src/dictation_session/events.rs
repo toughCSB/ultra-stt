@@ -31,6 +31,10 @@ impl Events {
     pub(crate) fn capsule_has_focus(&self) -> bool {
         self.0.capsule_has_focus()
     }
+
+    pub(crate) fn shortcuts_removed(&self, paused: bool) {
+        self.0.shortcuts_removed(paused);
+    }
 }
 
 #[cfg(test)]

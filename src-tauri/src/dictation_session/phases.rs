@@ -17,6 +17,8 @@ pub(crate) trait SessionNotifier: Send + Sync {
     fn capture_recording_monitor(&self);
     /// Whether the capsule took keyboard focus (the user clicked it during the session).
     fn capsule_has_focus(&self) -> bool;
+    /// Every global shortcut was removed; restore held keys unless shortcuts are `paused`.
+    fn shortcuts_removed(&self, paused: bool);
 }
 
 /// The one place where a dictation session changes phase. Every change updates the
@@ -77,6 +79,7 @@ pub(crate) mod testing {
         Phase(PipelineState),
         Event(String, serde_json::Value),
         CaptureMonitor,
+        ShortcutsRemoved { paused: bool },
     }
 
     /// Records what a session told the screen, in order.
@@ -111,6 +114,12 @@ pub(crate) mod testing {
         }
         fn capsule_has_focus(&self) -> bool {
             false
+        }
+        fn shortcuts_removed(&self, paused: bool) {
+            self.0
+                .lock()
+                .unwrap()
+                .push(Note::ShortcutsRemoved { paused });
         }
     }
 }

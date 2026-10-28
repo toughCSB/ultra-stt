@@ -5,6 +5,7 @@ mod ask;
 mod capture;
 mod events;
 mod input;
+pub(crate) mod keys;
 mod phases;
 pub(crate) mod recording;
 #[cfg(test)]
