@@ -1,17 +1,18 @@
 import { useCallback } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '../stores/appStore'
+import { startRecording as startSession, stopRecording as stopSession } from '../lib/tauri'
 
 export function useRecording() {
-  const { pipelineState, resetRecording } = useAppStore()
+  const pipelineState = useAppStore((s) => s.pipelineState)
+  const resetRecording = useAppStore((s) => s.resetRecording)
 
   const startRecording = useCallback(async () => {
     resetRecording()
-    await invoke('start_recording')
+    await startSession()
   }, [resetRecording])
 
   const stopRecording = useCallback(async () => {
-    await invoke('stop_recording')
+    await stopSession()
   }, [])
 
   const isPreparing = pipelineState === 'preparing'

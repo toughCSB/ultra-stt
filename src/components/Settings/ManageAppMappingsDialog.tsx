@@ -8,6 +8,7 @@ import {
   setCustomAppMappingEnabled,
 } from '../../lib/tauri'
 import { AppLogo } from '../AppLogo'
+import { errorMessage } from '../../lib/errors'
 
 interface ManageAppMappingsDialogProps {
   mappings: CustomAppMappingView[]
@@ -51,7 +52,7 @@ export function ManageAppMappingsDialog({
       )
       await onChanged()
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : String(actionError))
+      setError(errorMessage(actionError))
     } finally {
       setBusyId(null)
     }
@@ -65,7 +66,7 @@ export function ManageAppMappingsDialog({
       setRows((current) => current.filter((row) => row.id !== mapping.id))
       await onChanged()
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : String(actionError))
+      setError(errorMessage(actionError))
     } finally {
       setBusyId(null)
     }
@@ -80,7 +81,7 @@ export function ManageAppMappingsDialog({
       setResetConfirming(false)
       await onChanged()
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : String(actionError))
+      setError(errorMessage(actionError))
     } finally {
       setBusyId(null)
     }

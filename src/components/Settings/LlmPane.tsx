@@ -33,6 +33,7 @@ import { ContextAdaptationApps } from './ContextAdaptationApps'
 import { TranslationTargets } from './TranslationTargets'
 import { AppStyleMappingDialog } from './AppStyleMappingDialog'
 import { ManageAppMappingsDialog } from './ManageAppMappingsDialog'
+import { errorMessage } from '../../lib/errors'
 
 export function LlmPane() {
   const config = useAppStore((s) => s.config)
@@ -155,7 +156,7 @@ export function LlmPane() {
         setCredential('llm', config.llm_provider, value)
           .then(() => setCredentialErrorMessage(null))
           .catch((error) => {
-            const message = error instanceof Error ? error.message : String(error)
+            const message = errorMessage(error)
             setCredentialErrorMessage(message)
             console.error('[credentials] failed to save LLM credential', error)
           })

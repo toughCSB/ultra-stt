@@ -22,6 +22,7 @@ import {
 } from '../../lib/tauri'
 import { FormField } from './shared/FormField'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { errorMessage } from '../../lib/errors'
 
 const RECORDING_LIMIT_PRESETS = [30, 60, 120, 300, 600, 1800, 3600]
 const MIN_CUSTOM_RECORDING_SECONDS = 30
@@ -176,7 +177,7 @@ export function SttPane() {
         setCredential('stt', credentialProvider, value)
           .then(() => setCredentialErrorMessage(null))
           .catch((error) => {
-            const message = error instanceof Error ? error.message : String(error)
+            const message = errorMessage(error)
             setCredentialErrorMessage(message)
             console.error('[credentials] failed to save STT credential', error)
           })

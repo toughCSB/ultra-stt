@@ -10,6 +10,7 @@ import {
   setAutoStart,
 } from '../../../lib/tauri'
 import { toast } from '../../toast-service'
+import { errorMessage } from '../../../lib/errors'
 
 type SaveResult = 'idle' | 'success' | 'error'
 
@@ -53,7 +54,7 @@ export function DirtyBar() {
         setSaveResult('idle')
       }, 1500)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = errorMessage(e)
       if (autoStartApplied && savedConfig) {
         await setAutoStart(savedConfig.auto_start).catch((rollbackError) => {
           console.error('[settings] failed to roll back auto-start', rollbackError)

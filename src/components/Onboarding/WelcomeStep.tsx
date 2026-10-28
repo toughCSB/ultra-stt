@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
-import { invoke } from '@tauri-apps/api/core'
+import { refreshTrayLabels } from '../../lib/tauri'
 import { UI_LANGUAGES } from '../../lib/constants'
 import { useAppStore } from '../../stores/appStore'
 import titleUrl from '../../assets/brand/title-lockup.png'
@@ -16,7 +16,7 @@ export function WelcomeStep() {
     i18n.changeLanguage(value)
     localStorage.setItem('ui_language', value)
     updateConfig({ ui_language: value })
-    invoke('refresh_tray_labels').catch(() => {})
+    refreshTrayLabels().catch(() => {})
   }
 
   return (

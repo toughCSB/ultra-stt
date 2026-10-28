@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { invoke } from '@tauri-apps/api/core'
+import { refreshTrayLabels } from '../../lib/tauri'
 import i18n from '../../i18n'
 import { ExternalLink } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -17,7 +17,7 @@ export function AboutPane() {
     i18n.changeLanguage(value)
     localStorage.setItem('ui_language', value)
     updateConfig({ ui_language: value })
-    invoke('refresh_tray_labels').catch(() => {})
+    refreshTrayLabels().catch(() => {})
   }
 
   return (

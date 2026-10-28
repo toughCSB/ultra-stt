@@ -9,6 +9,7 @@ import {
   takePendingAskMessage,
 } from '../../lib/tauri'
 import type { AskDictationResult, AskDictationStartResult } from '../../lib/tauri'
+import { errorMessage } from '../../lib/errors'
 
 interface AskPanelProps {
   embedded?: boolean
@@ -117,7 +118,7 @@ export function AskPanel({ embedded = false, showHeader = true, title = 'Ask' }:
       applyRecordingStarted(await startAskDictation())
     } catch (e) {
       ownsDictationRef.current = false
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorMessage(e))
       setRecordingContext(null)
       setAskDictationState('idle')
     }
@@ -142,7 +143,7 @@ export function AskPanel({ embedded = false, showHeader = true, title = 'Ask' }:
       if (ignoreNextLocalResultRef.current) {
         ignoreNextLocalResultRef.current = false
       } else {
-        applyError(e instanceof Error ? e.message : String(e))
+        applyError(errorMessage(e))
       }
     } finally {
       ownsDictationRef.current = false

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Settings, History, LogOut, CircleUser, AppWindow, Eye, EyeOff } from 'lucide-react'
-import { setCapsuleAutoHide } from '../../lib/tauri'
+import { exitApp, setCapsuleAutoHide } from '../../lib/tauri'
 import { useAppStore } from '../../stores/appStore'
 
 interface Props {
@@ -73,9 +73,7 @@ export function CapsuleContextMenu({ onClose }: Props) {
       icon: LogOut,
       label: t('capsule.menu.exit'),
       onClick: () => {
-        import('@tauri-apps/api/core')
-          .then(({ invoke }) => invoke('plugin:process|exit', { code: 0 }))
-          .catch(() => {})
+        exitApp().catch(() => {})
         onClose()
       },
     },

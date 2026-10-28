@@ -18,6 +18,7 @@ import type { HotkeyStatus } from '../../lib/tauri'
 import { SegmentedControl } from './shared/SegmentedControl'
 import { Toggle } from './shared/Toggle'
 import { ShortcutBindingList } from './ShortcutBindingList'
+import { errorMessage } from '../../lib/errors'
 
 const MAC_ACCESSIBILITY_HOTKEY_ERROR = 'Accessibility permission may be denied'
 
@@ -80,7 +81,7 @@ export function GeneralPane() {
         setHotkeyRegistrationError(null)
       })
       .catch((err) => {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = errorMessage(err)
         setHotkeyRegistrationError(message)
       })
   }, [accessibilityTrusted, hotkeyRegistrationError, isMac, setHotkeyRegistrationError])

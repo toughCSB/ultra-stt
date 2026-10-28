@@ -4,6 +4,7 @@ import type { AppConfig, ContextFamily, ContextProfileSummary } from '../../stor
 import { saveCustomAppMapping, updateCustomAppMapping } from '../../lib/tauri'
 import type { CustomAppMappingView, MappingCandidateView } from '../../lib/tauri'
 import { AppLogo } from '../AppLogo'
+import { errorMessage } from '../../lib/errors'
 
 const CONTEXT_FAMILIES: ContextFamily[] = [
   'email',
@@ -105,7 +106,7 @@ export function AppStyleMappingDialog({
       }
       await onSaved()
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError))
+      setError(errorMessage(saveError))
     } finally {
       setSaving(false)
     }

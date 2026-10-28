@@ -62,6 +62,16 @@ export async function abortRecording(): Promise<void> {
   return invoke('abort_recording')
 }
 
+/** Rebuilds the tray menu in the current interface language. */
+export async function refreshTrayLabels(): Promise<void> {
+  return invoke('refresh_tray_labels')
+}
+
+/** Quits the app. */
+export async function exitApp(): Promise<void> {
+  return invoke('plugin:process|exit', { code: 0 })
+}
+
 export async function setActiveTranslationTarget(code: string): Promise<TranslationConfig> {
   return invoke('set_active_translation_target', { code })
 }
