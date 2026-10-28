@@ -865,7 +865,7 @@ async fn stop_ask_shortcut(handle: tauri::AppHandle) {
 fn start_ask_shortcut(handle: tauri::AppHandle) {
     let did_reserve_start = {
         let ask_state = handle.state::<commands::ask::AskDictationState>();
-        ask_state.try_begin_starting()
+        commands::ask::try_reserve_ask(&handle, &ask_state)
     };
     if !did_reserve_start {
         return;

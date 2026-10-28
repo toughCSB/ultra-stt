@@ -1405,9 +1405,27 @@ impl PipelineHandle {
         }
     }
 
-    /// Syncs Escape for an Ask phase, which is not stored in this session yet.
-    pub(crate) fn sync_escape_shortcut(&self, state: PipelineState) {
-        self.phases.hold_escape_for(state);
+    /// Ask takes the session for its recording and answer, so no dictation starts meanwhile.
+    /// False while a dictation or another Ask runs. Nothing is shown until the Ask
+    /// recording really starts.
+    pub(crate) fn begin_ask(&self) -> bool {
+        self.phases
+            .claim(PipelineState::Idle, PipelineState::AskRecording)
+    }
+
+    /// Shows an Ask phase while the Ask still owns the session.
+    pub(crate) fn show_ask_phase(&self, state: PipelineState) {
+        if self.current_state().is_ask() {
+            self.phases.enter(state);
+        }
+    }
+
+    /// Gives the session back when an Ask ends. An Ask draft that already returned it
+    /// to Idle, or a later session, is left alone.
+    pub(crate) fn end_ask(&self) {
+        if self.current_state().is_ask() {
+            self.set_state(PipelineState::Idle);
+        }
     }
 
     /// Drops what start() prepared for a recording that will not happen.
@@ -1503,12 +1521,13 @@ impl PipelineHandle {
             .map_err(str::to_string)
     }
 
-    /// Cancel: immediately ends the running session, whatever phase it is in.
+    /// Cancel: immediately ends the running dictation, whatever phase it is in.
     /// Stops audio capture, forces state to Idle, and ends the session so any
     /// ongoing start()/stop() and background task stands down. Does nothing while idle.
     pub fn abort(&self) {
         let state = self.current_state();
-        if state == PipelineState::Idle {
+        // An Ask is cancelled through its own flow.
+        if state == PipelineState::Idle || state.is_ask() {
             return;
         }
         tracing::info!("Pipeline abort requested (current state: {state:?})");
@@ -3201,7 +3220,11 @@ impl PipelineHandle {
         if voice_intent.kind != crate::voice_intent::VoiceIntentKind::DraftInsert {
             return Err("Ask draft execution requires a draft intent".to_string());
         }
-        if self.current_state() != PipelineState::Idle {
+        // The Ask that asked for this draft holds the session as AskThinking.
+        if !matches!(
+            self.current_state(),
+            PipelineState::Idle | PipelineState::AskThinking
+        ) {
             return Err("Another voice operation is already active".to_string());
         }
         let generation = self.session.begin();

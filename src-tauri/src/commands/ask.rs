@@ -288,11 +288,28 @@ pub enum PendingAskMessage {
     Error(String),
 }
 
-fn emit_capsule_state(app: &tauri::AppHandle, state: PipelineState) {
-    if let Some(pipeline) = app.try_state::<crate::pipeline::PipelineHandle>() {
-        pipeline.sync_escape_shortcut(state);
+/// Shows an Ask phase through the dictation session that the Ask holds; Idle gives it back.
+fn set_ask_phase(app: &tauri::AppHandle, state: PipelineState) {
+    let pipeline = app.state::<crate::pipeline::PipelineHandle>();
+    if state == PipelineState::Idle {
+        pipeline.end_ask();
+    } else {
+        pipeline.show_ask_phase(state);
     }
-    let _ = app.emit("pipeline:state", state);
+}
+
+/// Reserves the dictation session and the Ask state for a new Ask. False while a dictation
+/// or another Ask runs, so the two never record at the same time.
+pub(crate) fn try_reserve_ask(app: &tauri::AppHandle, state: &AskDictationState) -> bool {
+    let pipeline = app.state::<crate::pipeline::PipelineHandle>();
+    if !pipeline.begin_ask() {
+        return false;
+    }
+    if !state.try_begin_starting() {
+        pipeline.end_ask();
+        return false;
+    }
+    true
 }
 
 pub(crate) fn show_answer_window(
@@ -375,7 +392,7 @@ fn surface_async_recording_error(
     if let Some(mut session) = session {
         session.handle.stop();
     }
-    emit_capsule_state(app, PipelineState::Idle);
+    set_ask_phase(app, PipelineState::Idle);
     show_ask_error_window(app, &message);
 }
 
@@ -969,7 +986,7 @@ pub async fn start_ask_dictation(
     token_store: tauri::State<'_, SessionTokenStore>,
     client: tauri::State<'_, reqwest::Client>,
 ) -> Result<AskDictationStartResult, String> {
-    if !state.try_begin_starting() {
+    if !try_reserve_ask(&app, &state) {
         return Ok(AskDictationStartResult::empty());
     }
 
@@ -984,7 +1001,7 @@ pub async fn start_ask_flow(
     token_store: tauri::State<'_, SessionTokenStore>,
     client: tauri::State<'_, reqwest::Client>,
 ) -> Result<(), String> {
-    if !state.try_begin_starting() {
+    if !try_reserve_ask(&app, &state) {
         return Ok(());
     }
 
@@ -1012,6 +1029,7 @@ pub(crate) async fn start_reserved_ask_dictation(
         .unwrap_or_else(|error| error.into_inner())
         .generation;
     crate::capsule_window::capture_recording_monitor(&app);
+    let ask_app = app.clone();
     let result = async {
         let config = config_state.load().await.map_err(|e| e.to_string())?;
         let recording_context = app
@@ -1135,10 +1153,19 @@ pub(crate) async fn start_reserved_ask_dictation(
                 handle.stop();
             }
             let _ = provider.disconnect().await;
+            let still_this_ask = state
+                .0
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .generation
+                == generation;
+            if still_this_ask {
+                set_ask_phase(&app, PipelineState::Idle);
+            }
             return Ok(start_result);
         }
 
-        emit_capsule_state(&app, PipelineState::AskRecording);
+        set_ask_phase(&app, PipelineState::AskRecording);
         let _ = app.emit("recording:deadline", recording_deadline.event);
         let state_inner = state.0.clone();
         let deadline_state_inner = state.0.clone();
@@ -1333,6 +1360,7 @@ pub(crate) async fn start_reserved_ask_dictation(
             == generation
     {
         state.clear_starting();
+        set_ask_phase(&ask_app, PipelineState::Idle);
     }
     result
 }
@@ -1361,7 +1389,7 @@ pub async fn stop_ask_dictation(
 
     let work = async {
         session.handle.stop();
-        emit_capsule_state(&app, PipelineState::AskThinking);
+        set_ask_phase(&app, PipelineState::AskThinking);
 
         let finalize_timed_out = tokio::select! {
             _ = session.done.notified() => false,
@@ -1506,7 +1534,7 @@ pub async fn stop_ask_dictation(
         }
     };
     if current {
-        emit_capsule_state(&app, PipelineState::Idle);
+        set_ask_phase(&app, PipelineState::Idle);
         result
     } else {
         Err("Ask cancelled".to_string())
@@ -1542,7 +1570,7 @@ pub fn abort_ask_dictation(
     if let Some(mut session) = session {
         session.handle.stop();
     }
-    emit_capsule_state(&app, PipelineState::Idle);
+    set_ask_phase(&app, PipelineState::Idle);
     Ok(())
 }
 

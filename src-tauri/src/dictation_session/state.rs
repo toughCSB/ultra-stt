@@ -47,6 +47,11 @@ impl PipelineState {
         self != Self::Idle
     }
 
+    /// An Ask (질문) recording or answer owns the session.
+    pub(crate) fn is_ask(self) -> bool {
+        matches!(self, Self::AskRecording | Self::AskThinking)
+    }
+
     /// Enter (finish recording) is held only while recording, so it never swallows Enter in other apps.
     pub(crate) fn holds_enter(self) -> bool {
         self == Self::Recording

@@ -57,11 +57,6 @@ impl Phases {
         moved
     }
 
-    /// Syncs Escape for a phase that is not stored here (Ask runs its own phases for now).
-    pub(crate) fn hold_escape_for(&self, state: PipelineState) {
-        self.notifier.hold_escape(state.holds_escape());
-    }
-
     fn announce(&self, state: PipelineState) {
         self.notifier.hold_escape(state.holds_escape());
         self.notifier.hold_enter(state.holds_enter());

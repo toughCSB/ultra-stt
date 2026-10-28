@@ -661,3 +661,59 @@ async fn toggle_while_preparing_finishes_once_the_microphone_is_ready() {
         [("준비 중에 끝내기".to_string(), InsertionStrategy::Auto)]
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ask_cannot_take_the_session_while_dictating() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("받아쓰기 중");
+
+    scenario.session.start().await.unwrap();
+    assert!(!scenario.session.begin_ask());
+    scenario.session.end_ask();
+
+    assert_eq!(scenario.session.current_state(), PipelineState::Recording);
+    scenario.session.stop().await.unwrap();
+    assert_eq!(
+        scenario.keyboard.typed(),
+        [("받아쓰기 중".to_string(), InsertionStrategy::Auto)]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn dictation_requests_are_ignored_while_an_ask_holds_the_session() {
+    let scenario = Scenario::new();
+    scenario.recognizers.will_hear("Ask 이후 받아쓰기");
+
+    assert!(scenario.session.begin_ask());
+    scenario.session.show_ask_phase(PipelineState::AskRecording);
+    scenario.session.start().await.unwrap();
+    scenario.session.toggle().await.unwrap();
+    scenario.session.stop().await.unwrap();
+    scenario.session.abort();
+    assert_eq!(
+        scenario.session.current_state(),
+        PipelineState::AskRecording
+    );
+    scenario.session.show_ask_phase(PipelineState::AskThinking);
+    scenario.session.end_ask();
+
+    let notes = scenario.screen.take();
+    assert_eq!(
+        scenario.phases_shown(&notes),
+        [
+            PipelineState::AskRecording,
+            PipelineState::AskThinking,
+            PipelineState::Idle,
+        ]
+    );
+    assert!(notes.contains(&Note::Escape(true)));
+    assert!(scenario.keyboard.typed().is_empty());
+
+    scenario.session.start().await.unwrap();
+    assert_eq!(scenario.session.current_state(), PipelineState::Recording);
+    scenario.session.stop().await.unwrap();
+    assert_eq!(
+        scenario.keyboard.typed(),
+        [("Ask 이후 받아쓰기".to_string(), InsertionStrategy::Auto)]
+    );
+}
