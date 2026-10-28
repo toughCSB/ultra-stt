@@ -922,3 +922,20 @@ async fn a_recognizer_failure_during_an_ask_is_reported_once() {
     assert!(failures[0].contains("socket closed"), "{failures:?}");
     assert_eq!(scenario.session.current_state(), PipelineState::Idle);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_ask_question_gets_the_users_correction_rules() {
+    let scenario = Scenario::new();
+    scenario
+        .stores
+        .dictionary
+        .add_correction("따이프리스", "Typeless")
+        .await
+        .unwrap();
+    scenario.recognizers.will_hear("따이프리스 가격 알려줘");
+
+    let heard = scenario.ask().await.unwrap();
+    scenario.session.end_ask();
+
+    assert_eq!(heard.transcript, "Typeless 가격 알려줘");
+}

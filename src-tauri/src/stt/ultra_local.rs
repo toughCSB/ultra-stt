@@ -283,7 +283,7 @@ fn live_hotwords(words: &[String]) -> String {
 }
 
 /// User correction rules (pattern -> replacement), applied before text is typed.
-fn apply_corrections(text: &str, rules: &[(String, String)]) -> String {
+pub(crate) fn apply_corrections(text: &str, rules: &[(String, String)]) -> String {
     rules
         .iter()
         .filter(|(pattern, _)| !pattern.is_empty())

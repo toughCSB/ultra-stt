@@ -242,7 +242,7 @@ impl PipelineHandle {
     }
 
     /// Stops the Ask recording and returns what the recognizer heard, waiting up to
-    /// 12 seconds for the last words.
+    /// 12 seconds for the last words. The user's correction rules are applied to it.
     pub(crate) async fn finish_ask_recording(&self) -> std::result::Result<AskHeard, String> {
         let mut take = self
             .ask_take
@@ -261,6 +261,14 @@ impl PipelineHandle {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone();
+        let corrections = self
+            .stores
+            .correction_rules()
+            .await
+            .into_iter()
+            .map(|rule| (rule.pattern, rule.replacement))
+            .collect::<Vec<_>>();
+        let transcript = stt::ultra_local::apply_corrections(&transcript, &corrections);
         let error = take.error.lock().unwrap_or_else(|e| e.into_inner()).clone();
         Ok(AskHeard {
             context: take.context,
