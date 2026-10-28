@@ -14,8 +14,6 @@ import {
   fetchLlmModels,
   getLatestMappingCandidate,
   listCustomAppMappings,
-  readCredential,
-  setCredential,
 } from '../../lib/tauri'
 import type { CustomAppMappingView, MappingCandidateView } from '../../lib/tauri'
 import { FormField } from './shared/FormField'
@@ -33,7 +31,7 @@ import { ContextAdaptationApps } from './ContextAdaptationApps'
 import { TranslationTargets } from './TranslationTargets'
 import { AppStyleMappingDialog } from './AppStyleMappingDialog'
 import { ManageAppMappingsDialog } from './ManageAppMappingsDialog'
-import { errorMessage } from '../../lib/errors'
+import { useStoredCredential } from '../../hooks/useStoredCredential'
 
 export function LlmPane() {
   const config = useAppStore((s) => s.config)
@@ -54,11 +52,20 @@ export function LlmPane() {
   const setModels = useAppStore((s) => s.setLlmModels)
   const [fetchingModels, setFetchingModels] = useState(false)
   const [testErrorMessage, setTestErrorMessage] = useState<string | null>(null)
-  const [credentialErrorMessage, setCredentialErrorMessage] = useState<string | null>(null)
   const [polishAdvancedOpen, setPolishAdvancedOpen] = useState(hasCustomPolishConfig)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const credentialSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [llmApiKey, setLlmApiKey] = useState(config.llm_api_key)
+  const {
+    draft: llmApiKey,
+    setDraft: setLlmApiKey,
+    saveError: credentialErrorMessage,
+    setSaveError: setCredentialErrorMessage,
+    persist: persistLlmCredential,
+  } = useStoredCredential({
+    namespace: 'llm',
+    provider: config.llm_provider,
+    enabled: requiresApiKey,
+    legacyKey: config.llm_api_key,
+  })
   const [mappingCandidate, setMappingCandidate] = useState<MappingCandidateView | null>(null)
   const [appMappings, setAppMappings] = useState<CustomAppMappingView[]>([])
   const [appStyleMenuOpen, setAppStyleMenuOpen] = useState(false)
@@ -124,46 +131,6 @@ export function LlmPane() {
   useEffect(() => {
     if (hasCustomPolishConfig) setPolishAdvancedOpen(true)
   }, [hasCustomPolishConfig])
-
-  useEffect(() => {
-    if (!requiresApiKey) {
-      setLlmApiKey('')
-      setCredentialErrorMessage(null)
-      return
-    }
-
-    let cancelled = false
-    const legacyApiKey = config.llm_api_key
-    setLlmApiKey(legacyApiKey)
-    setCredentialErrorMessage(null)
-    readCredential('llm', config.llm_provider)
-      .then((secret) => {
-        if (!cancelled) setLlmApiKey(legacyApiKey || secret || '')
-      })
-      .catch((error) => console.error('[credentials] failed to read LLM credential', error))
-
-    return () => {
-      cancelled = true
-    }
-  }, [config.llm_api_key, config.llm_provider, requiresApiKey])
-
-  const persistLlmCredential = useCallback(
-    (value: string, delayMs = 350) => {
-      if (!requiresApiKey) return
-      if (credentialSaveRef.current) clearTimeout(credentialSaveRef.current)
-      credentialSaveRef.current = setTimeout(() => {
-        credentialSaveRef.current = null
-        setCredential('llm', config.llm_provider, value)
-          .then(() => setCredentialErrorMessage(null))
-          .catch((error) => {
-            const message = errorMessage(error)
-            setCredentialErrorMessage(message)
-            console.error('[credentials] failed to save LLM credential', error)
-          })
-      }, delayMs)
-    },
-    [config.llm_provider, requiresApiKey],
-  )
 
   const doFetchModels = useCallback(
     async (apiKey: string, provider: string, baseUrl: string) => {

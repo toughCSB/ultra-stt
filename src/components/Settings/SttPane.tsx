@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isMacPlatform, useAppStore } from '../../stores/appStore'
 import {
@@ -15,14 +15,12 @@ import {
   benchSttConnection,
   getSttRecordingCapability,
   getSttProviderDiagnostics,
-  readCredential,
-  setCredential,
   type ResolvedSttRecordingLimit,
   type SttProviderDiagnostics,
 } from '../../lib/tauri'
 import { FormField } from './shared/FormField'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
-import { errorMessage } from '../../lib/errors'
+import { useStoredCredential } from '../../hooks/useStoredCredential'
 
 const RECORDING_LIMIT_PRESETS = [30, 60, 120, 300, 600, 1800, 3600]
 const MIN_CUSTOM_RECORDING_SECONDS = 30
@@ -48,7 +46,6 @@ export function SttPane() {
   const platformCapabilities = useAppStore((s) => s.platformCapabilities)
   const { t } = useTranslation()
   const [testErrorMessage, setTestErrorMessage] = useState<string | null>(null)
-  const [credentialErrorMessage, setCredentialErrorMessage] = useState<string | null>(null)
   const [recordingLimit, setRecordingLimit] = useState<ResolvedSttRecordingLimit | null>(null)
   const [customDurationEntryRequested, setCustomDurationEntryRequested] = useState(false)
 
@@ -61,8 +58,18 @@ export function SttPane() {
   const legacyApiKey = isCustomWhisper ? config.stt_custom_api_key : config.stt_api_key
   const volcengineResourceId =
     config.stt_volcengine_resource_id || VOLCENGINE_STT_RESOURCES[0].value
-  const credentialSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [apiKeyDraft, setApiKeyDraft] = useState(legacyApiKey)
+  const {
+    draft: apiKeyDraft,
+    setDraft: setApiKeyDraft,
+    saveError: credentialErrorMessage,
+    setSaveError: setCredentialErrorMessage,
+    persist: persistSttCredential,
+  } = useStoredCredential({
+    namespace: 'stt',
+    provider: credentialProvider,
+    enabled: !isAppleSpeech && !isUltraLocal,
+    legacyKey: legacyApiKey,
+  })
   const [sttDiagnostics, setSttDiagnostics] = useState<SttProviderDiagnostics | null>(null)
   const supportsAppleSpeech = platformCapabilities
     ? platformCapabilities.os === 'macos'
@@ -77,27 +84,6 @@ export function SttPane() {
     : isCustomWhisper
       ? Boolean(config.stt_custom_base_url.trim() && config.stt_custom_model.trim())
       : Boolean(apiKeyDraft)
-  useEffect(() => {
-    if (isAppleSpeech || isUltraLocal) {
-      setApiKeyDraft('')
-      setCredentialErrorMessage(null)
-      return
-    }
-
-    let cancelled = false
-    setApiKeyDraft(legacyApiKey)
-    setCredentialErrorMessage(null)
-    readCredential('stt', credentialProvider)
-      .then((secret) => {
-        if (!cancelled) setApiKeyDraft(legacyApiKey || secret || '')
-      })
-      .catch((error) => console.error('[credentials] failed to read STT credential', error))
-
-    return () => {
-      cancelled = true
-    }
-  }, [credentialProvider, isAppleSpeech, isUltraLocal, legacyApiKey])
-
   useEffect(() => {
     if (!isCustomWhisper && !isAppleSpeech) {
       setSttDiagnostics(null)
@@ -167,24 +153,6 @@ export function SttPane() {
       setCustomDurationEntryRequested(false)
     }
   }, [config.recording_limit_mode])
-
-  const persistSttCredential = useCallback(
-    (value: string, delayMs = 350) => {
-      if (isAppleSpeech || isUltraLocal) return
-      if (credentialSaveRef.current) clearTimeout(credentialSaveRef.current)
-      credentialSaveRef.current = setTimeout(() => {
-        credentialSaveRef.current = null
-        setCredential('stt', credentialProvider, value)
-          .then(() => setCredentialErrorMessage(null))
-          .catch((error) => {
-            const message = errorMessage(error)
-            setCredentialErrorMessage(message)
-            console.error('[credentials] failed to save STT credential', error)
-          })
-      }, delayMs)
-    },
-    [credentialProvider, isAppleSpeech, isUltraLocal],
-  )
 
   const handleTest = async () => {
     setSttTestStatus('testing')
