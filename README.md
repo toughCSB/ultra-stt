@@ -3,13 +3,16 @@
 </p>
 
 <h1 align="center">Ultra STT</h1>
+
+> **October 29 update:** Desktop **1.1.73 is installed on SB, Home and Mac**, and **1.1.73-android.14 on Fold7**. Settings offers two large STT engine cards, explicit API-key saving with a locked saved state, and connection tests. Desktop cleanup offers three GPT models and two local Claude Code models; Grok 4.7 remains disabled pending safe CLI support. Mobile keeps its OpenAI API workflow. Existing settings, authentication, history and recovery audio are preserved. GitHub downloads are unchanged. [Setup, routing and verification limits](docs/2026-10-29-model-selection-and-key-status.md) · [Mobile drag verification](docs/2026-10-29-engine-cards-and-mobile-drag.md).
+
 <p align="center"><strong>Your voice. Your words. Your cursor.</strong></p>
 <p align="center">
   Personal voice input for Windows, macOS, and Android.<br />
   Local Whisper recognition, optional AI cleanup, and direct text insertion.
 </p>
 <p align="center">
-  <strong>Source v1.1.70</strong> · Windows x64 · macOS Apple Silicon · MIT
+  <strong>Source v1.1.73</strong> · Windows x64 · macOS Apple Silicon · MIT
 </p>
 <p align="center">
   English · <a href="README_ko.md">한국어</a> ·
@@ -27,6 +30,13 @@
 > **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
 
 ## Update history
+
+### October 29, 2026 · v1.1.73 · Engine and model selection, saved-key feedback
+
+- Choose existing Whisper or direct GPT Transcribe, then separately choose desktop cleanup: GPT-6.1 Sol/Terra, GPT-6 Luna, Claude Haiku/Sonnet 5.5. Claude uses the computer's existing CLI; no Anthropic API key is added. Grok 4.7 is visibly unavailable, not silently substituted.
+- API keys require explicit Save, then show a masked saved state. Modify opens an empty editor; cancellation or failure preserves the previous key. Connection results distinguish metadata/authentication checks from actual CLI responses.
+- Desktop remote Whisper returns raw text for cleanup on the current computer. Mobile retains GPT Transcribe + GPT-6 Luna API or its existing SB route, including the corrected free-drag behavior.
+- Installed on all four devices. Fresh synthetic FP16 transcription took 609ms for 3.255s audio; earlier intermittent slowness was not reproduced, not declared permanently fixed. New physical voice/cursor acceptance and Mac Claude authentication remain separate checks. [Evidence and limits](docs/2026-10-29-model-selection-and-key-status.md).
 
 ### October 20, 2026 · v1.1.70 · Task-based reasoning effort
 
@@ -74,16 +84,16 @@ A new mode types **words at the cursor while you speak**, instead of waiting for
 </p>
 <p align="center"><em>Left: live typing (orange). Right: the ⚡ switch in the green dictation capsule. Captured from the installed SB app on October 13, 2026.</em></p>
 
-| Feature | Behavior |
-| --- | --- |
-| Start and stop | Press the live typing shortcut (default `Ctrl+Alt+Space` on Windows, `Cmd+Shift+Space` on Mac) and speak; words appear 0.5–1.5 s later. Press it again or **Enter** to finish; **Esc** cancels. |
+| Feature             | Behavior                                                                                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Start and stop      | Press the live typing shortcut (default `Ctrl+Alt+Space` on Windows, `Cmd+Shift+Space` on Mac) and speak; words appear 0.5–1.5 s later. Press it again or **Enter** to finish; **Esc** cancels.                                              |
 | How words are typed | Local Whisper large-v3 re-recognizes the current sentence about every 0.45 s and types **only words two consecutive passes agree on**, so typed text rarely needs correction. A 0.7 s pause flushes the rest of the sentence. No AI cleanup. |
-| Recognition fixes | Dictionary words are passed as recognition hints and correction rules are applied before typing. Select a word and press `Ctrl+Alt+W` to add it to the dictionary. |
-| Auto stop | Ends after **30 s** without speech by default (off, 15, 30, 60, 120 s). |
-| Switching modes | While recording, the capsule's ⚡ button switches to live typing and **STT** switches back. The current take is discarded and recording restarts in the other mode. |
-| Enter to finish | In both modes, **Enter** ends the recording. Enter is held only while recording. |
-| Mac and Home | Remote clients recognize on SB's Whisper through a new live endpoint (`/v1/audio/live`, existing token authentication). |
-| Recovery storage | When saved failed recordings reach 20 / 512 MB, **the oldest is removed so recording continues** instead of being blocked. |
+| Recognition fixes   | Dictionary words are passed as recognition hints and correction rules are applied before typing. Select a word and press `Ctrl+Alt+W` to add it to the dictionary.                                                                           |
+| Auto stop           | Ends after **30 s** without speech by default (off, 15, 30, 60, 120 s).                                                                                                                                                                      |
+| Switching modes     | While recording, the capsule's ⚡ button switches to live typing and **STT** switches back. The current take is discarded and recording restarts in the other mode.                                                                          |
+| Enter to finish     | In both modes, **Enter** ends the recording. Enter is held only while recording.                                                                                                                                                             |
+| Mac and Home        | Remote clients recognize on SB's Whisper through a new live endpoint (`/v1/audio/live`, existing token authentication).                                                                                                                      |
+| Recovery storage    | When saved failed recordings reach 20 / 512 MB, **the oldest is removed so recording continues** instead of being blocked.                                                                                                                   |
 
 <p align="center">
   <img src="docs/images/v1.1.65-home-live-card.png" width="760" alt="Home page: orange live typing card below the cleanup modes, shortcut Shift+Left, auto stop set to 30 s" />
@@ -104,13 +114,13 @@ A new mode types **words at the cursor while you speak**, instead of waiting for
 
 This source version collects the recent reliability and usability work. Version 1.1.64 avoids reusing the separate Mac 1.1.63 build number. **Source versions, installed apps, and published release downloads are distinct.**
 
-| Change | What it does |
-| --- | --- |
-| Recording position | Every new recording starts at the **primary monitor's bottom center**. Dragging moves the capsule for the current recording, transcription and cleanup only. |
-| Single-key shortcuts | Letters, digits and punctuation can be assigned without Ctrl. Duplicate and failed OS registrations are handled. Choose unused keys: global single-key shortcuts can intercept normal typing. |
-| Windows startup | Use **Settings → General → Launch at startup → Save**. Enabled registrations follow the installed executable; existing opt-outs are preserved. |
-| Safer selection queries | UI Automation runs in an isolated helper that can recover from provider stalls. Windows selection lookup no longer sends Ctrl+C to terminals. Unsupported editors still have selection compatibility limits. |
-| Failed-input recovery | A changed target blocks stale insertion and offers manual copying. Desktop keeps the latest 20 results; Android keeps one, in memory only until exit. No automatic reinsertion. |
+| Change                  | What it does                                                                                                                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Recording position      | Every new recording starts at the **primary monitor's bottom center**. Dragging moves the capsule for the current recording, transcription and cleanup only.                                                                                           |
+| Single-key shortcuts    | Letters, digits and punctuation can be assigned without Ctrl. Duplicate and failed OS registrations are handled. Choose unused keys: global single-key shortcuts can intercept normal typing.                                                          |
+| Windows startup         | Use **Settings → General → Launch at startup → Save**. Enabled registrations follow the installed executable; existing opt-outs are preserved.                                                                                                         |
+| Safer selection queries | UI Automation runs in an isolated helper that can recover from provider stalls. Windows selection lookup no longer sends Ctrl+C to terminals. Unsupported editors still have selection compatibility limits.                                           |
+| Failed-input recovery   | A changed target blocks stale insertion and offers manual copying. Desktop keeps the latest 20 results; Android keeps one, in memory only until exit. No automatic reinsertion.                                                                        |
 | Android button movement | Keeps .10's **immediate drag to move / stationary long-press, vibration, then drag to choose a mode**. A 56dp circle, 64dp touch area, 74% opacity and higher default placement reduce overlap with the composer. .11 aligns the package version only. |
 
 **Historical deployment boundary:** The October 7 packages were not installed then. On **October 11, SB, Home and Mac received the updated 1.1.64 build**, including the previously isolated Mac fixes. This update does not replace the Galaxy app or published release downloads. Existing screenshots retain their original capture versions.
@@ -128,8 +138,8 @@ This source version collects the recent reliability and usability work. Version 
 
 ## Android: your keyboard, a smaller voice panel
 
-| Hold to reveal five modes | Drag and release to choose | Record without the keyboard |
-| :---: | :---: | :---: |
+|                                                                                                 Hold to reveal five modes                                                                                                  |                                                                                  Drag and release to choose                                                                                  |                                                                                                       Record without the keyboard                                                                                                       |
+| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | <a href="docs/images/android-radial-modes.png"><img src="docs/images/android-radial-modes.png" width="240" alt="Five differently colored mode icons unfold around the microphone over an existing Android keyboard" /></a> | <a href="docs/images/android-mode-drag.png"><img src="docs/images/android-mode-drag.png" width="240" alt="Dragging toward Structured highlights its blue list icon with a white ring" /></a> | <a href="docs/images/android-recording-chatgpt.png"><img src="docs/images/android-recording-chatgpt.png" width="240" alt="The keyboard is hidden and the green recording panel displays Structured mode, timer, stop and cancel" /></a> |
 
 **Press and hold → slide toward an icon → release.** The highlighted icon selects the cleanup style; the microphone's full color reflects the selection. These screenshots show .9. The .10 follow-up adds **immediate drag to reposition**; holding still until haptic feedback opens the mode picker instead. The button is larger, more transparent, and higher above the composer. [Changes and verification](docs/2026-10-04-bubble-usability-review.md). Published release downloads are still .9.
@@ -137,8 +147,8 @@ This source version collects the recent reliability and usability work. Version 
 <details>
 <summary>See the idle microphone and the in-recording mode picker</summary>
 
-| Existing keyboard + idle microphone | Change style while recording |
-| :---: | :---: |
+|                                                                          Existing keyboard + idle microphone                                                                           |                                                                                                    Change style while recording                                                                                                     |
+| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | <a href="docs/images/android-idle-mic.png"><img src="docs/images/android-idle-mic.png" width="260" alt="An existing Samsung keyboard and a blue microphone for Structured mode" /></a> | <a href="docs/images/android-recording-mode-picker.png"><img src="docs/images/android-recording-mode-picker.png" width="260" alt="The recording panel expands to list Original, Minimal, Clean, Structured and Professional" /></a> |
 
 </details>
@@ -147,13 +157,13 @@ Actual Galaxy Android .9 screenshots, October 3, 2026, above a new ChatGPT compo
 
 **Panel anatomy:** original Ultra STT wordmark and × at the top; animated microphone, status and elapsed time in the middle; current mode with a dropdown; a large stop button at the bottom. The keyboard hides when recording starts. Tap the mode name to open the five full-name choices without leaving the panel.
 
-| Step | What happens |
-| --- | --- |
-| Start | Tap the small microphone in the active editor. The text keyboard hides and the green central panel opens. |
-| Speak | See the current mode, elapsed time and pulsing microphone. Tap the mode name to change style. |
-| Finish | Tap Stop recording. Processing is shown and repeat taps cannot submit twice. |
+| Step    | What happens                                                                                                                              |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Start   | Tap the small microphone in the active editor. The text keyboard hides and the green central panel opens.                                 |
+| Speak   | See the current mode, elapsed time and pulsing microphone. Tap the mode name to change style.                                             |
+| Finish  | Tap Stop recording. Processing is shown and repeat taps cannot submit twice.                                                              |
 | Deliver | Text is handed to the original editor; a completion notice stays for 1.2 seconds, then the panel closes. It does not send a chat message. |
-| Cancel | Tap × or leave the app. A changed editor or cursor prevents stale insertion. |
+| Cancel  | Tap × or leave the app. A changed editor or cursor prevents stale insertion.                                                              |
 
 Five full-button colors and the idle long-press semicircle mode selector remain. The panel is now 264dp wide with a more translucent background and the original wordmark. ChatGPT/Grok widget-entry detection, delayed editor detection and keyboard-hide transitions are improved. Paired IP routing needs no Tailscale DNS.
 
@@ -199,11 +209,11 @@ Cleanup still takes seconds depending on the request and network. Fast mode and 
 
 Use [Personal Preview 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2). Repository access is required; downloads do not contain server credentials or models. Windows/Mac assets are byte-for-byte unchanged from Preview 1; this release updates Android and documentation only.
 
-| Device | Download | First setup |
-| --- | --- | --- |
-| Windows x64 | `Ultra-STT-1.1.62-windows-x64-setup.exe` | Install; configure a speech provider or pair with your server. Use the shortcut saved in Settings; existing bindings are preserved. |
-| Apple Silicon Mac | `Ultra-STT-1.1.62-macos-arm64.zip` | Extract the app into Applications; explicitly allow microphone and Accessibility; configure the server. |
-| Android (min SDK 28) | `Ultra-STT-1.1.62-android.9-debug.apk` | Update without uninstalling; existing pairing remains. New devices pair once and allow microphone/accessibility. Keep your normal keyboard. [Steps and tested device](android/README.md). |
+| Device               | Download                                 | First setup                                                                                                                                                                               |
+| -------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows x64          | `Ultra-STT-1.1.62-windows-x64-setup.exe` | Install; configure a speech provider or pair with your server. Use the shortcut saved in Settings; existing bindings are preserved.                                                       |
+| Apple Silicon Mac    | `Ultra-STT-1.1.62-macos-arm64.zip`       | Extract the app into Applications; explicitly allow microphone and Accessibility; configure the server.                                                                                   |
+| Android (min SDK 28) | `Ultra-STT-1.1.62-android.9-debug.apk`   | Update without uninstalling; existing pairing remains. New devices pair once and allow microphone/accessibility. Keep your normal keyboard. [Steps and tested device](android/README.md). |
 
 This is a **personal prerelease**, not a store release: Windows is unsigned, Mac is ad-hoc signed and not notarized, and Android is a debug APK. Check `SHA256SUMS.txt` against your download; a checksum checks file integrity, not a trusted publisher signature. Follow OS warnings rather than globally disabling security protections. Updates are manual; no signed `latest.json` automatic-update feed is published. Android updates must retain the signing key and app data. Intel Mac, Linux, Windows ARM, native iOS, and offline phone inference are not released targets.
 
@@ -218,24 +228,24 @@ This is a **personal prerelease**, not a store release: Windows is unsigned, Mac
 
 Shortcuts are customizable; existing installations retain their own bindings. Source defaults are:
 
-| Workflow | Windows | macOS |
-| --- | --- | --- |
-| Dictation | `Ctrl+/` | `Fn` |
-| Ask Anything | `Ctrl+.` | `Fn+Space` |
-| Translation | `Ctrl+Shift+/` | `Fn+LeftShift` |
-| Cancel active capture/processing | `Esc` | `Esc` |
+| Workflow                         | Windows        | macOS          |
+| -------------------------------- | -------------- | -------------- |
+| Dictation                        | `Ctrl+/`       | `Fn`           |
+| Ask Anything                     | `Ctrl+.`       | `Fn+Space`     |
+| Translation                      | `Ctrl+Shift+/` | `Fn+LeftShift` |
+| Cancel active capture/processing | `Esc`          | `Esc`          |
 
 Windows defaults to hold-to-talk; macOS defaults to toggle. Each workflow can have up to three bindings. The screenshot shows configured shortcuts, not a mandatory setup.
 
 ## Choose how much AI changes
 
-| Style | Behavior | Useful for |
-| --- | --- | --- |
-| **Original** | Correct clear recognition/spelling/spacing errors and meaningless fillers; preserve wording, order, tone, emphasis, and layout. No automatic outlines or paragraph restructuring. | Faithful dictation |
-| **Minimal** | Preserve the speaker's words; add punctuation and natural sentence breaks, remove obvious fillers. | Everyday fast dictation |
-| **Clean** | Lightly improve phrasing and word order without changing facts or information density. | Messages and notes |
-| **Structured** | Organize multiple distinct items into an outline, with headings when useful; do not invent facts. | Tasks and meeting points |
-| **Professional** | Concise work communication without empty pleasantries or unnecessary expansion. | Emails and reports |
+| Style            | Behavior                                                                                                                                                                          | Useful for               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Original**     | Correct clear recognition/spelling/spacing errors and meaningless fillers; preserve wording, order, tone, emphasis, and layout. No automatic outlines or paragraph restructuring. | Faithful dictation       |
+| **Minimal**      | Preserve the speaker's words; add punctuation and natural sentence breaks, remove obvious fillers.                                                                                | Everyday fast dictation  |
+| **Clean**        | Lightly improve phrasing and word order without changing facts or information density.                                                                                            | Messages and notes       |
+| **Structured**   | Organize multiple distinct items into an outline, with headings when useful; do not invent facts.                                                                                 | Tasks and meeting points |
+| **Professional** | Concise work communication without empty pleasantries or unnecessary expansion.                                                                                                   | Emails and reports       |
 
 **Original is still AI cleanup**, not raw STT. Disable AI cleanup to receive the recognizer's text without that step. Explicit editing, translation, scenes, and custom instructions have their own operation rules.
 
@@ -243,29 +253,29 @@ Click a Home card, choose **AI cleanup mode** in the tray context menu, or open 
 
 ## Screenshots
 
-| ChatGPT subscription cleanup | Shortcut and output controls |
-| --- | --- |
+| ChatGPT subscription cleanup                                                                                                                | Shortcut and output controls                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | <img src="docs/images/ultra-stt-ai-settings.png" width="440" alt="Actual Ultra STT AI settings: Codex CLI, gpt-6-luna and Minimal style" /> | <img src="docs/images/ultra-stt-shortcuts.png" width="440" alt="Actual Ultra STT shortcut settings, toggle capture and keyboard output" /> |
 
 These are real Windows captures, cropped to the app content—not generated UI mockups. No API keys or transcription bodies are shown. The illustrated mode assets are AI-generated; their provenance is documented [here](docs/polish-mode-assets.md).
 
 ## Features
 
-| Area | Implemented capabilities |
-| --- | --- |
-| Capture | Selectable microphone, global hotkeys, hold/toggle mode, floating capsule, idle auto-hide, cancellation |
-| Output | Keyboard simulation, automatic clipboard paste, copy-only option, target-app guard, fallback warnings |
-| AI | Five cleanup styles, custom instructions, application-aware writing, per-app mappings |
-| Editing | Spoken instructions for selected text: rewrite, fix, shorten, summarize, or translate |
-| Ask Anything | One-shot voice question, floating answer note, copy support; not a persistent chat |
-| Translation | Dedicated shortcut and configurable target languages |
-| Dictionary | Local terms, import/export, enabled correction rules, create a correction from history |
-| Scenes | Built-in/custom writing scenes and import/export |
-| History | SQLite storage, raw/final text search, date filtering, copy, clear with confirmation, insertion-status diagnostics |
-| Home | Today count, interactive 14-day activity, current provider/output settings, last processing timing |
-| Desktop | Dark/light/system themes, auto-start, tray show/hide toggle, branded microphone taskbar/tray icons |
-| Remote | Private-tailnet browser recorder and Mac desktop `ultra-remote` preset |
-| Localization | Ten UI locales; some advanced copy still falls back to English |
+| Area         | Implemented capabilities                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Capture      | Selectable microphone, global hotkeys, hold/toggle mode, floating capsule, idle auto-hide, cancellation            |
+| Output       | Keyboard simulation, automatic clipboard paste, copy-only option, target-app guard, fallback warnings              |
+| AI           | Five cleanup styles, custom instructions, application-aware writing, per-app mappings                              |
+| Editing      | Spoken instructions for selected text: rewrite, fix, shorten, summarize, or translate                              |
+| Ask Anything | One-shot voice question, floating answer note, copy support; not a persistent chat                                 |
+| Translation  | Dedicated shortcut and configurable target languages                                                               |
+| Dictionary   | Local terms, import/export, enabled correction rules, create a correction from history                             |
+| Scenes       | Built-in/custom writing scenes and import/export                                                                   |
+| History      | SQLite storage, raw/final text search, date filtering, copy, clear with confirmation, insertion-status diagnostics |
+| Home         | Today count, interactive 14-day activity, current provider/output settings, last processing timing                 |
+| Desktop      | Dark/light/system themes, auto-start, tray show/hide toggle, branded microphone taskbar/tray icons                 |
+| Remote       | Private-tailnet browser recorder and Mac desktop `ultra-remote` preset                                             |
+| Localization | Ten UI locales; some advanced copy still falls back to English                                                     |
 
 Advanced workflows depend on the selected providers. The personal Mac remote path forwards cleanup style and AI enablement, **not** all client-side scene, dictionary, selected-text, or translation settings. See [scope and limits](docs/FEATURES.md).
 
@@ -277,19 +287,19 @@ The chart uses the latest loaded records, **up to 200**, rather than pretending 
 
 ## Technical snapshot
 
-| Layer | Current implementation |
-| --- | --- |
-| Desktop shell | Tauri 2.11.2, Rust 2021; Rust minimum 1.87 |
-| UI | React 19, TypeScript 5.8, Vite 8, Tailwind CSS 4, Zustand 5, i18next |
-| Audio / output | `cpal` capture, Rust output adapters, Windows SendInput / macOS native paste |
-| Persistence | SQLite history/dictionary; local app configuration and credential-vault integration |
-| Personal recognition | `faster-whisper 1.2.1` + `CTranslate2 4.8.1`, Whisper large-v3, CUDA float16, beam size 5, VAD |
-| Personal cleanup | `codex-cli`, ChatGPT subscription authentication, `gpt-6-luna` |
-| Codex service tier | Every request made through this adapter asks for `service_tier="priority"` (Fast) |
-| Reasoning | Medium for simple short dictation; High for complex/terminology-sensitive operations |
-| Private remote transport | Tailscale Serve HTTPS, same-owner checks, existing Bearer authentication |
-| Validated desktop targets | Windows x64 and macOS arm64 |
-| Mobile status | Android floating voice button, five full-button mode colors and radial drag selection; real speech insertion confirmed in the app test field. Other editors require verification. iOS uses browser copy/share |
+| Layer                     | Current implementation                                                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop shell             | Tauri 2.11.2, Rust 2021; Rust minimum 1.87                                                                                                                                                                    |
+| UI                        | React 19, TypeScript 5.8, Vite 8, Tailwind CSS 4, Zustand 5, i18next                                                                                                                                          |
+| Audio / output            | `cpal` capture, Rust output adapters, Windows SendInput / macOS native paste                                                                                                                                  |
+| Persistence               | SQLite history/dictionary; local app configuration and credential-vault integration                                                                                                                           |
+| Personal recognition      | `faster-whisper 1.2.1` + `CTranslate2 4.8.1`, Whisper large-v3, CUDA float16, beam size 5, VAD                                                                                                                |
+| Personal cleanup          | `codex-cli`, ChatGPT subscription authentication, `gpt-6-luna`                                                                                                                                                |
+| Codex service tier        | Every request made through this adapter asks for `service_tier="priority"` (Fast)                                                                                                                             |
+| Reasoning                 | Medium for simple short dictation; High for complex/terminology-sensitive operations                                                                                                                          |
+| Private remote transport  | Tailscale Serve HTTPS, same-owner checks, existing Bearer authentication                                                                                                                                      |
+| Validated desktop targets | Windows x64 and macOS arm64                                                                                                                                                                                   |
+| Mobile status             | Android floating voice button, five full-button mode colors and radial drag selection; real speech insertion confirmed in the app test field. Other editors require verification. iOS uses browser copy/share |
 
 No minimum VRAM/RAM benchmark is claimed. The personal GPU route needs a compatible NVIDIA CUDA environment and separately downloaded model files. Other STT integrations include Apple Speech, Whisper-compatible endpoints, Deepgram, AssemblyAI, Aliyun Qwen3, and Volcengine; availability and credentials are provider-dependent, not all personally acceptance-tested.
 

@@ -1,6 +1,6 @@
 # Ultra STT Android 작은 음성 버튼
 
-현재 소스 버전: **1.1.64-android.11** (`versionCode=11`), 패키지 `com.ultrastt.androidvoice`. .10의 기능을 유지하면서 프로젝트 버전 번호를 맞췄다. 기존 갤럭시 설치는 **1.1.62-android.10**이며 이 소스 업데이트만으로 앱이 교체되지 않는다.
+현재 소스·Fold7 설치 버전: **1.1.73-android.14** (`versionCode=14`), 패키지 `com.ultrastt.androidvoice`. 두 엔진 선택 카드, 버튼 자유 이동, API 키 저장 완료·수정 상태와 연결 테스트를 적용했다. 실제 Google 검색창의 아래·가로 이동, 위치 유지, 취소, 모드 메뉴 검사를 통과한 수정도 포함한다. 모바일 OpenAI 경로는 GPT Transcribe + GPT-6 Luna를 유지하며 Claude·Grok API 키를 추가하지 않았다. [최신 설정·설치·검증 범위](../docs/2026-10-29-model-selection-and-key-status.md) · [버튼 원인·실기 검증](../docs/2026-10-29-engine-cards-and-mobile-drag.md).
 GitHub `v1.1.62-personal.2`의 다운로드는 아직 **.9**이며 .10 파일로 교체하지 않았다. 이전 릴리스 파일·태그는 그대로 보존한다. [버튼 수정·성능 검토·검증 범위](../docs/2026-10-04-bubble-usability-review.md).
 
 [APK 다운로드: 개인 프리뷰 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2) · [왜 이런 구조인지 쉬운 설명](../README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기)
@@ -13,8 +13,8 @@ GitHub `v1.1.62-personal.2`의 다운로드는 아직 **.9**이며 .10 파일로
 
 - **한 번 터치:** 녹음 시작.
 - **녹음 시작:** 텍스트 키보드가 접히고 화면 중앙에 반투명 녹색 녹음창이 나타난다.
-- **중앙창의 녹음 종료:** 기존 개인 PC 서버에서 전사·다듬기 → 원래 커서에 입력 요청 → `전송 완료`를 1.2초 표시한 뒤 창이 사라진다.
-- **누른 뒤 바로 드래그:** 버튼 위치 이동. 위치는 저장되며 앱 설정의 `마이크 위치 초기화`로 복원한다.
+- **중앙창의 녹음 종료:** 선택한 엔진에서 전사·다듬기 → 원래 커서에 입력 요청 → `전송 완료`를 1.2초 표시한 뒤 창이 사라진다.
+- **누른 뒤 바로 드래그:** 화면 안전 영역 안에서 버튼 위치를 자유롭게 이동한다. 입력칸 높이나 플로팅 키보드 창 크기로 이동을 막지 않는다. 위치는 저장되며 앱 설정의 `마이크 위치 초기화`로 복원한다.
 - **가만히 길게 누른 뒤 드래그:** 진동 후 반원으로 다섯 아이콘이 펼쳐진다. 원하는 아이콘으로 이동해 손을 떼면 선택한다. 왼쪽에 둔 버튼의 메뉴는 오른쪽으로 열린다.
 - 현재 선택에는 흰 테두리, 드래그 대상에는 더 굵은 테두리·확대·진동·모드 이름을 표시한다.
 - 중앙에서 손을 떼거나 반원 밖으로 드래그하면 모드를 바꾸지 않는다. 길게 누른 동작이 녹음 시작으로 이어지지 않는다.
@@ -25,22 +25,22 @@ GitHub `v1.1.62-personal.2`의 다운로드는 아직 **.9**이며 .10 파일로
 - 입력하지 못한 마지막 문장은 녹음/앱 설정 화면에서 복사·지울 수 있다. 메모리에만 보관하며 프로세스 종료 시 사라진다.
 - 대기 원형 버튼은 56dp, 터치 영역은 64dp, 불투명도는 74%다. 녹음창은 녹색으로 통일하고 모드 이름을 명시한다.
 
-| 모드 | 버튼 전체 색 | 반원 메뉴 아이콘 |
-| --- | --- | --- |
-| 원문 | 녹색 `#20A044` | 음성 파형 |
-| 최소 | 청록 `#008C78` | 지우개 |
-| 깔끔하게 | 푸른 청록 `#007EA8` | 마법봉 |
-| 구조화 | 파랑 `#2563EB` | 목록 |
-| 전문적으로 | 남보라 `#5046C8` | 서류가방 |
+| 모드       | 버튼 전체 색        | 반원 메뉴 아이콘 |
+| ---------- | ------------------- | ---------------- |
+| 원문       | 녹색 `#20A044`      | 음성 파형        |
+| 최소       | 청록 `#008C78`      | 지우개           |
+| 깔끔하게   | 푸른 청록 `#007EA8` | 마법봉           |
+| 구조화     | 파랑 `#2563EB`      | 목록             |
+| 전문적으로 | 남보라 `#5046C8`    | 서류가방         |
 
 색뿐 아니라 서로 다른 그림·전체 모드 이름·접근성 설명도 제공한다. [생성 이미지 자산](../docs/android-radial-icons.md).
 
 ## 처음 한 번 설정
 
-1. 휴대폰과 개인 서버 PC에 같은 소유자 계정의 Tailscale을 연결한다.
+1. `기존 엔진`을 사용할 때는 휴대폰과 개인 서버 PC에 같은 소유자 계정의 Tailscale을 연결한다.
    앱 전용 IP 연결이 설정된 기기는 **`Use Tailscale DNS`를 켤 필요가 없다**. 다른 앱의 인터넷 연결에 문제가 생겼던 기기는 꺼 둔다.
    `Excluded apps` 목록의 Ultra STT 체크는 **해제**한다. 제외 목록에 체크하면 VPN을 우회한다.
-2. PC 연결 정보를 한 번 받는다. 승인된 갤럭시에는 이미 설정했으므로 **토큰을 직접 입력할 필요가 없다**.
+2. `기존 엔진`은 PC 연결 정보를 한 번 받는다. 승인된 갤럭시에는 이미 설정했으므로 **토큰을 직접 입력할 필요가 없다**. `GPT Transcribe`는 앱 설정에서 OpenAI API 키를 직접 입력해 저장한다.
 3. Ultra STT 앱에서 마이크 권한을 허용한다.
 4. 접근성 → 설치된 앱 → **Ultra STT 작은 음성 버튼**을 켠다.
 5. 삼성 키보드·Gboard 등 원하는 기존 키보드로 입력창을 누르고 작은 마이크를 사용한다.
@@ -49,7 +49,7 @@ GitHub `v1.1.62-personal.2`의 다운로드는 아직 **.9**이며 .10 파일로
 우측 상단 메뉴 → 제한된 설정 허용 후 다시 접근성을 켠다. 앱이 이 보호 장치를 우회하거나 권한을 자동 허용하지 않는다.
 앱의 `바로 테스트` 입력창에서도 같은 버튼을 확인할 수 있다. 비밀번호와 앱의 토큰 설정 칸에는 표시하지 않는다.
 
-**PC 앱과 원격 서버가 켜져 있어야 한다.** 이 APK에는 Whisper 모델·Codex 로그인·서버 토큰을 넣지 않았다.
+**기존 엔진을 사용할 때는 PC 앱과 원격 서버가 켜져 있어야 한다.** 이 APK에는 Whisper 모델·Codex 로그인·서버 토큰·OpenAI API 키를 넣지 않았다.
 휴대폰 자체에서 실행하는 오프라인 AI, iOS 앱, 휴대폰 기록 관리, Play Store 배포·자동 업데이트는 이번 범위가 아니다.
 PC 모델·추론·Fast 설정과 처리 속도를 변경하는 업데이트도 아니다.
 
@@ -74,7 +74,15 @@ PC 모델·추론·Fast 설정과 처리 속도를 변경하는 업데이트도 
 - 입력창의 텍스트는 안전한 커서 입력/변경 감지를 위해 **기기 내부에서만 일시 비교**한다.
   화면 이력·기존 입력창 내용은 서버에 전송하지 않는다. 음성 녹음과 전사문을 휴대폰에 기록하지 않는다.
 - 최대 120초의 mono PCM16 16 kHz WAV를 메모리에서 만든다. 화면 이동·잠금·취소 시 마이크를 중단한다.
-- 음성은 Tailnet HTTPS 개인 PC로 보낸다. AI 다듬기 사용 시 전사문은 기존 PC 경로로 OpenAI에 전송된다.
+- `기존 엔진`은 음성을 Tailnet HTTPS 개인 PC로 보낸다. AI 다듬기 사용 시 전사문은 기존 PC 경로로 OpenAI에 전송된다. `GPT Transcribe`는 음성과 다듬기용 전사문을 OpenAI에 직접 보낸다.
+
+### Android 직접 OpenAI 엔진
+
+설정의 `엔진 선택`에서 `기존 엔진`(기본값) 또는 `GPT Transcribe`를 고른다. 직접 엔진은 사용자가 입력한 **별도 OpenAI API 키 하나**를 AndroidKeyStore AES-256-GCM으로 암호화해 앱 전용 설정에 저장한다. 저장·삭제·엔진 변경은 API 호출을 하지 않는다. 기존 SB endpoint, 토큰, paired IP는 전환하거나 OpenAI 키를 삭제해도 유지한다.
+
+녹음 종료 후 `gpt-transcribe`에 WAV 파일과 `languages[]=ko`를 보내고, 다듬기가 켜져 있으면 `/v1/responses`의 `gpt-6-luna`로 결과를 처리한다. 응답과 assistant 메시지가 모두 `completed`이고 `output_text`가 있어야 사용하며, 오류·미완료·거절·빈 결과는 전체 원문 전사문으로 되돌린다. 원문·최소·깔끔하게는 `reasoning.effort=low`, 구조화·전문적으로는 `medium`이며, 다듬기에 `service_tier=priority`, `store=false`, `max_output_tokens=8192`를 요청한다. `temperature`는 보내지 않는다. 엔진은 녹음 종료 후 파일 전체를 보내며 녹음 중 바로입력은 추가하지 않았다. 120초 녹음 제한도 유지한다.
+
+다섯 다듬기 지시는 기존 `src-tauri/src/llm/prompt.rs`의 `ORIGINAL_BASE_PROMPT`, `BASE_PROMPT`, `THOUGHT_AWARE_RULES`, `append_polish_style_prompt`에서 충실도·출력·스타일 규칙을 Android에서 쓰는 범위로 옮겼다. Android에는 데스크톱의 앱 문맥·사용자 사전·선택 텍스트·장면 설정이 없으므로 해당 부분은 포함하지 않는다. 직접 엔진은 SB 서버의 실제 프롬프트와 완전 동일하다고 보장하지 않는다.
 
 ## 연결 설정과 인증
 
@@ -147,11 +155,11 @@ AI 배경 제거 후보는 사용하지 않았고, 사용자 승인 후 원본 �
 - `findFocus`가 잘못된 호스트를 반환하는 가상 입력창 검사는 수정 전 실패, 수정 후 통과했다. 같은 구조의 비밀번호·포커스 없는 칸은 거부하는 검사도 통과했다.
 - 실제 발화를 전송하지 않은 자동 검증이다. 모든 앱 호환성이나 서버 왕복·실제 문장 삽입 완료를 이 검사만으로 보장하지 않는다.
 
-| 길게 누른 뒤 드래그로 선택 | 현재 모드·시간·종료 | 녹음 중 모드 변경 |
-| :---: | :---: | :---: |
+|                                                  길게 누른 뒤 드래그로 선택                                                   |                                             현재 모드·시간·종료                                             |                                                      녹음 중 모드 변경                                                       |
+| :---------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------: |
 | <img src="../docs/images/android-mode-drag.png" alt="반원 모드 메뉴에서 구조화가 흰 테두리로 강조된 실제 화면" width="240" /> | <img src="../docs/images/android-recording-chatgpt.png" alt="키보드를 숨긴 녹색 중앙 녹음창" width="240" /> | <img src="../docs/images/android-recording-mode-picker.png" alt="녹음 중 다섯 모드를 펼쳐 선택하는 실제 화면" width="240" /> |
 
-2026-10-03 실제 Galaxy .9와 ChatGPT 새 입력창에서 촬영했습니다. 영어 예시 초안은 직접 입력한 미전송 문구로 촬영 뒤 삭제했고, 녹음은 취소했으며 음성을 업로드하지 않았습니다. [대기 버튼을 포함한 다섯 장과 조작 순서](../README_ko.md#모바일--익숙한-키보드는-그대로-녹음창은-작게). 드래그는 모드 선택이며 버튼 위치 이동은 지원하지 않습니다.
+2026-10-03 실제 Galaxy .9와 ChatGPT 새 입력창에서 촬영했습니다. 영어 예시 초안은 직접 입력한 미전송 문구로 촬영 뒤 삭제했고, 녹음은 취소했으며 음성을 업로드하지 않았습니다. [대기 버튼을 포함한 다섯 장과 조작 순서](../README_ko.md#모바일--익숙한-키보드는-그대로-녹음창은-작게). 당시 화면과 달리 현재 버전은 즉시 드래그로 위치 이동도 지원합니다. 길게 누른 뒤 드래그는 모드 선택입니다.
 
 [위젯 문제 원인과 검증 상세](../docs/2026-10-03-android-widget-entry.md).
 
@@ -193,7 +201,7 @@ Grok은 최초 진입 직후 검사가 실패했고 화면이 준비된 후 반�
 
 커서나 전체 내용을 신뢰할 수 없는 특수 편집기는 안전하게 거부한다. 특히 비어 있지 않은 원문에서 `offset=-1`을 임의로 0으로 보정하지 않는다.
 표시 모드 복원은 기존 키보드의 일반 동작을 허용한다는 뜻이며, 앱과 키보드에 따라 키보드가 다시 보일 수 있다.
-[Android 공식 키보드 표시 API](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService.SoftKeyboardController#setShowMode(int)).
+[Android 공식 키보드 표시 API](<https://developer.android.com/reference/android/accessibilityservice/AccessibilityService.SoftKeyboardController#setShowMode(int)>).
 
 ### Android .6 외부 입력창 수정
 
@@ -249,6 +257,6 @@ Instrumentation 종료는 Android에서 대상 프로세스를 종료할 수 있
 [접근성용 입력 연결](https://developer.android.com/reference/android/accessibilityservice/InputMethod),
 [AudioRecord](https://developer.android.com/reference/android/media/AudioRecord),
 [Android Keystore](https://developer.android.com/privacy-and-security/keystore),
-[입력 힌트 구분](https://developer.android.com/reference/android/view/accessibility/AccessibilityNodeInfo#isShowingHintText()),
-[시스템 바 인셋과 창 좌표](https://developer.android.com/reference/android/view/WindowManager.LayoutParams#setFitInsetsTypes(int)),
+[입력 힌트 구분](<https://developer.android.com/reference/android/view/accessibility/AccessibilityNodeInfo#isShowingHintText()>),
+[시스템 바 인셋과 창 좌표](<https://developer.android.com/reference/android/view/WindowManager.LayoutParams#setFitInsetsTypes(int)>),
 [Tailscale Android 앱 제외 동작](https://tailscale.com/docs/features/client/android-app-split-tunneling).
