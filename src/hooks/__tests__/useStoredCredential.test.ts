@@ -74,4 +74,29 @@ describe('useStoredCredential', () => {
     expect(readCredential).not.toHaveBeenCalled()
     expect(setCredential).not.toHaveBeenCalled()
   })
+
+  it('does not overwrite a typed key when an earlier vault read finishes late', async () => {
+    let finishRead: (value: string | null) => void = () => {}
+    vi.mocked(readCredential).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRead = resolve
+        }),
+    )
+    const { result } = renderHook(() =>
+      useStoredCredential({
+        namespace: 'stt',
+        provider: 'openai-transcribe',
+        enabled: true,
+        legacyKey: '',
+      }),
+    )
+    act(() => {
+      result.current.setDraft('manual-key')
+      result.current.persist('manual-key')
+    })
+    await act(async () => finishRead('old-vault-key'))
+    expect(result.current.draft).toBe('manual-key')
+    expect(result.current.stored).toBe(false)
+  })
 })

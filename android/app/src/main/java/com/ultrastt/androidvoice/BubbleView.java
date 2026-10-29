@@ -101,6 +101,11 @@ final class BubbleView extends FrameLayout {
                 return true;
             case MotionEvent.ACTION_UP:
                 main.removeCallbacks(longPress);
+                BubbleGesture.State ending = gesture.move(event.getRawX(), event.getRawY(),
+                        ViewConfiguration.get(getContext()).getScaledTouchSlop());
+                if (ending == BubbleGesture.State.MOVING) {
+                    gestures.move(gesture.deltaX(event.getRawX()), gesture.deltaY(event.getRawY()));
+                }
                 BubbleGesture.State finished = gesture.finish();
                 if (finished == BubbleGesture.State.SELECTING) {
                     gestures.release(event.getRawX(), event.getRawY());

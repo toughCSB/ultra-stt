@@ -666,7 +666,10 @@ async fn answer_question(
     operation_id: Option<&str>,
     voice_intent: &VoiceIntent,
 ) -> Result<String, AppError> {
-    if config.llm_provider == "codex-cli" {
+    if matches!(
+        config.llm_provider.as_str(),
+        "codex-cli" | "claude-cli" | "grok-cli"
+    ) {
         let question = validate_ask_question(question).map_err(AppError::Config)?;
         let selected = selected_text.and_then(sanitize_selected_text_for_ask);
         let prompt = format!(
@@ -674,7 +677,16 @@ async fn answer_question(
             ask_system_prompt(selected.is_some()),
             build_ask_user_content_from_sanitized(&question, selected.as_ref())
         );
-        let answer = crate::llm::codex::run_text(&config.llm_model, &prompt).await?;
+        let answer = if config.llm_provider == "codex-cli" {
+            crate::llm::codex::run_text(&config.llm_model, &prompt).await?
+        } else {
+            crate::llm::cli::complete(
+                &config.llm_model,
+                &prompt,
+                crate::llm::codex::ReasoningEffort::High,
+            )
+            .await?
+        };
         return validate_ask_answer(&answer).map_err(AppError::Config);
     }
     let llm_api_key = if config.llm_provider == "cloud" {
@@ -683,6 +695,21 @@ async fn answer_question(
         resolve_llm_config_secret(config, &SystemCredentialVault)
             .map_err(|e| AppError::Config(e.to_string()))?
     };
+
+    if config.engine_mode == crate::engine_profile::OPENAI_ENGINE {
+        let question = validate_ask_question(question).map_err(AppError::Config)?;
+        let selected = selected_text.and_then(sanitize_selected_text_for_ask);
+        let body = json!({
+            "model": config.llm_model,
+            "input": ask_messages_from_sanitized(&question, selected.as_ref()),
+            "reasoning": {"effort":"high"},
+            "service_tier":"priority",
+            "store": false,
+            "max_output_tokens": 8192
+        });
+        let answer = crate::llm::openai_direct::complete(&llm_api_key, &body).await?;
+        return validate_ask_answer(&answer).map_err(AppError::Config);
+    }
 
     if should_use_byok(config, &llm_api_key) {
         return ask_via_byok(client, config, &llm_api_key, question, selected_text)
@@ -890,7 +917,11 @@ pub async fn ask_anything(
     client: tauri::State<'_, reqwest::Client>,
 ) -> Result<String, String> {
     let question = validate_ask_question(&question)?;
-    let config = config_state.load().await.map_err(|e| e.to_string())?;
+    let config = config_state
+        .load()
+        .await
+        .map_err(|e| e.to_string())?
+        .effective_engine_config();
     let voice_intent = route_ask_intent(
         &question,
         false,
@@ -1069,7 +1100,11 @@ pub async fn stop_ask_dictation(
             .as_ref()
             .is_some_and(|selected_text| selected_text.truncated);
 
-        let config = config_state.load().await.map_err(|e| e.to_string())?;
+        let config = config_state
+            .load()
+            .await
+            .map_err(|e| e.to_string())?
+            .effective_engine_config();
         let voice_intent = route_ask_intent(
             &question,
             used_selected_text,

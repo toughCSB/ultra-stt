@@ -9,6 +9,10 @@ public final class VoiceTests {
     private static int checks;
 
     public static void main(String[] args) {
+        check(BubblePlacement.manualMaxTop(32, 800) == 736,
+                "full-height floating IME window must not trap manual microphone movement");
+        check(BubblePlacement.manualMaxTop(32, 800) > 56 + 200,
+                "top search field must not lock manual dragging to the top edge");
         check(BubblePlacement.defaultTop(480, 536, 550, true) + 64 <= 480 - 48,
                 "default microphone must clear composer send row by 48dp");
         check(BubblePlacement.defaultTop(640, 704, 800, false) + 64 <= 640 - 48,
@@ -19,10 +23,12 @@ public final class VoiceTests {
                 "larger touch target and visible circle");
         check(BubblePlacement.IDLE_ALPHA < 0.8f && BubblePlacement.IDLE_ALPHA > 0.6f,
                 "idle microphone remains visible but more transparent");
-        check(BubblePlacement.highestAllowedBottom(480, 800, 550) == 432,
-                "saved or dragged position must also clear the send row");
-        check(BubblePlacement.highestAllowedBottom(700, 800, 500) == 492,
-                "manual placement stays above keyboard in constrained layouts");
+        check(BubblePlacement.manualMaxTop(32, 800) == 800 - BubblePlacement.TOUCH_SIZE,
+                "manual placement is independent of composer height");
+        check(BubblePlacement.manualMaxTop(32, 80) == 32,
+                "small display never creates inverted manual movement bounds");
+        check(BubblePlacement.manualMaxTop(32, 1200) == 1136,
+                "unfolded screen offers its full safe height for dragging");
         check(BubblePlacement.clamp(-100, 8, 320) == 8, "left edge is reachable but cannot leave screen");
         check(BubblePlacement.clamp(900, 32, 440) == 440, "keyboard bounds clamp microphone");
         check(BubblePlacement.clamp(900, 32, 12) == 32, "small display bounds do not invert");
@@ -98,6 +104,15 @@ public final class VoiceTests {
             check(Modes.index(Modes.IDS[index]) == index, "mode " + Modes.IDS[index]);
         }
         check(Modes.IDS[Modes.index("unknown")].equals("minimal"), "safe fallback");
+        check(Engine.LEGACY.equals(Engine.normalize(null)) && Engine.LEGACY.equals(Engine.normalize("unknown")),
+                "existing engine remains the default");
+        check(Engine.OPENAI.equals(Engine.normalize(Engine.OPENAI)), "direct engine selection is distinct");
+        check(PolishPrompt.forMode("original").contains("Do not rephrase")
+                && PolishPrompt.forMode("minimal").contains("Do not rewrite")
+                && PolishPrompt.forMode("clean").contains("word-order")
+                && PolishPrompt.forMode("structured").contains("numbered outline")
+                && PolishPrompt.forMode("professional").contains("work communication"),
+                "five direct polish prompts retain their separate semantics");
 
         EditorGuard guard = new EditorGuard();
         check(!guard.isActive(), "initially idle");

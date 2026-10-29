@@ -13,6 +13,7 @@ import {
   removeCorrectionRule,
   setCorrectionRuleEnabled,
   saveOnboardingCompleted,
+  testEngineSetup,
   updateCorrectionRule,
   updateDictionaryEntry,
   waitForAccessibilityPermission,
@@ -99,6 +100,22 @@ describe('credential commands', () => {
     await migrateLegacyCredentials()
 
     expect(invoke).toHaveBeenCalledWith('migrate_legacy_credentials')
+  })
+})
+
+describe('engine setup test command', () => {
+  it('passes the selected desktop route without user audio or text', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ success: false, message: 'Sign in locally' })
+
+    await expect(testEngineSetup('llm', 'existing', 'claude-haiku-5-5')).resolves.toEqual({
+      success: false,
+      message: 'Sign in locally',
+    })
+    expect(invoke).toHaveBeenCalledWith('test_engine_setup', {
+      kind: 'llm',
+      engineMode: 'existing',
+      desktopPolishModel: 'claude-haiku-5-5',
+    })
   })
 })
 

@@ -89,6 +89,8 @@ vi.mock('react-i18next', () => ({
 // Mock stores - must be done before importing the component
 const mockAppStore = {
   config: {
+    engine_mode: 'existing' as 'existing' | 'openai',
+    desktop_polish_model: 'gpt-6-luna',
     llm_provider: 'openai' as string,
     llm_api_key: '',
     llm_base_url: 'https://api.openai.com/v1',
@@ -156,6 +158,8 @@ describe('LlmPane', () => {
   beforeEach(() => {
     // Reset mock store state
     mockAppStore.config = {
+      engine_mode: 'existing',
+      desktop_polish_model: 'gpt-6-luna',
       llm_provider: 'openai',
       llm_api_key: '',
       llm_base_url: 'https://api.openai.com/v1',
@@ -189,6 +193,7 @@ describe('LlmPane', () => {
     vi.mocked(tauri.getLlmModelCapability).mockResolvedValue('unknown')
     vi.mocked(tauri.getLatestMappingCandidate).mockResolvedValue(null)
     vi.mocked(tauri.listCustomAppMappings).mockResolvedValue([])
+    vi.mocked(tauri.testEngineSetup).mockResolvedValue({ success: true, message: 'Ready' })
   })
 
   afterEach(() => {
@@ -196,223 +201,75 @@ describe('LlmPane', () => {
     vi.clearAllMocks()
   })
 
-  describe('Provider selection', () => {
-    it('renders provider dropdown with current value', () => {
-      render(<LlmPane />)
-      const selects = screen.getAllByRole('combobox')
-      const providerSelect = selects[0] // First select is provider
-      expect(providerSelect).toHaveValue('openai')
-    })
-
-    it('updates config and resets state when provider changes', () => {
-      render(<LlmPane />)
-      const selects = screen.getAllByRole('combobox')
-      const providerSelect = selects[0]
-
-      fireEvent.change(providerSelect, { target: { value: 'anthropic' } })
-
-      expect(mockAppStore.updateConfig).toHaveBeenCalled()
-      expect(mockAppStore.setLlmTestStatus).toHaveBeenCalledWith('idle')
-      expect(mockAppStore.setLlmLatencyMs).toHaveBeenCalledWith(null)
-      expect(mockAppStore.setLlmModels).toHaveBeenCalledWith([])
-    })
-
-    it('applies Doubao defaults when provider changes to Doubao', () => {
-      render(<LlmPane />)
-      const selects = screen.getAllByRole('combobox')
-      const providerSelect = selects[0]
-
-      fireEvent.change(providerSelect, { target: { value: 'doubao' } })
-
-      expect(mockAppStore.updateConfig).toHaveBeenCalledWith({
-        llm_provider: 'doubao',
-        llm_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
-        llm_model: 'doubao-seed-1-6-flash-250615',
-      })
-      expect(mockAppStore.setLlmTestStatus).toHaveBeenCalledWith('idle')
-      expect(mockAppStore.setLlmLatencyMs).toHaveBeenCalledWith(null)
-      expect(mockAppStore.setLlmModels).toHaveBeenCalledWith([])
-    })
-  })
-
-  describe('Cloud provider UI', () => {
-    it('keeps Ask Anything out of AI Polish settings', () => {
-      render(<LlmPane />)
-
-      expect(screen.queryByText('Ask Anything')).not.toBeInTheDocument()
-      expect(screen.queryByText('Voice question')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('API Key input', () => {
-    it('renders API key input with current value', () => {
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      render(<LlmPane />)
-      const input = screen.getByPlaceholderText('Enter API Key') as HTMLInputElement
-      expect(input.value).toBe('sk-test123')
-      expect(input.type).toBe('password')
-    })
-
-    it('stores API key in credential vault and resets test state when API key changes', async () => {
-      render(<LlmPane />)
-      const input = screen.getByPlaceholderText('Enter API Key')
-
-      fireEvent.change(input, { target: { value: 'sk-new-key' } })
-      fireEvent.blur(input)
-
-      await waitFor(() =>
-        expect(tauri.setCredential).toHaveBeenCalledWith('llm', 'openai', 'sk-new-key'),
-      )
-      expect(mockAppStore.updateConfig).not.toHaveBeenCalledWith({ llm_api_key: 'sk-new-key' })
-      expect(mockAppStore.setLlmTestStatus).toHaveBeenCalledWith('idle')
-      expect(mockAppStore.setLlmLatencyMs).toHaveBeenCalledWith(null)
-    })
-
-    it('shows an inline error when credential vault save fails', async () => {
-      vi.mocked(tauri.setCredential).mockRejectedValueOnce(new Error('vault unavailable'))
-      render(<LlmPane />)
-      const input = screen.getByPlaceholderText('Enter API Key')
-
-      fireEvent.change(input, { target: { value: 'sk-new-key' } })
-      fireEvent.blur(input)
-
-      expect(await screen.findByText(/settings.credentialSaveFailed/)).toBeInTheDocument()
-    })
-  })
-
-  describe('Test button and latency display', () => {
-    it('test button is disabled when API key is empty', () => {
-      render(<LlmPane />)
-      const button = screen.getByRole('button', { name: /test/i })
-      expect(button).toBeDisabled()
-    })
-
-    it('test button is enabled when API key is present', () => {
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      render(<LlmPane />)
-      const button = screen.getByRole('button', { name: /test/i })
-      expect(button).not.toBeDisabled()
-    })
-
-    it('allows testing Ollama without an API key', async () => {
-      vi.mocked(tauri.benchLlmConnection).mockResolvedValue(42)
-      mockAppStore.config.llm_provider = 'ollama'
-      mockAppStore.config.llm_api_key = ''
-      mockAppStore.config.llm_base_url = 'http://localhost:11434/v1'
-      mockAppStore.config.llm_model = 'llama3.2'
-
-      render(<LlmPane />)
-      const button = screen.getByRole('button', { name: /test/i })
-
-      expect(screen.queryByPlaceholderText('Enter API Key')).not.toBeInTheDocument()
-      expect(button).not.toBeDisabled()
-      fireEvent.click(button)
-      await waitFor(() =>
-        expect(tauri.benchLlmConnection).toHaveBeenCalledWith(
-          '',
-          'ollama',
-          'http://localhost:11434/v1',
-          'llama3.2',
-        ),
-      )
-    })
-
-    it('auto-fetches Ollama models without an API key', async () => {
-      vi.useFakeTimers()
-      try {
-        mockAppStore.config.llm_provider = 'ollama'
-        mockAppStore.config.llm_api_key = ''
-        mockAppStore.config.llm_base_url = 'http://localhost:11434/v1'
-
-        render(<LlmPane />)
-        await vi.advanceTimersByTimeAsync(500)
-
-        expect(tauri.fetchLlmModels).toHaveBeenCalledWith('', 'ollama', 'http://localhost:11434/v1')
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it('does not fetch keyed-provider models before an API key is entered', () => {
-      render(<LlmPane />)
-
-      expect(screen.getByTitle('Fetch models')).toBeDisabled()
-    })
-
-    it('shows loading state during test', () => {
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      mockAppStore.llmTestStatus = 'testing'
-      render(<LlmPane />)
-      const button = screen.getByRole('button', { name: /test/i })
-      expect(button).toBeDisabled()
-    })
-
-    it('calls benchLlmConnection on test button click', async () => {
-      const mockBenchLlm = vi.mocked(tauri.benchLlmConnection)
-      mockBenchLlm.mockResolvedValue(187)
-
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      render(<LlmPane />)
-      const button = screen.getByRole('button', { name: /test/i })
-
-      fireEvent.click(button)
-
-      await waitFor(() => {
-        expect(mockAppStore.setLlmTestStatus).toHaveBeenCalledWith('testing')
-        expect(mockAppStore.setLlmLatencyMs).toHaveBeenCalledWith(null)
-      })
-
-      await waitFor(() => {
-        expect(mockBenchLlm).toHaveBeenCalledWith(
-          'sk-test123',
-          'openai',
-          'https://api.openai.com/v1',
-          'gpt-4o-mini',
-        )
-      })
-    })
-
-    it('displays latency in milliseconds when test succeeds', () => {
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      mockAppStore.llmTestStatus = 'success'
-      mockAppStore.llmLatencyMs = 187
-
-      render(<LlmPane />)
-      expect(screen.getByText('187ms')).toBeInTheDocument()
-    })
-
-    it('displays generic success message when latency is null', () => {
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      mockAppStore.llmTestStatus = 'success'
-      mockAppStore.llmLatencyMs = null
-
-      render(<LlmPane />)
-      expect(screen.getByText('Connection successful')).toBeInTheDocument()
-    })
-
-    it('shows error state UI', () => {
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      mockAppStore.llmTestStatus = 'error'
-
-      render(<LlmPane />)
-      expect(screen.getByText('Connection failed')).toBeInTheDocument()
-    })
-
-    it('shows backend error details when test fails', async () => {
-      const mockBenchLlm = vi.mocked(tauri.benchLlmConnection)
-      mockBenchLlm.mockRejectedValue('HTTP 429 Too Many Requests')
-
-      mockAppStore.config.llm_api_key = 'sk-test123'
-      render(<LlmPane />)
-
-      fireEvent.click(screen.getByRole('button', { name: /test/i }))
-
-      expect(await screen.findByText('HTTP 429 Too Many Requests')).toBeInTheDocument()
-      expect(mockAppStore.setLlmTestStatus).toHaveBeenCalledWith('error')
-    })
-  })
-
   describe('AI polish behavior settings', () => {
+    it('offers exactly six desktop models while preserving five polish styles', () => {
+      render(<LlmPane />)
+      const modelSelect = screen.getByRole('combobox', {
+        name: 'settings.engine.desktopPolishModel',
+      })
+      expect(
+        within(modelSelect)
+          .getAllByRole('option')
+          .map((option) => option.getAttribute('value')),
+      ).toEqual([
+        'gpt-6.1-sol',
+        'gpt-6.1-terra',
+        'gpt-6-luna',
+        'claude-haiku-5-5',
+        'claude-sonnet-5-5',
+        'grok-4.7',
+      ])
+      expect(within(screen.getByDisplayValue('Clean')).getAllByRole('option')).toHaveLength(5)
+      for (const option of within(modelSelect).getAllByRole('option').slice(0, 5)) {
+        expect(option).toBeEnabled()
+      }
+      const grokOption = within(modelSelect).getByRole('option', {
+        name: 'settings.engine.grokPendingOption',
+      })
+      expect(grokOption).toBeDisabled()
+      fireEvent.change(modelSelect, { target: { value: 'grok-4.7' } })
+      expect(mockAppStore.updateConfig).not.toHaveBeenCalled()
+      fireEvent.change(modelSelect, { target: { value: 'claude-sonnet-5-5' } })
+      expect(mockAppStore.updateConfig).toHaveBeenCalledWith({
+        desktop_polish_model: 'claude-sonnet-5-5',
+      })
+    })
+
+    it('explains API, Codex CLI, and local Claude/Grok routes without an API key input', () => {
+      const { rerender } = render(<LlmPane />)
+      expect(screen.getByText('settings.engine.codexCliRoute')).toBeInTheDocument()
+      mockAppStore.config.engine_mode = 'openai'
+      rerender(<LlmPane />)
+      expect(screen.getByText('settings.engine.openAiApiRoute')).toBeInTheDocument()
+      mockAppStore.config.desktop_polish_model = 'claude-haiku-5-5'
+      rerender(<LlmPane />)
+      expect(screen.getByText('settings.engine.localCliRoute')).toBeInTheDocument()
+      mockAppStore.config.desktop_polish_model = 'grok-4.7'
+      rerender(<LlmPane />)
+      expect(screen.getByText('settings.engine.grokPendingNote')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'settings.engine.testLlmConnection' }),
+      ).toBeDisabled()
+      expect(tauri.testEngineSetup).not.toHaveBeenCalled()
+      expect(screen.getByText('settings.engine.desktopRoutingNote')).toBeInTheDocument()
+      expect(screen.queryByLabelText('API Key')).toBeNull()
+    })
+
+    it('shows connection failure reason and clears it after model changes', async () => {
+      vi.mocked(tauri.testEngineSetup).mockResolvedValue({
+        success: false,
+        message: 'CLI login required',
+      })
+      const { rerender } = render(<LlmPane />)
+      expect(tauri.testEngineSetup).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'settings.engine.testLlmConnection' }))
+      expect(tauri.testEngineSetup).toHaveBeenCalledWith('llm', 'existing', 'gpt-6-luna')
+      expect(await screen.findByRole('alert')).toHaveTextContent('CLI login required')
+      mockAppStore.config.desktop_polish_model = 'claude-sonnet-5-5'
+      rerender(<LlmPane />)
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
     it('offers Original and shows its preservation guidance when selected', () => {
       render(<LlmPane />)
       fireEvent.change(screen.getByDisplayValue('Clean'), { target: { value: 'original' } })
@@ -502,61 +359,6 @@ describe('LlmPane', () => {
 
       expect(screen.queryByText('Active scene: Meeting Notes')).not.toBeInTheDocument()
       expect(screen.queryByText('Clear scene')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('Model input', () => {
-    it('does not expose model capability implementation notes in the default flow', async () => {
-      vi.mocked(tauri.getLlmModelCapability).mockResolvedValueOnce('certified')
-      render(<LlmPane />)
-
-      expect(
-        screen.queryByText('Optimized context and thought-aware support'),
-      ).not.toBeInTheDocument()
-      expect(
-        screen.queryByText('Context and thought-aware support is best effort'),
-      ).not.toBeInTheDocument()
-      expect(tauri.getLlmModelCapability).not.toHaveBeenCalled()
-      expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    })
-
-    it('keeps model editing available without a best-effort banner', () => {
-      render(<LlmPane />)
-
-      expect(
-        screen.queryByText('Context and thought-aware support is best effort'),
-      ).not.toBeInTheDocument()
-      expect(screen.getByPlaceholderText('e.g. gpt-4o-mini')).not.toBeDisabled()
-    })
-
-    it('updates config and resets latency when model changes', () => {
-      render(<LlmPane />)
-      const input = screen.getByPlaceholderText('e.g. gpt-4o-mini')
-
-      fireEvent.change(input, { target: { value: 'gpt-4o' } })
-
-      expect(mockAppStore.updateConfig).toHaveBeenCalledWith({ llm_model: 'gpt-4o' })
-      expect(mockAppStore.setLlmLatencyMs).toHaveBeenCalledWith(null)
-    })
-
-    it('displays available models count', () => {
-      mockAppStore.llmModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo']
-
-      render(<LlmPane />)
-      expect(screen.getByText('3 models available')).toBeInTheDocument()
-    })
-  })
-
-  describe('Base URL input', () => {
-    it('updates config when base URL changes', () => {
-      render(<LlmPane />)
-      const input = screen.getByPlaceholderText('https://api.openai.com/v1')
-
-      fireEvent.change(input, { target: { value: 'https://custom.api.com/v1' } })
-
-      expect(mockAppStore.updateConfig).toHaveBeenCalledWith({
-        llm_base_url: 'https://custom.api.com/v1',
-      })
     })
   })
 

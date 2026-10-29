@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { spring } from '../../lib/animations'
 import { useAppStore } from '../../stores/appStore'
+import { isDesktopPolishModel } from '../../lib/desktop-polish-models'
 import { useRoute } from '../../lib/router'
 import { PolishModeSelector } from '../PolishModeSelector'
 import { LiveTypingCard } from '../LiveTypingCard'
@@ -15,6 +16,7 @@ function localDateKey(date: Date): string {
 
 export function HomePage() {
   const config = useAppStore((s) => s.config)
+  const savedConfig = useAppStore((s) => s.savedConfig)
   const history = useAppStore((s) => s.history)
   const lastPipelineTiming = useAppStore((s) => s.lastPipelineTiming)
   const { navigate } = useRoute()
@@ -36,19 +38,30 @@ export function HomePage() {
   }, [history, today])
   const todayCount = activity[13].count
   const maxCount = Math.max(1, ...activity.map((day) => day.count))
+  const runtimeConfig = savedConfig ?? config
+  const sttLabel =
+    runtimeConfig.engine_mode === 'openai' ? 'GPT Transcribe' : runtimeConfig.stt_provider
+  const desktopModel = isDesktopPolishModel(runtimeConfig.desktop_polish_model)
+    ? runtimeConfig.desktop_polish_model
+    : 'gpt-6-luna'
+  const llmRoute = desktopModel.startsWith('gpt-')
+    ? runtimeConfig.engine_mode === 'openai'
+      ? 'OpenAI API'
+      : 'Codex CLI'
+    : desktopModel.startsWith('claude-')
+      ? 'Claude CLI'
+      : `Grok CLI · ${t('home.supportPending')}`
+  const llmLabel = `${desktopModel} · ${llmRoute}`
   const isUltraRemote =
-    config.stt_provider === 'custom-whisper' && config.stt_custom_preset === 'ultra-remote'
+    runtimeConfig.engine_mode === 'existing' &&
+    runtimeConfig.stt_provider === 'custom-whisper' &&
+    runtimeConfig.stt_custom_preset === 'ultra-remote'
   const timingItems: Array<[string, number]> = lastPipelineTiming
-    ? isUltraRemote
-      ? [
-          ['remoteProcessingTime', lastPipelineTiming.stt_ms],
-          ['totalTime', lastPipelineTiming.total_ms],
-        ]
-      : [
-          ['sttTime', lastPipelineTiming.stt_ms],
-          ['polishTime', lastPipelineTiming.llm_ms],
-          ['totalTime', lastPipelineTiming.total_ms],
-        ]
+    ? [
+        [isUltraRemote ? 'remoteProcessingTime' : 'sttTime', lastPipelineTiming.stt_ms],
+        ['polishTime', lastPipelineTiming.llm_ms],
+        ['totalTime', lastPipelineTiming.total_ms],
+      ]
     : []
   return (
     <div className="p-6 space-y-6">
@@ -65,8 +78,8 @@ export function HomePage() {
             {t('home.description', { hotkey: config.hotkey })}
           </p>
           <div className="flex flex-wrap gap-2 mt-4">
-            <span className="term-chip">Whisper large-v3</span>
-            <span className="term-chip">Codex cleanup</span>
+            <span className="term-chip">{sttLabel}</span>
+            <span className="term-chip">{llmLabel}</span>
             <span className="term-chip term-chip-muted">{t('home.welcome')}</span>
           </div>
         </div>
@@ -134,9 +147,7 @@ export function HomePage() {
       {lastPipelineTiming && (
         <div className="jelly-card p-5">
           <h3 className="text-[13px] font-medium mb-3">{t('home.lastProcessingTime')}</h3>
-          <div
-            className={`grid gap-3 text-center ${isUltraRemote ? 'grid-cols-2' : 'grid-cols-3'}`}
-          >
+          <div className="grid grid-cols-3 gap-3 text-center">
             {timingItems.map(([label, milliseconds]) => (
               <div key={label} className="rounded-[10px] bg-bg-secondary p-2">
                 <p className="text-[11px] text-text-tertiary">{t(`home.${label}`)}</p>
@@ -158,21 +169,21 @@ export function HomePage() {
         <div className="space-y-2 text-[13px]">
           <div className="flex justify-between">
             <span className="text-text-secondary">{t('home.sttProvider')}</span>
-            <span className="text-text-primary font-medium">{config.stt_provider}</span>
+            <span className="text-text-primary font-medium">{sttLabel}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-text-secondary">{t('home.llmProvider')}</span>
-            <span className="text-text-primary font-medium">{config.llm_provider}</span>
+            <span className="text-text-primary font-medium">{llmLabel}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-text-secondary">{t('home.aiPolish')}</span>
             <span className="text-text-primary font-medium">
-              {config.polish_enabled ? t('home.enabled') : t('home.disabled')}
+              {runtimeConfig.polish_enabled ? t('home.enabled') : t('home.disabled')}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-text-secondary">{t('home.outputMode')}</span>
-            <span className="text-text-primary font-medium">{config.output_mode}</span>
+            <span className="text-text-primary font-medium">{runtimeConfig.output_mode}</span>
           </div>
         </div>
       </div>

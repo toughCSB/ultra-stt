@@ -344,15 +344,23 @@ pub fn open_recording_archive_folder(app: tauri::AppHandle) -> Result<(), String
 }
 
 #[tauri::command]
-pub async fn retry_recording_archive(app: tauri::AppHandle, id: String) -> Result<String, String> {
+pub async fn retry_recording_archive(
+    app: tauri::AppHandle,
+    id: String,
+    allow_external: Option<bool>,
+) -> Result<String, String> {
     let store = app.state::<RecordingArchive>().inner().clone();
     let config = app
         .state::<crate::storage::ConfigManager>()
         .load()
         .await
-        .map_err(|error| error.to_string())?;
-    if config.stt_provider != crate::stt::config::CUSTOM_WHISPER_PROVIDER {
-        return Err("Retry uses the configured Local / Custom Whisper provider. The original WAV remains available in the recovery folder.".into());
+        .map_err(|error| error.to_string())?
+        .effective_engine_config();
+    validate_retry_destination(&config, allow_external)?;
+    if config.stt_provider != crate::stt::config::CUSTOM_WHISPER_PROVIDER
+        && config.stt_provider != crate::engine_profile::OPENAI_CREDENTIAL
+    {
+        return Err("Retry requires the existing Whisper engine or GPT Transcribe. The original WAV remains available in the recovery folder.".into());
     }
     let token_store = app.state::<crate::SessionTokenStore>();
     let crate::stt::setup::SttSetup {
@@ -384,6 +392,20 @@ pub async fn retry_recording_archive(app: tauri::AppHandle, id: String) -> Resul
             enabled: false,
         });
     transcribe_saved_audio(&store, &id, provider.as_mut(), &stt_config, options).await
+}
+
+fn validate_retry_destination(
+    config: &crate::storage::AppConfig,
+    allow_external: Option<bool>,
+) -> Result<(), String> {
+    if config.stt_provider == crate::engine_profile::OPENAI_CREDENTIAL
+        && allow_external != Some(true)
+    {
+        return Err(
+            "Confirm sending this saved recording to OpenAI; API usage charges may apply".into(),
+        );
+    }
+    Ok(())
 }
 
 async fn transcribe_saved_audio(
@@ -421,6 +443,17 @@ async fn transcribe_saved_audio(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_audio_requires_explicit_consent_for_openai_only() {
+        let mut config = crate::storage::AppConfig::default();
+        assert!(validate_retry_destination(&config, None).is_ok());
+        config.engine_mode = crate::engine_profile::OPENAI_ENGINE.into();
+        let config = config.effective_engine_config();
+        assert!(validate_retry_destination(&config, None).is_err());
+        assert!(validate_retry_destination(&config, Some(false)).is_err());
+        assert!(validate_retry_destination(&config, Some(true)).is_ok());
+    }
 
     struct RetryProvider {
         fail: bool,

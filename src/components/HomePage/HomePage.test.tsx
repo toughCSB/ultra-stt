@@ -101,21 +101,75 @@ describe('HomePage recent history activity', () => {
     expect(screen.getByText('3.9초')).toBeInTheDocument()
   })
 
-  it('labels ultra-remote timing as combined server work without a zero polishing metric', () => {
+  it('labels ultra-remote timing as raw recognition with separate local polish', () => {
     useAppStore.setState((state) => ({
       config: {
         ...state.config,
         stt_provider: 'custom-whisper',
         stt_custom_preset: 'ultra-remote',
       },
-      lastPipelineTiming: { stt_ms: 2400, llm_ms: 0, total_ms: 3900 },
+      lastPipelineTiming: { stt_ms: 2400, llm_ms: 1100, total_ms: 3900 },
     }))
     render(<HomePage />)
 
-    expect(screen.getByText('원격 인식·다듬기')).toBeInTheDocument()
+    expect(screen.getByText('원격 음성 인식')).toBeInTheDocument()
     expect(
-      screen.getByText('서버에서 다듬기까지 처리하므로 별도 시간이 측정되지 않습니다.'),
+      screen.getByText(
+        '원격 서버는 음성을 원문 텍스트로 인식합니다. 다듬기가 켜져 있으면 이 컴퓨터에서 처리하고 시간을 따로 측정합니다.',
+      ),
     ).toBeInTheDocument()
-    expect(screen.queryByText('0.0초')).toBeNull()
+    expect(screen.getByText('1.1초')).toBeInTheDocument()
+  })
+
+  it('shows the saved API STT and Claude CLI route instead of pending legacy providers', () => {
+    const base = useAppStore.getState().config
+    useAppStore.setState({
+      config: { ...base, stt_provider: 'custom-whisper', stt_custom_preset: 'ultra-remote' },
+      savedConfig: {
+        ...base,
+        engine_mode: 'openai',
+        desktop_polish_model: 'claude-sonnet-5-5',
+        polish_enabled: false,
+      },
+      lastPipelineTiming: { stt_ms: 2400, llm_ms: 1100, total_ms: 3900 },
+    })
+    render(<HomePage />)
+
+    expect(screen.getAllByText('GPT Transcribe')).toHaveLength(2)
+    expect(screen.getAllByText('claude-sonnet-5-5 · Claude CLI')).toHaveLength(2)
+    expect(screen.queryByText('원격 음성 인식')).toBeNull()
+    expect(screen.queryByText(i18n.t('home.remoteTimingNote'))).toBeNull()
+    expect(screen.getByText('인식')).toBeInTheDocument()
+  })
+
+  it('shows the saved existing remote route and pending Grok warning', () => {
+    const base = useAppStore.getState().config
+    useAppStore.setState({
+      config: { ...base, engine_mode: 'openai' },
+      savedConfig: {
+        ...base,
+        engine_mode: 'existing',
+        stt_provider: 'custom-whisper',
+        stt_custom_preset: 'ultra-remote',
+        desktop_polish_model: 'grok-4.7',
+      },
+      lastPipelineTiming: { stt_ms: 2400, llm_ms: 1100, total_ms: 3900 },
+    })
+    render(<HomePage />)
+
+    expect(screen.getAllByText('custom-whisper')).toHaveLength(2)
+    expect(screen.getAllByText('grok-4.7 · Grok CLI · 지원 대기 중')).toHaveLength(2)
+    expect(screen.getByText('원격 음성 인식')).toBeInTheDocument()
+    expect(screen.getByText(i18n.t('home.remoteTimingNote'))).toBeInTheDocument()
+  })
+
+  it('shows the effective Codex CLI or OpenAI API route for a saved GPT model', () => {
+    const base = useAppStore.getState().config
+    useAppStore.setState({ savedConfig: { ...base, engine_mode: 'existing' } })
+    render(<HomePage />)
+    expect(screen.getAllByText('gpt-6-luna · Codex CLI')).toHaveLength(2)
+
+    act(() => useAppStore.setState({ savedConfig: { ...base, engine_mode: 'openai' } }))
+    expect(screen.getAllByText('gpt-6-luna · OpenAI API')).toHaveLength(2)
   })
 })

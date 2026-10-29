@@ -206,10 +206,6 @@ impl SttProvider for UltraLocalProvider {
         if config.sample_rate != 16000 {
             return Err(error("16 kHz PCM is required"));
         }
-        let mut slot = service().lock().await;
-        if slot.is_none() {
-            *slot = Some(start().await?);
-        }
         self.config = Some(config.clone());
         self.buffer.clear();
         Ok(())
@@ -302,6 +298,10 @@ pub enum LiveBackend {
         token: String,
         client: reqwest::Client,
     },
+    OpenAi {
+        token: String,
+        client: reqwest::Client,
+    },
 }
 
 /// The remote live endpoint sits next to the remote transcription endpoint.
@@ -351,6 +351,27 @@ async fn remote_live(
     Ok((!text.is_empty()).then_some(text))
 }
 
+async fn openai_utterance(
+    token: &str,
+    client: &reqwest::Client,
+    pcm: &[u8],
+    language: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    let provider_config =
+        super::config::build_known_whisper_config(super::config::OPENAI_TRANSCRIBE_PROVIDER)
+            .expect("OpenAI transcription preset must exist");
+    let mut provider = WhisperCompatProvider::with_client(provider_config, client.clone());
+    provider
+        .connect(&SttConfig {
+            api_key: token.to_string(),
+            language: language.map(str::to_string),
+            ..SttConfig::default()
+        })
+        .await?;
+    provider.send_audio(pcm).await?;
+    provider.disconnect().await
+}
+
 /// Audio of the utterance being recognised plus a simple energy-based speech detector.
 #[derive(Default)]
 struct LiveAudio {
@@ -363,18 +384,20 @@ struct LiveAudio {
     stopping: bool,
 }
 
+fn is_speech_frame(samples: impl Iterator<Item = i16>) -> bool {
+    let energy: f32 = samples
+        .map(|sample| (f32::from(sample) / 32768.0).powi(2))
+        .sum();
+    (energy / FRAME_SAMPLES as f32).sqrt() >= SPEECH_RMS
+}
+
 impl LiveAudio {
     fn push(&mut self, chunk: &[u8]) {
         self.pcm.extend_from_slice(chunk);
         for sample in chunk.chunks_exact(2) {
             self.frame.push(i16::from_le_bytes([sample[0], sample[1]]));
             if self.frame.len() == FRAME_SAMPLES {
-                let energy: f32 = self
-                    .frame
-                    .iter()
-                    .map(|&s| (f32::from(s) / 32768.0).powi(2))
-                    .sum();
-                if (energy / FRAME_SAMPLES as f32).sqrt() >= SPEECH_RMS {
+                if is_speech_frame(self.frame.iter().copied()) {
                     self.speech_ms += 20;
                     self.trailing_silence_ms = 0;
                     self.idle_ms = 0;
@@ -397,6 +420,26 @@ impl LiveAudio {
         self.pcm.drain(..bytes.min(self.pcm.len()));
         self.speech_ms = 0;
         self.trailing_silence_ms = 0;
+        self.frame.clear();
+        for samples in self.pcm.chunks_exact(FRAME_SAMPLES * 2) {
+            let frames = samples
+                .chunks_exact(2)
+                .map(|sample| i16::from_le_bytes([sample[0], sample[1]]));
+            if is_speech_frame(frames) {
+                self.speech_ms += 20;
+                self.trailing_silence_ms = 0;
+            } else {
+                self.trailing_silence_ms += 20;
+            }
+        }
+        let remaining = self.pcm.len() % (FRAME_SAMPLES * 2);
+        if remaining > 0 {
+            self.frame.extend(
+                self.pcm[self.pcm.len() - remaining..]
+                    .chunks_exact(2)
+                    .map(|sample| i16::from_le_bytes([sample[0], sample[1]])),
+            );
+        }
     }
 }
 
@@ -407,7 +450,12 @@ enum LiveStep {
     Stop,
 }
 
-fn next_live_step(audio: &LiveAudio, since_pass: Duration, recognised_bytes: usize) -> LiveStep {
+fn next_live_step(
+    audio: &LiveAudio,
+    since_pass: Duration,
+    recognised_bytes: usize,
+    allow_pass: bool,
+) -> LiveStep {
     let utterance_ms = pcm_ms(audio.pcm.len());
     let has_speech = audio.speech_ms >= LIVE_MIN_SPEECH_MS;
     if audio.stopping {
@@ -422,7 +470,8 @@ fn next_live_step(audio: &LiveAudio, since_pass: Duration, recognised_bytes: usi
     {
         return LiveStep::Finish(audio.pcm.clone(), audio.speech_ms);
     }
-    if has_speech
+    if allow_pass
+        && has_speech
         && utterance_ms >= LIVE_MIN_WINDOW_MS
         && since_pass >= LIVE_PASS_INTERVAL
         && audio.pcm.len() > recognised_bytes
@@ -497,6 +546,9 @@ impl LiveWorker {
                 token,
                 client,
             } => remote_live(endpoint, token, client, pcm, &prompt, &self.hotwords).await,
+            LiveBackend::OpenAi { token, client } => {
+                openai_utterance(token, client, pcm, self.language.as_deref()).await
+            }
         };
         match result {
             Ok(text) => {
@@ -512,7 +564,9 @@ impl LiveWorker {
                     attempt = self.errors,
                     "Live recognition pass failed: {error}"
                 );
-                if self.errors >= LIVE_MAX_ERRORS {
+                if matches!(self.backend, LiveBackend::OpenAi { .. })
+                    || self.errors >= LIVE_MAX_ERRORS
+                {
                     return Err(error);
                 }
                 Ok(None)
@@ -520,7 +574,7 @@ impl LiveWorker {
         }
     }
 
-    async fn run(mut self) -> String {
+    async fn run(mut self) -> Result<String, AppError> {
         let mut last_pass = Instant::now() - LIVE_PASS_INTERVAL;
         let mut recognised_bytes = 0usize;
         let mut idle_reported = false;
@@ -531,7 +585,12 @@ impl LiveWorker {
             let (step, idle) = {
                 let audio = self.audio.lock().unwrap_or_else(|e| e.into_inner());
                 (
-                    next_live_step(&audio, last_pass.elapsed(), recognised_bytes),
+                    next_live_step(
+                        &audio,
+                        last_pass.elapsed(),
+                        recognised_bytes,
+                        !matches!(self.backend, LiveBackend::OpenAi { .. }),
+                    ),
                     !audio.stopping && self.idle_stop_ms > 0 && audio.idle_ms >= self.idle_stop_ms,
                 )
             };
@@ -545,7 +604,11 @@ impl LiveWorker {
                 LiveStep::Pass(pcm, speech_ms) => {
                     last_pass = Instant::now();
                     recognised_bytes = pcm.len();
-                    match self.recognise(&pcm, speech_ms).await {
+                    let result = self.recognise(&pcm, speech_ms).await;
+                    if self.cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+                        break;
+                    }
+                    match result {
                         Ok(Some(text)) => {
                             let words = self.agreement.update(&text);
                             self.commit(words);
@@ -556,17 +619,16 @@ impl LiveWorker {
                             let _ = self.events.send(TranscriptEvent::Error {
                                 message: error.to_string(),
                             });
-                            break;
+                            return Err(error);
                         }
                     }
                 }
                 LiveStep::Finish(pcm, speech_ms) => {
-                    let stopping = self
-                        .audio
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .stopping;
-                    let text = match self.recognise(&pcm, speech_ms).await {
+                    let result = self.recognise(&pcm, speech_ms).await;
+                    if self.cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+                        break;
+                    }
+                    let text = match result {
                         Ok(None) if self.errors > 0 => {
                             tokio::time::sleep(LIVE_PASS_INTERVAL).await;
                             continue;
@@ -576,7 +638,7 @@ impl LiveWorker {
                             let _ = self.events.send(TranscriptEvent::Error {
                                 message: error.to_string(),
                             });
-                            break;
+                            return Err(error);
                         }
                     };
                     let words = self.agreement.finish(&text);
@@ -588,13 +650,10 @@ impl LiveWorker {
                         .consume(pcm.len());
                     recognised_bytes = 0;
                     self.utterance_start = self.typed.len();
-                    if stopping {
-                        break;
-                    }
                 }
             }
         }
-        self.typed
+        Ok(self.typed)
     }
 }
 
@@ -604,7 +663,7 @@ impl LiveWorker {
 pub struct UltraLocalLiveProvider {
     audio: std::sync::Arc<std::sync::Mutex<LiveAudio>>,
     events: Option<tokio::sync::mpsc::UnboundedReceiver<TranscriptEvent>>,
-    worker: Option<tokio::task::JoinHandle<String>>,
+    worker: Option<tokio::task::JoinHandle<Result<String, AppError>>>,
     cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
     hotwords: String,
     corrections: Vec<(String, String)>,
@@ -646,9 +705,6 @@ impl SttProvider for UltraLocalLiveProvider {
     async fn connect(&mut self, config: &SttConfig) -> Result<(), AppError> {
         if config.sample_rate != 16000 {
             return Err(error("16 kHz PCM is required"));
-        }
-        if matches!(self.backend, LiveBackend::Local) {
-            warm().await?;
         }
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         self.events = Some(receiver);
@@ -694,7 +750,7 @@ impl SttProvider for UltraLocalLiveProvider {
         let Some(worker) = self.worker.take() else {
             return Ok(None);
         };
-        let typed = worker.await.map_err(error)?;
+        let typed = worker.await.map_err(error)??;
         Ok((!typed.is_empty()).then_some(typed))
     }
     fn name(&self) -> &str {
@@ -714,6 +770,70 @@ mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    async fn read_live_request(connection: &mut tokio::net::TcpStream) -> Vec<u8> {
+        let mut request = Vec::new();
+        loop {
+            let mut chunk = [0_u8; 4096];
+            let count = connection.read(&mut chunk).await.unwrap();
+            assert!(count > 0);
+            request.extend_from_slice(&chunk[..count]);
+            if let Some(head_end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
+                let head = String::from_utf8_lossy(&request[..head_end]);
+                let length = head
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().unwrap())
+                    })
+                    .unwrap();
+                if request.len() >= head_end + 4 + length {
+                    return request[head_end + 4..].to_vec();
+                }
+            }
+        }
+    }
+
+    async fn write_live_reply(connection: &mut tokio::net::TcpStream, text: &str) {
+        let body = serde_json::json!({ "text": text }).to_string();
+        let reply = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        connection.write_all(reply.as_bytes()).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn buffered_capture_starts_while_another_request_owns_the_recognizer() {
+        let _busy_recognizer = service().lock().await;
+        let mut provider = UltraLocalProvider::new();
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            provider.connect(&SttConfig::default()),
+        )
+        .await
+        .expect("Recording startup must not wait for a different inference")
+        .unwrap();
+        provider.send_audio(&[1, 0, 2, 0]).await.unwrap();
+        assert_eq!(provider.buffer, [1, 0, 2, 0]);
+    }
+
+    #[tokio::test]
+    async fn live_capture_starts_while_another_request_owns_the_recognizer() {
+        let _busy_recognizer = service().lock().await;
+        let mut provider = UltraLocalLiveProvider::new(&[], Vec::new(), LiveBackend::Local, 30_000);
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            provider.connect(&SttConfig::default()),
+        )
+        .await
+        .expect("Live recording startup must not wait for a different inference")
+        .unwrap();
+        provider
+            .cancelled
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(provider.worker.take().unwrap().await.unwrap().unwrap(), "");
+    }
     #[tokio::test]
     async fn repeated_local_requests_reuse_one_tcp_connection() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -824,7 +944,7 @@ mod tests {
         assert_eq!(pcm_ms(audio.pcm.len()), 300);
         assert_eq!(audio.speech_ms, 0);
         assert_eq!(
-            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0)),
+            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0, true)),
             "wait"
         );
     }
@@ -835,26 +955,31 @@ mod tests {
         audio.push(&pcm(1_000, 8_000));
         assert_eq!(audio.speech_ms, 1_000);
         assert_eq!(
-            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0)),
+            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0, true)),
             "pass"
         );
         // Too soon after the previous pass, or nothing new since it.
         assert_eq!(
-            step_name(next_live_step(&audio, Duration::from_millis(100), 0)),
+            step_name(next_live_step(&audio, Duration::from_millis(100), 0, true)),
             "wait"
         );
         assert_eq!(
-            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, audio.pcm.len())),
+            step_name(next_live_step(
+                &audio,
+                LIVE_PASS_INTERVAL,
+                audio.pcm.len(),
+                true
+            )),
             "wait"
         );
         audio.push(&pcm(LIVE_PAUSE_MS, 0));
         assert_eq!(
-            step_name(next_live_step(&audio, Duration::ZERO, 0)),
+            step_name(next_live_step(&audio, Duration::ZERO, 0, true)),
             "finish"
         );
         audio.consume(audio.pcm.len());
         assert_eq!(
-            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0)),
+            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0, true)),
             "wait"
         );
     }
@@ -865,16 +990,243 @@ mod tests {
         audio.push(&pcm(500, 8_000));
         audio.stopping = true;
         assert_eq!(
-            step_name(next_live_step(&audio, Duration::ZERO, 0)),
+            step_name(next_live_step(&audio, Duration::ZERO, 0, true)),
             "finish"
         );
         let mut silent = LiveAudio::default();
         silent.push(&pcm(500, 0));
         silent.stopping = true;
         assert_eq!(
-            step_name(next_live_step(&silent, Duration::ZERO, 0)),
+            step_name(next_live_step(&silent, Duration::ZERO, 0, true)),
             "stop"
         );
+    }
+
+    #[test]
+    fn openai_waits_for_one_committed_utterance_and_keeps_the_next_tail() {
+        let mut audio = LiveAudio::default();
+        audio.push(&pcm(1_000, 8_000));
+        assert_eq!(
+            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0, false)),
+            "wait"
+        );
+        audio.push(&pcm(500, 8_000));
+        assert_eq!(
+            step_name(next_live_step(&audio, LIVE_PASS_INTERVAL, 0, false)),
+            "wait"
+        );
+        audio.push(&pcm(LIVE_PAUSE_MS, 0));
+        let first_len = audio.pcm.len();
+        assert_eq!(
+            step_name(next_live_step(&audio, Duration::ZERO, 0, false)),
+            "finish"
+        );
+        audio.push(&pcm(900, 8_000));
+        audio.consume(first_len);
+        assert_eq!(audio.pcm, pcm(900, 8_000));
+        assert!(audio.speech_ms >= LIVE_MIN_SPEECH_MS);
+        audio.stopping = true;
+        assert_eq!(
+            step_name(next_live_step(&audio, Duration::ZERO, 0, false)),
+            "finish"
+        );
+    }
+
+    fn remote_worker(
+        audio: std::sync::Arc<std::sync::Mutex<LiveAudio>>,
+        events: tokio::sync::mpsc::UnboundedSender<TranscriptEvent>,
+        cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        endpoint: String,
+    ) -> LiveWorker {
+        LiveWorker {
+            audio,
+            events,
+            cancelled,
+            language: Some("ko".into()),
+            backend: LiveBackend::Remote {
+                endpoint,
+                token: "fixture-only".into(),
+                client: reqwest::Client::builder().no_proxy().build().unwrap(),
+            },
+            idle_stop_ms: 0,
+            hotwords: String::new(),
+            corrections: Vec::new(),
+            agreement: Default::default(),
+            typed: String::new(),
+            utterance_start: 0,
+            errors: 0,
+        }
+    }
+
+    #[tokio::test]
+    async fn final_response_precedes_buffered_tail_even_when_eof_arrives_during_upload() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/audio/live", listener.local_addr().unwrap());
+        let (first_seen, received_first) = tokio::sync::oneshot::channel();
+        let (release_first, released_first) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut first, _) = listener.accept().await.unwrap();
+            let first_body = read_live_request(&mut first).await;
+            let first_wav = first_body
+                .windows(4)
+                .position(|part| part == b"RIFF")
+                .unwrap();
+            assert_eq!(
+                &first_body[first_wav + 44..first_wav + 44 + 32_000],
+                pcm(1_000, 8_000)
+            );
+            first_seen.send(()).unwrap();
+            released_first.await.unwrap();
+            write_live_reply(&mut first, "첫째").await;
+            let (mut second, _) = listener.accept().await.unwrap();
+            let second_body = read_live_request(&mut second).await;
+            let second_wav = second_body
+                .windows(4)
+                .position(|part| part == b"RIFF")
+                .unwrap();
+            assert_eq!(
+                &second_body[second_wav + 44..second_wav + 44 + 28_800],
+                pcm(900, 8_000)
+            );
+            write_live_reply(&mut second, "둘째").await;
+        });
+        let mut buffered = LiveAudio::default();
+        buffered.push(&pcm(1_000, 8_000));
+        buffered.push(&pcm(LIVE_PAUSE_MS, 0));
+        let audio = std::sync::Arc::new(std::sync::Mutex::new(buffered));
+        let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let worker = remote_worker(audio.clone(), events, Default::default(), endpoint);
+        let running = tokio::spawn(worker.run());
+        tokio::time::timeout(Duration::from_secs(3), received_first)
+            .await
+            .unwrap()
+            .unwrap();
+        {
+            let mut buffered = audio.lock().unwrap();
+            buffered.push(&pcm(900, 8_000));
+            buffered.stopping = true;
+        }
+        release_first.send(()).unwrap();
+        let typed = tokio::time::timeout(Duration::from_secs(3), running)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        server.await.unwrap();
+        assert_eq!(typed, "첫째 둘째");
+        assert!(audio.lock().unwrap().pcm.is_empty());
+        let mut committed = Vec::new();
+        while let Ok(event) = receiver.try_recv() {
+            if let TranscriptEvent::Committed { text } = event {
+                committed.push(text);
+            }
+        }
+        assert_eq!(committed, vec!["첫째".to_string(), " 둘째".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn cancellation_during_final_request_prevents_committed_text() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/audio/live", listener.local_addr().unwrap());
+        let (request_seen, received_request) = tokio::sync::oneshot::channel();
+        let (release, released) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut connection, _) = listener.accept().await.unwrap();
+            read_live_request(&mut connection).await;
+            request_seen.send(()).unwrap();
+            released.await.unwrap();
+            write_live_reply(&mut connection, "should not type").await;
+        });
+        let mut buffered = LiveAudio::default();
+        buffered.push(&pcm(1_000, 8_000));
+        buffered.stopping = true;
+        let audio = std::sync::Arc::new(std::sync::Mutex::new(buffered));
+        let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let worker = remote_worker(audio.clone(), events, cancelled.clone(), endpoint);
+        let running = tokio::spawn(worker.run());
+        tokio::time::timeout(Duration::from_secs(3), received_request)
+            .await
+            .unwrap()
+            .unwrap();
+        cancelled.store(true, std::sync::atomic::Ordering::SeqCst);
+        release.send(()).unwrap();
+        assert!(tokio::time::timeout(Duration::from_secs(3), running)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .is_empty());
+        server.await.unwrap();
+        assert_eq!(audio.lock().unwrap().pcm, pcm(1_000, 8_000));
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn disconnect_propagates_final_error_even_when_prefix_was_already_typed() {
+        let mut provider = UltraLocalLiveProvider::default();
+        provider.audio.lock().unwrap().push(&pcm(500, 8_000));
+        let (events, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let worker = LiveWorker {
+            audio: provider.audio.clone(),
+            events,
+            cancelled: provider.cancelled.clone(),
+            language: Some("ko".into()),
+            backend: LiveBackend::OpenAi {
+                token: String::new(),
+                client: reqwest::Client::new(),
+            },
+            idle_stop_ms: 0,
+            hotwords: String::new(),
+            corrections: Vec::new(),
+            agreement: Default::default(),
+            typed: "이미 입력된 앞 문장".into(),
+            utterance_start: 0,
+            errors: 0,
+        };
+        provider.events = Some(receiver);
+        provider.worker = Some(tokio::spawn(worker.run()));
+        let result = tokio::time::timeout(Duration::from_secs(3), provider.disconnect())
+            .await
+            .unwrap();
+        assert!(result.is_err());
+        assert_eq!(provider.audio.lock().unwrap().pcm, pcm(500, 8_000));
+    }
+
+    #[tokio::test]
+    async fn openai_final_failure_keeps_audio_and_reports_error() {
+        let mut buffered = LiveAudio::default();
+        buffered.push(&pcm(500, 8_000));
+        buffered.stopping = true;
+        let audio = std::sync::Arc::new(std::sync::Mutex::new(buffered));
+        let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let worker = LiveWorker {
+            audio: audio.clone(),
+            events,
+            cancelled: Default::default(),
+            language: Some("ko".into()),
+            backend: LiveBackend::OpenAi {
+                token: String::new(),
+                client: reqwest::Client::builder().no_proxy().build().unwrap(),
+            },
+            idle_stop_ms: 0,
+            hotwords: String::new(),
+            corrections: Vec::new(),
+            agreement: Default::default(),
+            typed: String::new(),
+            utterance_start: 0,
+            errors: 0,
+        };
+        let typed = tokio::time::timeout(Duration::from_secs(3), worker.run())
+            .await
+            .unwrap();
+        assert!(typed.is_err());
+        assert_eq!(audio.lock().unwrap().pcm, pcm(500, 8_000));
+        assert!(matches!(
+            receiver.recv().await,
+            Some(TranscriptEvent::Error { .. })
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     async fn check_final_live_pass_failures(failures: usize) {
@@ -945,6 +1297,7 @@ mod tests {
             .unwrap();
         server.await.unwrap();
         if failures < LIVE_MAX_ERRORS as usize {
+            let typed = typed.unwrap();
             assert_eq!(typed, "최종 문장을 보존합니다.");
             assert!(audio.lock().unwrap().pcm.is_empty());
             assert!(matches!(
@@ -952,7 +1305,7 @@ mod tests {
                 Some(TranscriptEvent::Committed { text }) if text == typed
             ));
         } else {
-            assert!(typed.is_empty());
+            assert!(typed.is_err());
             assert_eq!(audio.lock().unwrap().pcm, pcm(1_000, 8_000));
             assert!(matches!(
                 receiver.recv().await,

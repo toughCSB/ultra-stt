@@ -1,10 +1,11 @@
-import { Settings, Mic, Sparkles, BookOpen, Info, LayoutGrid } from 'lucide-react'
+import { Settings, Mic, Sparkles, BookOpen, Info, LayoutGrid, Cpu } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { spring } from '../../lib/animations'
 
 const PANES = [
   { id: 'general', labelKey: 'settings.general', icon: Settings },
+  { id: 'engine', labelKey: 'settings.engineSelection', icon: Cpu },
   { id: 'stt', labelKey: 'settings.speechRecognition', icon: Mic },
   { id: 'llm', labelKey: 'settings.aiPolish', icon: Sparkles },
   { id: 'dictionary', labelKey: 'settings.dictionary', icon: BookOpen },

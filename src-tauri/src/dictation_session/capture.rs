@@ -96,6 +96,12 @@ impl SttProviders for AppSttProviders {
         };
         // Clients of the owner's recognition PC (Mac, home) run live passes there.
         let backend = match custom_whisper.as_ref() {
+            _ if config.stt_provider == crate::engine_profile::OPENAI_CREDENTIAL => {
+                ultra_local::LiveBackend::OpenAi {
+                    token: stt_config.api_key.clone(),
+                    client: self.client.clone(),
+                }
+            }
             Some(remote) if config.stt_custom_preset == stt::config::ULTRA_REMOTE_STT_PRESET => {
                 ultra_local::LiveBackend::Remote {
                     endpoint: ultra_local::live_endpoint_for(&remote.endpoint),

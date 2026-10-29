@@ -14,8 +14,8 @@ final class BubblePlacement {
         return Math.max(minimum, Math.min(value, Math.max(minimum, maximum)));
     }
 
-    static float highestAllowedBottom(float fieldTop, float availableBottom, float keyboardTop) {
-        return Math.min(fieldTop - 48, Math.min(availableBottom, keyboardTop - 8));
+    static float manualMaxTop(float displayTop, float displayBottom) {
+        return Math.max(displayTop, displayBottom - TOUCH_SIZE);
     }
 
     static float fraction(float position, float minimum, float maximum) {

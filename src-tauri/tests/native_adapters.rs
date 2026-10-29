@@ -22,15 +22,18 @@ async fn occupied_foreign_port_is_never_adopted_or_terminated() {
     let address = foreign.local_addr().unwrap();
     std::fs::write(root.join("foreign-address"), address.to_string()).unwrap();
     let mut provider = UltraLocalProvider::new();
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        provider.connect(&SttConfig {
+    provider
+        .connect(&SttConfig {
             language: Some("ko".into()),
             ..Default::default()
-        }),
-    )
-    .await
-    .unwrap();
+        })
+        .await
+        .unwrap();
+    assert!(!root.join("helper-started").exists());
+    provider.send_audio(&[1, 0, 2, 0]).await.unwrap();
+    let result = tokio::time::timeout(std::time::Duration::from_secs(10), provider.disconnect())
+        .await
+        .unwrap();
     assert!(
         result.is_err(),
         "an occupied foreign port must not be adopted"

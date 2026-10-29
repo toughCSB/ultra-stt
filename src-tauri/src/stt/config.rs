@@ -8,6 +8,7 @@
 use super::whisper_compat::WhisperCompatConfig;
 
 pub const APPLE_SPEECH_PROVIDER: &str = "apple-speech";
+pub const OPENAI_TRANSCRIBE_PROVIDER: &str = "openai-transcribe";
 pub const CUSTOM_WHISPER_PROVIDER: &str = "custom-whisper";
 pub const CUSTOM_WHISPER_PRESET_SPEACHES: &str = "speaches";
 pub const ULTRA_REMOTE_STT_PRESET: &str = "ultra-remote";
@@ -28,6 +29,11 @@ pub struct SttProviderConfig {
 /// Whisper-compatible STT provider.
 pub fn get_whisper_config(provider: &str) -> Option<SttProviderConfig> {
     match provider {
+        OPENAI_TRANSCRIBE_PROVIDER => Some(SttProviderConfig {
+            endpoint: "https://api.openai.com/v1/audio/transcriptions",
+            model: "gpt-transcribe",
+            extra_fields: &[],
+        }),
         "glm-asr" => Some(SttProviderConfig {
             endpoint: "https://open.bigmodel.cn/api/paas/v4/audio/transcriptions",
             model: "glm-asr-2512",
@@ -163,6 +169,18 @@ mod tests {
         assert!(cfg.endpoint.contains("api.openai.com"));
         assert_eq!(cfg.model, "whisper-1");
         assert!(cfg.extra_fields.is_empty());
+    }
+
+    #[test]
+    fn openai_transcribe_uses_fixed_official_file_endpoint() {
+        let cfg = get_whisper_config(OPENAI_TRANSCRIBE_PROVIDER).unwrap();
+        assert_eq!(
+            cfg.endpoint,
+            "https://api.openai.com/v1/audio/transcriptions"
+        );
+        assert_eq!(cfg.model, "gpt-transcribe");
+        assert!(cfg.extra_fields.is_empty());
+        assert!(stt_provider_requires_api_key(OPENAI_TRANSCRIBE_PROVIDER));
     }
 
     #[test]

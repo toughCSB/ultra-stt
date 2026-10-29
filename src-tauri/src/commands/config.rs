@@ -14,6 +14,15 @@ use tauri_plugin_store::StoreExt;
 
 fn config_patch_between(previous: &storage::AppConfig, next: &storage::AppConfig) -> Value {
     let mut patch = Map::new();
+    if previous.desktop_polish_model != next.desktop_polish_model {
+        patch.insert(
+            "desktop_polish_model".into(),
+            json!(next.desktop_polish_model),
+        );
+    }
+    if previous.engine_mode != next.engine_mode {
+        patch.insert("engine_mode".to_string(), json!(next.engine_mode));
+    }
     if previous.polish_style != next.polish_style {
         patch.insert("polish_style".to_string(), json!(next.polish_style));
     }
@@ -72,6 +81,12 @@ fn emit_config_patch(app: &tauri::AppHandle, patch: &Value) {
 }
 
 fn prepare_config_for_save(mut config: storage::AppConfig) -> Result<storage::AppConfig, String> {
+    if !crate::engine_profile::DESKTOP_MODELS.contains(&config.desktop_polish_model.as_str()) {
+        return Err("Unsupported AI polishing model".into());
+    }
+    if !matches!(config.engine_mode.as_str(), "existing" | "openai") {
+        return Err("Unsupported engine selection".to_string());
+    }
     sync_hotkey_fields_before_save(&mut config);
     crate::hotkey::validate_hotkey_config(&config.hotkeys).map_err(|e| e.to_string())?;
     config.normalize_values();
@@ -163,7 +178,9 @@ fn provider_connection_config_changed(
     previous: &storage::AppConfig,
     next: &storage::AppConfig,
 ) -> bool {
-    previous.stt_provider != next.stt_provider
+    previous.engine_mode != next.engine_mode
+        || previous.desktop_polish_model != next.desktop_polish_model
+        || previous.stt_provider != next.stt_provider
         || previous.stt_custom_base_url != next.stt_custom_base_url
         || previous.llm_provider != next.llm_provider
         || previous.llm_base_url != next.llm_base_url

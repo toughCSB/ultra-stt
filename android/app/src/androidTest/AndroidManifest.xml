@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="com.ultrastt.androidvoice.NetworkChecks"
+        android:targetPackage="com.ultrastt.androidvoice" />
+    <instrumentation android:name="com.ultrastt.androidvoice.BubbleInteractionChecks"
+        android:targetPackage="com.ultrastt.androidvoice" />
+    <instrumentation android:name="com.ultrastt.androidvoice.DirectOpenAiChecks"
+        android:targetPackage="com.ultrastt.androidvoice" />
+    <instrumentation android:name="com.ultrastt.androidvoice.ApiKeyPanelChecks"
+        android:targetPackage="com.ultrastt.androidvoice" />
     <application android:label="Ultra STT QA" android:allowBackup="false">
         <activity android:name="com.ultrastt.androidvoice.EditorActivity" android:exported="true" />
     </application>

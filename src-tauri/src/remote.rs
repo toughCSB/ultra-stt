@@ -243,16 +243,18 @@ async fn acknowledge_close(
 }
 
 async fn handle(stream: tokio::net::TcpStream, owner: String, origin: String) -> Result<()> {
-    let mut peeked = [0u8; 4];
-    // The first four bytes may not have arrived yet, and a short peek would
-    // misroute a POST into the WebSocket handshake, so wait for all four.
-    let mut filled = 0usize;
-    while filled < 4 {
-        match stream.peek(&mut peeked[filled..]).await {
-            Ok(0) | Err(_) => break,
-            Ok(read) => filled += read,
+    let peeked = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let mut prefix = [0u8; 4];
+        loop {
+            match stream.peek(&mut prefix).await? {
+                0 => anyhow::bail!("Client disconnected before the request prefix"),
+                4 => return Ok::<_, anyhow::Error>(prefix),
+                _ => tokio::time::sleep(std::time::Duration::from_millis(2)).await,
+            }
         }
-    }
+    })
+    .await
+    .context("Client request prefix timed out")??;
     if &peeked == b"POST" {
         return http_upload::handle(stream, &owner, &origin).await;
     }
@@ -366,8 +368,63 @@ pub async fn serve() -> Result<()> {
 mod tests {
     use super::*;
     use std::time::Duration;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
     use tokio_tungstenite::tungstenite::http::Request as HttpRequest;
+
+    #[tokio::test]
+    async fn fragmented_posts_reach_http_authentication_without_consuming_the_prefix() {
+        let request = b"POST /v1/audio/transcriptions HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        for split in [0, 1, 2, 3] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                let (stream, _) = listener.accept().await.unwrap();
+                handle(
+                    stream,
+                    "owner@example.test".into(),
+                    "https://server.example.test".into(),
+                )
+                .await
+            });
+            let mut client = tokio::net::TcpStream::connect(address).await.unwrap();
+            if split > 0 {
+                client.write_all(&request[..split]).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            client.write_all(&request[split..]).await.unwrap();
+            let mut response = Vec::new();
+            tokio::time::timeout(Duration::from_secs(2), client.read_to_end(&mut response))
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(response.starts_with(b"HTTP/1.1 403"), "split={split}");
+            server.await.unwrap().unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn incomplete_request_prefix_releases_the_connection_on_disconnect() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(listener.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (stream, _) = listener.accept().await.unwrap();
+        client.write_all(b"P").await.unwrap();
+        client.shutdown().await.unwrap();
+        drop(client);
+        let result = tokio::time::timeout(
+            Duration::from_secs(6),
+            handle(
+                stream,
+                "owner@example.test".into(),
+                "https://server.example.test".into(),
+            ),
+        )
+        .await
+        .unwrap();
+        assert!(result.is_err());
+    }
 
     #[test]
     fn cleanup_failure_preserves_the_complete_transcript() {

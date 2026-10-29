@@ -14,6 +14,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -25,6 +27,16 @@ public final class SettingsActivity extends Activity implements android.content.
     private EditText token;
     private TextView status;
     private TextView connection;
+    private ApiKeyPanel apiKeyPanel;
+    private TextView apiConnectionStatus;
+    private Button apiConnectionTest;
+    private int apiConnectionRevision;
+    private LinearLayout legacySection;
+    private LinearLayout directSection;
+    private RadioGroup engineSelector;
+    private RadioButton legacyChoice;
+    private RadioButton directChoice;
+    private TextView engineStatus;
     private Spinner modeSelector;
     private RecoveryView recovery;
     private boolean probing;
@@ -63,11 +75,57 @@ public final class SettingsActivity extends Activity implements android.content.
             refreshService();
             android.widget.Toast.makeText(this, "마이크를 입력창 위 기본 위치로 되돌렸습니다.", android.widget.Toast.LENGTH_SHORT).show();
         });
+        content.addView(Ui.text(this, "엔진 선택", 19, true));
+        engineStatus = Ui.text(this, "", 15, true);
+        engineStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        content.addView(engineStatus);
+        engineSelector = new RadioGroup(this);
+        legacyChoice = engineChoice("기존 엔진\nSB의 Whisper → Codex CLI\n기존 연결·구독 사용", Ui.GREEN);
+        directChoice = engineChoice("OpenAI 직접 연결\nGPT Transcribe → GPT-6 Luna\nPC 없이 사용 · API 사용량 별도 과금", android.graphics.Color.rgb(56, 189, 248));
+        engineSelector.addView(legacyChoice, Ui.block(this));
+        engineSelector.addView(directChoice, Ui.block(this));
+        engineSelector.check(Engine.OPENAI.equals(preferences.engine()) ? directChoice.getId() : legacyChoice.getId());
+        engineSelector.setOnCheckedChangeListener((group, checked) -> {
+            preferences.engine(checked == directChoice.getId() ? Engine.OPENAI : Engine.LEGACY);
+            updateEngineSections();
+            refreshService();
+        });
+        content.addView(engineSelector, Ui.block(this));
+        content.addView(Ui.text(this,
+                "카드를 누르면 저장됩니다. 다음 녹음부터 적용되며, 기존 서버 연결과 API 키는 서로 덮어쓰지 않습니다.", 13, false));
+
+        legacySection = Ui.column(this, 0);
         connection = Ui.text(this, "", 15, true);
-        content.addView(connection);
+        legacySection.addView(connection);
+        addButton(legacySection, "PC 서버 연결 확인", this::probeConnection);
+        content.addView(legacySection);
+
+        directSection = Ui.column(this, 0);
+        apiConnectionStatus = Ui.text(this, "", 14, true);
+        apiConnectionStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        apiKeyPanel = new ApiKeyPanel(this, new ApiKeyPanel.Store() {
+            public boolean hasKey() { return preferences.hasOpenAiKey(); }
+            public void save(String key) throws java.security.GeneralSecurityException {
+                preferences.saveOpenAiKey(key);
+                resetApiConnectionTest();
+            }
+            public void clear() throws java.security.GeneralSecurityException {
+                preferences.clearOpenAiKey();
+                resetApiConnectionTest();
+            }
+        });
+        directSection.addView(apiKeyPanel, Ui.block(this));
+        apiConnectionTest = Ui.button(this, "OpenAI 연결 테스트");
+        apiConnectionTest.setOnClickListener(view -> probeOpenAi());
+        directSection.addView(apiConnectionTest, Ui.block(this));
+        directSection.addView(apiConnectionStatus);
+        resetApiConnectionTest();
+        directSection.addView(Ui.text(this,
+                "녹음이 끝난 뒤 음성을 OpenAI에 직접 보내고, 다듬기 사용 시 전사문도 OpenAI로 보냅니다. PC 서버와 Tailscale은 사용하지 않습니다. 요청마다 사용량이 발생할 수 있습니다. 키 저장·엔진 변경만으로는 API 요청을 보내지 않습니다.", 12, false));
+        content.addView(directSection);
         status = Ui.text(this, "", 13, false);
         content.addView(status);
-        addButton(content, "PC 서버 연결 확인", this::probeConnection);
+        updateEngineSections();
 
         content.addView(Ui.text(this, "처음 한 번만 준비해 주세요", 19, true));
         addButton(content, "1  마이크 권한 허용", () -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1));
@@ -142,8 +200,8 @@ public final class SettingsActivity extends Activity implements android.content.
                 status.setText("인증 정보를 저장하지 못했습니다. PC 연결 설정을 다시 받아 주세요.");
             }
         });
-        content.addView(advanced);
-        content.addView(Ui.text(this,
+        legacySection.addView(advanced);
+        legacySection.addView(Ui.text(this,
                 "음성은 Tailscale을 통해 개인 PC에서 인식합니다. AI 다듬기 사용 시 전사문은 PC에서 OpenAI로 전송됩니다. PC가 켜져 있어야 합니다. 녹음·전사 이력은 저장하지 않습니다. 입력하지 못한 마지막 문장만 앱이 실행되는 동안 임시 보관하며, 닫기 또는 앱 종료 시 사라집니다.", 12, false));
         setContentView(scroll);
         scroll.requestApplyInsets();
@@ -181,10 +239,14 @@ public final class SettingsActivity extends Activity implements android.content.
             return;
         }
         modeSelector.setSelection(Modes.index(preferences.mode()));
+        updateEngineSections();
+        apiKeyPanel.refresh();
         boolean configured = false;
-        try {
-            configured = Endpoint.validToken(preferences.token());
-        } catch (java.security.GeneralSecurityException ignored) {}
+        if (Engine.LEGACY.equals(preferences.engine())) {
+            try {
+                configured = Endpoint.validToken(preferences.token());
+            } catch (java.security.GeneralSecurityException ignored) {}
+        }
         connection.setText(probing ? "PC 서버 연결을 확인하는 중입니다…"
                 : getString(configured ? R.string.connection_ready : R.string.connection_missing));
         connection.setTextColor(configured && !probing ? Ui.GREEN : Ui.MUTED);
@@ -192,6 +254,36 @@ public final class SettingsActivity extends Activity implements android.content.
         boolean accessibility = VoiceAccessibilityService.active() != null;
         status.setText(getString(R.string.permission_summary,
                 microphone ? "✓" : "미허용", accessibility ? "✓" : "접근성 설정 필요"));
+    }
+
+    private void updateEngineSections() {
+        boolean direct = Engine.OPENAI.equals(preferences.engine());
+        int selectedId = direct ? directChoice.getId() : legacyChoice.getId();
+        if (engineSelector.getCheckedRadioButtonId() != selectedId) {
+            engineSelector.check(selectedId);
+        }
+        legacyChoice.setBackground(Ui.background(this, Ui.PANEL, !direct));
+        android.graphics.drawable.GradientDrawable directBackground = Ui.background(this,
+                android.graphics.Color.rgb(12, 34, 66), false);
+        directBackground.setStroke(Ui.dp(this, direct ? 2 : 1), direct
+                ? android.graphics.Color.rgb(56, 189, 248) : android.graphics.Color.rgb(35, 67, 80));
+        directChoice.setBackground(directBackground);
+        engineStatus.setText(direct ? "현재 선택: OpenAI 직접 연결 · 다음 녹음에 적용"
+                : "현재 선택: 기존 엔진 · 다음 녹음에 적용");
+        legacySection.setVisibility(direct ? View.GONE : View.VISIBLE);
+        directSection.setVisibility(direct ? View.VISIBLE : View.GONE);
+    }
+
+    private RadioButton engineChoice(String label, int color) {
+        RadioButton choice = new RadioButton(this);
+        choice.setId(View.generateViewId());
+        choice.setText(label);
+        choice.setTextColor(Ui.TEXT);
+        choice.setTextSize(16);
+        choice.setMinHeight(Ui.dp(this, 104));
+        choice.setPadding(Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14));
+        choice.setButtonTintList(android.content.res.ColorStateList.valueOf(color));
+        return choice;
     }
 
     private void importPairing() {
@@ -221,6 +313,10 @@ public final class SettingsActivity extends Activity implements android.content.
     public void onSharedPreferenceChanged(android.content.SharedPreferences store, String key) {
         if ("mode".equals(key)) {
             modeSelector.setSelection(Modes.index(preferences.mode()));
+        } else if ("engine".equals(key)) {
+            resetApiConnectionTest();
+            updateEngineSections();
+            updateStatus();
         }
     }
 
@@ -242,8 +338,40 @@ public final class SettingsActivity extends Activity implements android.content.
         probeConnection();
     }
 
+    private void resetApiConnectionTest() {
+        apiConnectionRevision++;
+        if (apiConnectionTest != null) apiConnectionTest.setEnabled(preferences.hasOpenAiKey());
+        if (apiConnectionStatus != null) {
+            apiConnectionStatus.setText("연결 미확인 · 저장한 키로 모델 조회만 확인합니다. 음성을 보내지 않습니다.");
+            apiConnectionStatus.setTextColor(Ui.MUTED);
+        }
+    }
+
+    private void probeOpenAi() {
+        if (!apiConnectionTest.isEnabled()) return;
+        final int expected = ++apiConnectionRevision;
+        apiConnectionTest.setEnabled(false);
+        apiConnectionStatus.setText("OpenAI 연결 확인 중…");
+        apiConnectionStatus.setTextColor(Ui.MUTED);
+        new Thread(() -> {
+            ConnectionProbe.Result checked;
+            try {
+                checked = DirectOpenAi.checkConnection(HttpTransport.openAiClient(), preferences.openAiKey());
+            } catch (java.security.GeneralSecurityException failure) {
+                checked = new ConnectionProbe.Result(false, "저장된 API 키를 읽지 못했습니다. 키 수정에서 다시 저장해 주세요.");
+            }
+            final ConnectionProbe.Result result = checked;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || expected != apiConnectionRevision) return;
+                apiConnectionTest.setEnabled(preferences.hasOpenAiKey());
+                apiConnectionStatus.setText(result.message);
+                apiConnectionStatus.setTextColor(result.verified ? Ui.GREEN : android.graphics.Color.rgb(255, 139, 139));
+            });
+        }, "UltraSTTOpenAiConnectionCheck").start();
+    }
+
     private void probeConnection() {
-        if (probing || !preferences.hasToken()) {
+        if (!Engine.LEGACY.equals(preferences.engine()) || probing || !preferences.hasToken()) {
             return;
         }
         final String endpoint;

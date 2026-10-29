@@ -189,6 +189,12 @@ mod tests {
     }
 
     #[test]
+    fn creates_openai_transcribe_file_provider() {
+        let provider = create_provider(config::OPENAI_TRANSCRIBE_PROVIDER, None, None).unwrap();
+        assert_eq!(provider.name(), config::OPENAI_TRANSCRIBE_PROVIDER);
+    }
+
+    #[test]
     fn unknown_stt_provider_returns_error() {
         let result = create_provider("not-a-provider", None, None);
         assert!(result.is_err());

@@ -2,6 +2,7 @@ use async_trait::async_trait;
 
 use crate::error::AppError;
 
+use super::config::OPENAI_TRANSCRIBE_PROVIDER;
 use super::{RemotePolishOptions, SttConfig, SttProvider, TranscriptEvent};
 
 /// Configuration for a Whisper-compatible HTTP file-upload STT provider.
@@ -175,6 +176,14 @@ impl SttProvider for WhisperCompatProvider {
                 config.sample_rate,
             ));
         let deadline = tokio::time::Instant::now() + request_budget;
+        let direct_openai = self.provider_config.provider_name == OPENAI_TRANSCRIBE_PROVIDER;
+        let request_client = if direct_openai
+            && self.provider_config.endpoint == "https://api.openai.com/v1/audio/transcriptions"
+        {
+            crate::engine_profile::openai_http_client()?
+        } else {
+            self.client.clone()
+        };
         let mut attempt = 0u32;
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -190,10 +199,15 @@ impl SttProvider for WhisperCompatProvider {
                 .text("model", self.provider_config.model.to_string())
                 .part("file", file_part);
 
-            // Language hint (OpenAI/Groq support `language` field, others use `prompt`)
             if let Some(ref lang) = config.language {
                 if lang != "multi" {
-                    form = form.text("language", lang.clone());
+                    let field = if self.provider_config.provider_name == OPENAI_TRANSCRIBE_PROVIDER
+                    {
+                        "languages[]"
+                    } else {
+                        "language"
+                    };
+                    form = form.text(field, lang.clone());
                 }
             }
 
@@ -202,8 +216,7 @@ impl SttProvider for WhisperCompatProvider {
                 form = form.text(key.clone(), value.clone());
             }
 
-            let mut request = self
-                .client
+            let mut request = request_client
                 .post(&self.provider_config.endpoint)
                 .multipart(form)
                 .timeout(remaining);
@@ -213,9 +226,11 @@ impl SttProvider for WhisperCompatProvider {
             }
 
             if let Some(options) = &self.remote_polish {
-                request = request
-                    .header("x-ultra-stt-polish-style", &options.style)
-                    .header("x-ultra-stt-polish-enabled", options.enabled.to_string());
+                if self.provider_config.provider_name != OPENAI_TRANSCRIBE_PROVIDER {
+                    request = request
+                        .header("x-ultra-stt-polish-style", &options.style)
+                        .header("x-ultra-stt-polish-enabled", options.enabled.to_string());
+                }
             }
 
             let resp_result = request.send().await;
@@ -223,6 +238,12 @@ impl SttProvider for WhisperCompatProvider {
             match resp_result {
                 Ok(resp) => {
                     let status = resp.status();
+                    if direct_openai && !status.is_success() {
+                        return Err(AppError::Api {
+                            status: status.as_u16(),
+                            body: "OpenAI transcription request failed".into(),
+                        });
+                    }
                     let body = resp.text().await.unwrap_or_default();
 
                     if status.is_success() {
@@ -319,6 +340,146 @@ impl SttProvider for WhisperCompatProvider {
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn captured_upload_reply(
+        provider_name: &str,
+        language: Option<&str>,
+        response_body: &str,
+        declared_length: Option<usize>,
+    ) -> (String, Result<Option<String>, AppError>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/transcriptions", listener.local_addr().unwrap());
+        let response_body = response_body.to_string();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 4096];
+                let count = stream.read(&mut chunk).await.unwrap();
+                assert!(count > 0);
+                request.extend_from_slice(&chunk[..count]);
+                if let Some(head_end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&request[..head_end]);
+                    let length = head
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().unwrap())
+                        })
+                        .unwrap();
+                    if request.len() >= head_end + 4 + length {
+                        break;
+                    }
+                }
+            }
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response_body}",
+                declared_length.unwrap_or(response_body.len())
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+            String::from_utf8_lossy(&request).into_owned()
+        });
+        let mut provider = WhisperCompatProvider::with_client(
+            WhisperCompatConfig {
+                provider_name: provider_name.to_string(),
+                endpoint,
+                model: "fixture-model".to_string(),
+                extra_fields: vec![],
+                api_key_required: true,
+            },
+            reqwest::Client::builder().no_proxy().build().unwrap(),
+        );
+        provider
+            .connect(&SttConfig {
+                api_key: "fixture-token".into(),
+                language: language.map(str::to_string),
+                ..SttConfig::default()
+            })
+            .await
+            .unwrap();
+        provider.set_remote_polish(&RemotePolishOptions::default());
+        provider.send_audio(&[1, 0, 2, 0]).await.unwrap();
+        let result = provider.disconnect().await;
+        (server.await.unwrap(), result)
+    }
+
+    async fn captured_upload(provider_name: &str, language: Option<&str>) -> String {
+        let (request, result) =
+            captured_upload_reply(provider_name, language, r#"{"text":"confirmed"}"#, None).await;
+        assert_eq!(result.unwrap().as_deref(), Some("confirmed"));
+        request
+    }
+
+    #[tokio::test]
+    async fn openai_transcribe_uses_only_its_file_schema_and_bearer_key() {
+        let request = captured_upload(OPENAI_TRANSCRIBE_PROVIDER, Some("ko")).await;
+        let (head, body) = request.split_once("\r\n\r\n").unwrap();
+        let lower_head = head.to_ascii_lowercase();
+        assert!(head.starts_with("POST /transcriptions HTTP/1.1"));
+        assert!(lower_head.contains("authorization: bearer fixture-token"));
+        assert_eq!(
+            lower_head
+                .lines()
+                .filter(|line| line.starts_with("authorization:"))
+                .count(),
+            1
+        );
+        assert!(!lower_head.contains("x-ultra-stt-polish-"));
+        assert_eq!(
+            body.matches("name=\"languages[]\"\r\n\r\nko\r\n").count(),
+            1
+        );
+        assert!(!body.contains("name=\"language\""));
+        assert!(body.contains("name=\"model\""));
+        assert!(body.contains("name=\"file\"; filename=\"audio.wav\""));
+        assert_eq!(
+            body.to_ascii_lowercase()
+                .matches("content-disposition: form-data; name=\"")
+                .count(),
+            3
+        );
+        assert!(body
+            .to_ascii_lowercase()
+            .contains("content-type: audio/wav"));
+        assert!(!body.contains("name=\"prompt\""));
+        assert!(!body.contains("name=\"hotwords\""));
+
+        let multi = captured_upload(OPENAI_TRANSCRIBE_PROVIDER, Some("multi")).await;
+        assert!(!multi.contains("name=\"languages[]\""));
+    }
+
+    #[tokio::test]
+    async fn legacy_whisper_keeps_singular_language_and_polish_headers() {
+        let request = captured_upload("openai-whisper", Some("ko")).await;
+        assert!(request.contains("name=\"language\""));
+        assert!(!request.contains("name=\"languages[]\""));
+        assert!(request.contains("x-ultra-stt-polish-style: clean"));
+    }
+
+    #[tokio::test]
+    async fn openai_file_response_rejects_error_and_truncation_but_allows_empty_speech() {
+        let (_, error) = captured_upload_reply(
+            OPENAI_TRANSCRIBE_PROVIDER,
+            None,
+            r#"{"error":{"message":"failed"},"text":""}"#,
+            None,
+        )
+        .await;
+        assert!(error.is_err());
+        let (_, empty) =
+            captured_upload_reply(OPENAI_TRANSCRIBE_PROVIDER, None, r#"{"text":""}"#, None).await;
+        assert_eq!(empty.unwrap(), None);
+        let incomplete = r#"{"text":"cut"#;
+        let (_, truncated) = captured_upload_reply(
+            OPENAI_TRANSCRIBE_PROVIDER,
+            None,
+            incomplete,
+            Some(incomplete.len() + 20),
+        )
+        .await;
+        assert!(truncated.is_err());
+    }
 
     async fn transcribe_http_reply(body: &'static str) -> Result<Option<String>, AppError> {
         transcribe_http_reply_with_options(body, None).await

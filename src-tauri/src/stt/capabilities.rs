@@ -179,7 +179,10 @@ fn static_provider_capability(provider_id: &str) -> SttRecordingCapability {
             RecordingLimitSource::Provider,
             "recordingLimits.reasons.appleSpeech",
         ),
-        "groq-whisper" | "openai-whisper" | "siliconflow" => capability(
+        "groq-whisper"
+        | "openai-whisper"
+        | super::config::OPENAI_TRANSCRIBE_PROVIDER
+        | "siliconflow" => capability(
             provider_id,
             SttTransport::FileUpload,
             600,
@@ -281,11 +284,12 @@ pub fn managed_audio_encoding_config(
     config: &AppConfig,
     now_unix_seconds: i64,
 ) -> Option<super::managed_audio::ManagedAudioEncodingConfig> {
-    if config.stt_provider != "cloud" {
+    let effective = config.effective_engine_config();
+    if effective.stt_provider != "cloud" {
         return None;
     }
     let limits = compatible_managed_limits(
-        config.managed_stt_capability_state.as_ref()?,
+        effective.managed_stt_capability_state.as_ref()?,
         now_unix_seconds,
     )?;
     Some(super::managed_audio::ManagedAudioEncodingConfig {
@@ -326,17 +330,18 @@ pub fn resolve_recording_limit(
     managed_state: Option<&ManagedSttCapabilityState>,
     now_unix_seconds: i64,
 ) -> ResolvedRecordingLimit {
-    let managed_state = managed_state.or(config.managed_stt_capability_state.as_ref());
-    let capability = if config.stt_provider == "cloud" {
+    let effective = config.effective_engine_config();
+    let managed_state = managed_state.or(effective.managed_stt_capability_state.as_ref());
+    let capability = if effective.stt_provider == "cloud" {
         managed_capability(managed_state, now_unix_seconds)
     } else {
-        static_provider_capability(&config.stt_provider)
+        static_provider_capability(&effective.stt_provider)
     };
-    let requested_seconds = match config.recording_limit_mode {
+    let requested_seconds = match effective.recording_limit_mode {
         RecordingLimitMode::Auto => capability.recommended_max_seconds,
-        RecordingLimitMode::Custom => config.custom_recording_limit_seconds,
+        RecordingLimitMode::Custom => effective.custom_recording_limit_seconds,
     };
-    let effective_max_seconds = match config.recording_limit_mode {
+    let effective_max_seconds = match effective.recording_limit_mode {
         RecordingLimitMode::Auto => requested_seconds.min(capability.hard_max_seconds),
         RecordingLimitMode::Custom => requested_seconds
             .max(MIN_CUSTOM_SECONDS)
@@ -345,7 +350,7 @@ pub fn resolve_recording_limit(
 
     ResolvedRecordingLimit {
         capability,
-        mode: config.recording_limit_mode,
+        mode: effective.recording_limit_mode,
         requested_seconds,
         effective_max_seconds,
     }
@@ -365,6 +370,22 @@ mod tests {
             custom_recording_limit_seconds: custom_seconds,
             ..AppConfig::default()
         }
+    }
+
+    #[test]
+    fn openai_engine_uses_file_limits_without_changing_stored_legacy_provider() {
+        let mut stored = config("cloud", RecordingLimitMode::Auto, 600);
+        stored.engine_mode = "openai".into();
+        let resolved = resolve_recording_limit(&stored, None, NOW);
+        assert_eq!(stored.stt_provider, "cloud");
+        assert_eq!(
+            resolved.capability.provider_id,
+            super::super::config::OPENAI_TRANSCRIBE_PROVIDER
+        );
+        assert_eq!(resolved.capability.transport, SttTransport::FileUpload);
+        assert_eq!(resolved.effective_max_seconds, 600);
+        assert_eq!(resolved.capability.hard_max_seconds, 720);
+        assert!(managed_audio_encoding_config(&stored, NOW).is_none());
     }
 
     fn managed_state(

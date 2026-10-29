@@ -704,19 +704,20 @@ describe('Settings tab 切换', () => {
     }
   })
 
-  it('点击 Speech Recognition 后显示 STT provider 字段', () => {
+  it('Speech Recognition keeps language and duration without provider choices', () => {
     renderSettings()
     clickSidebarItem('settings.speechRecognition')
-    expect(screen.getByText('settings.provider')).toBeDefined()
-    // STT pane 含语言选择
     expect(screen.getByText('settings.sttLanguage')).toBeDefined()
+    expect(screen.getByText('settings.maxRecordingDuration')).toBeDefined()
+    expect(screen.queryByText('settings.provider')).toBeNull()
   })
 
-  it('点击 AI Polish 后显示 LLM provider 字段', () => {
+  it('AI Polish keeps style controls without provider choices', () => {
     renderSettings()
     clickSidebarItem('settings.aiPolish')
     // LLM pane 也含 provider，但还含 enableAiPolish toggle
     expect(screen.getByText('settings.enableAiPolish')).toBeDefined()
+    expect(screen.queryByText('settings.provider')).toBeNull()
     expect(screen.queryByText('settings.askAnything')).toBeNull()
   })
 
@@ -1197,110 +1198,27 @@ describe('appStore.llmModels', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. LlmPane — provider 切换时清空 models 缓存
-// ─────────────────────────────────────────────────────────────────────────────
-describe('LlmPane provider 切换清空 models', () => {
+describe('Engine navigation', () => {
   beforeEach(() => {
     resetStore()
     seedSavedConfig()
+    window.location.hash = '#/settings'
   })
 
-  it('切换 provider 时 store 中的 llmModels 被清空', async () => {
-    useAppStore.getState().setLlmModels(['model-x', 'model-y'])
-
+  it('opens exactly two engine profiles from the sidebar', () => {
     renderSettings()
-    clickSidebarItem('settings.aiPolish')
-
-    // provider select 是当前 pane 中的第一个 combobox
-    const selects = screen.getAllByRole('combobox')
-    const providerSelect = selects[0]
-
-    await act(async () => {
-      fireEvent.change(providerSelect, { target: { value: 'openai' } })
-    })
-
-    expect(useAppStore.getState().llmModels).toEqual([])
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. LlmPane useEffect — 已有缓存时不重复 fetch
-// ─────────────────────────────────────────────────────────────────────────────
-describe('LlmPane models 缓存：已有缓存时跳过 fetch', () => {
-  beforeEach(() => {
-    resetStore()
-    seedSavedConfig()
-    vi.useFakeTimers()
+    clickSidebarItem('settings.engineSelection')
+    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    expect(screen.getByRole('radio', { name: 'settings.engine.existingTitle' })).toBeDefined()
+    expect(screen.getByRole('radio', { name: 'settings.engine.openaiTitle' })).toBeDefined()
+    expect(screen.queryByText('settings.provider')).toBeNull()
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.clearAllMocks()
-  })
-
-  it('llmModels 已有内容时不触发 fetchLlmModels', async () => {
-    const { fetchLlmModels } = await import('../../../lib/tauri')
-    const mockFetch = vi.mocked(fetchLlmModels)
-    mockFetch.mockClear()
-
-    useAppStore.getState().setLlmModels(['cached-model'])
-    useAppStore.getState().updateConfig({
-      llm_api_key: 'sk-test',
-      llm_base_url: 'https://api.openai.com/v1',
-      llm_provider: 'openai',
-    })
-
+  it('maps the legacy stt deep link to engine selection', () => {
+    window.location.hash = '#/settings?pane=stt'
     renderSettings()
-    clickSidebarItem('settings.aiPolish')
-
-    await act(async () => {
-      vi.runAllTimers()
-    })
-
-    expect(mockFetch).not.toHaveBeenCalled()
-  })
-
-  it('llmModels 为空且有 api key/url 时触发 fetchLlmModels', async () => {
-    const { fetchLlmModels } = await import('../../../lib/tauri')
-    const mockFetch = vi.mocked(fetchLlmModels)
-    mockFetch.mockClear()
-
-    useAppStore.getState().setLlmModels([])
-    useAppStore.getState().updateConfig({
-      llm_api_key: 'sk-test',
-      llm_base_url: 'https://api.openai.com/v1',
-      llm_provider: 'openai',
-    })
-
-    renderSettings()
-    clickSidebarItem('settings.aiPolish')
-
-    // runAllTimersAsync 同时推进 fake timer 并 flush 所有 pending microtasks/promises
-    await act(async () => {
-      await vi.runAllTimersAsync()
-    })
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('fetchLlmModels 完成后 store 中 llmModels 被更新', async () => {
-    const { fetchLlmModels } = await import('../../../lib/tauri')
-    vi.mocked(fetchLlmModels).mockResolvedValue(['gpt-4o', 'gpt-3.5-turbo'])
-
-    useAppStore.getState().setLlmModels([])
-    useAppStore.getState().updateConfig({
-      llm_api_key: 'sk-test',
-      llm_base_url: 'https://api.openai.com/v1',
-      llm_provider: 'openai',
-    })
-
-    renderSettings()
-    clickSidebarItem('settings.aiPolish')
-
-    await act(async () => {
-      await vi.runAllTimersAsync()
-    })
-
-    expect(useAppStore.getState().llmModels).toEqual(['gpt-4o', 'gpt-3.5-turbo'])
+    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    window.location.hash = '#/settings'
   })
 })
 

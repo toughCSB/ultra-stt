@@ -38,6 +38,12 @@ public final class EditorChecks extends Instrumentation {
             automationInfo.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
             automation.setServiceInfo(automationInfo);
             SystemClock.sleep(500);
+            if ("current-drag".equals(arguments.getString("scenario"))) {
+                checkCurrentDrag();
+                result.putString("stream", "PASS: actual search field downward drag, horizontal drag, refresh persistence, cancel and radial menu; no recording or upload\n");
+                finish(Activity.RESULT_OK, result);
+                return;
+            }
             if ("current-observe".equals(arguments.getString("scenario"))) {
                 require(waitForOverlay(3000) != null, "Voice button missing without extra editor tap");
                 result.putString("stream", "PASS: button visible without extra editor tap; no recording\n");
@@ -226,6 +232,44 @@ public final class EditorChecks extends Instrumentation {
             return output.toString("UTF-8");
         } catch (java.io.IOException error) {
             throw new IllegalStateException("QA shell observation failed", error);
+        }
+    }
+
+    private void checkCurrentDrag() {
+        Rect original = waitForOverlay(5000);
+        require(original != null, "Microphone missing on current search field");
+        float density = getContext().getResources().getDisplayMetrics().density;
+        android.util.DisplayMetrics metrics = getContext().getResources().getDisplayMetrics();
+        float destinationX = metrics.widthPixels * 0.30f;
+        float destinationY = Math.min(original.centerY() + 140 * density, metrics.heightPixels - 64 * density);
+        require(destinationY > original.centerY() + 40 * density, "Keep a top search field focused for this regression");
+        try {
+            drag(original.centerX(), original.centerY(), destinationX, destinationY, 0, false);
+            Rect moved = waitForOverlay(2000);
+            require(moved != null && Math.abs(moved.centerY() - destinationY) < 10 * density,
+                    "Search field must not clamp downward drag: " + original + " -> " + moved);
+            require(Math.abs(moved.centerX() - destinationX) < 10 * density, "Horizontal drag must follow finger");
+            require(waitForRecording(false, 300), "Dragging cannot start microphone");
+            SystemClock.sleep(500);
+            require(moved.equals(waitForOverlay(1500)), "Refresh must retain dragged position");
+            drag(moved.centerX(), moved.centerY(), moved.centerX() + 60 * density, moved.centerY(), 0, true);
+            require(moved.equals(waitForOverlay(1500)), "Cancel must restore drag origin");
+            long time = SystemClock.uptimeMillis();
+            inject(time, MotionEvent.ACTION_DOWN, moved.centerX(), moved.centerY());
+            SystemClock.sleep(android.view.ViewConfiguration.getLongPressTimeout() + 180);
+            Rect menu = waitForOverlay(1500);
+            inject(time, MotionEvent.ACTION_CANCEL, moved.centerX(), moved.centerY());
+            require(menu != null && menu.width() > 100 * density, "Long press must open radial mode menu");
+            require(moved.equals(waitForOverlay(1500)), "Mode cancellation must not change position");
+            require(waitForRecording(false, 300), "Mode menu must not start microphone");
+            Bundle detail = new Bundle();
+            detail.putString("stream", "Verified movement " + original + " -> " + moved + "\n");
+            sendStatus(0, detail);
+        } finally {
+            Rect current = waitForOverlay(1500);
+            if (current != null) {
+                drag(current.centerX(), current.centerY(), original.centerX(), original.centerY(), 0, false);
+            }
         }
     }
 

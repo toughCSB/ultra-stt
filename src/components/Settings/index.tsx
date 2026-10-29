@@ -5,6 +5,7 @@ import { useAppStore } from '../../stores/appStore'
 import { SettingsSidebar, type PaneId } from './SettingsSidebar'
 import { GeneralPane } from './GeneralPane'
 import { SttPane } from './SttPane'
+import { EnginePane } from './EnginePane'
 import { LlmPane } from './LlmPane'
 import { DictionaryPane } from './DictionaryPane'
 import { ScenesPane } from './ScenesPane'
@@ -14,6 +15,7 @@ import { useDirtyConfig } from './shared/useDirtyConfig'
 
 const paneTitleKeys: Record<PaneId, string> = {
   general: 'settings.general',
+  engine: 'settings.engineSelection',
   stt: 'settings.speechRecognition',
   llm: 'settings.aiPolish',
   dictionary: 'settings.dictionary',
@@ -25,6 +27,7 @@ function paneFromHash(): PaneId | null {
   const query = window.location.hash.split('?')[1]
   if (!query) return null
   const requested = new URLSearchParams(query).get('pane')
+  if (requested === 'stt') return 'engine'
   return requested && requested in paneTitleKeys ? (requested as PaneId) : null
 }
 
@@ -77,6 +80,7 @@ export function Settings() {
               transition={{ duration: 0.1, ease: 'easeOut' }}
             >
               {activePane === 'general' && <GeneralPane />}
+              {activePane === 'engine' && <EnginePane />}
               {activePane === 'stt' && <SttPane />}
               {activePane === 'llm' && <LlmPane />}
               {activePane === 'dictionary' && <DictionaryPane />}

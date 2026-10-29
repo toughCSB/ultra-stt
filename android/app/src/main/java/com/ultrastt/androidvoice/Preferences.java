@@ -17,6 +17,7 @@ import javax.crypto.spec.GCMParameterSpec;
 
 final class Preferences {
     private static final String KEY_ALIAS = "ultra-stt-remote-token-v1";
+    private static final String OPENAI_KEY_ALIAS = "ultra-stt-openai-key-v1";
     private final SharedPreferences store;
     private final Context context;
 
@@ -99,6 +100,60 @@ final class Preferences {
         return Modes.IDS[Modes.index(store.getString("mode", "minimal"))];
     }
 
+    String engine() {
+        return Engine.normalize(store.getString("engine", Engine.LEGACY));
+    }
+
+    void engine(String value) {
+        store.edit().putString("engine", Engine.normalize(value)).apply();
+    }
+
+    boolean hasOpenAiKey() {
+        return store.contains("openai-key-encrypted") && store.contains("openai-key-nonce");
+    }
+
+    String openAiKey() throws GeneralSecurityException {
+        String encrypted = store.getString("openai-key-encrypted", null);
+        String nonce = store.getString("openai-key-nonce", null);
+        if (encrypted == null || nonce == null) {
+            return "";
+        }
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, key(OPENAI_KEY_ALIAS),
+                    new GCMParameterSpec(128, Base64.decode(nonce, Base64.NO_WRAP)));
+            return new String(cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP)), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException error) {
+            throw new GeneralSecurityException("저장된 OpenAI API 키를 다시 입력해 주세요.");
+        }
+    }
+
+    void saveOpenAiKey(String value) throws GeneralSecurityException {
+        String credential = value.trim();
+        if (credential.isEmpty()) {
+            throw new IllegalArgumentException("OpenAI API 키를 입력해 주세요.");
+        }
+        for (int index = 0; index < credential.length(); index++) {
+            char character = credential.charAt(index);
+            if (character <= 0x20 || character >= 0x7f) {
+                throw new IllegalArgumentException("OpenAI API 키에 사용할 수 없는 문자가 있습니다.");
+            }
+        }
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, key(OPENAI_KEY_ALIAS));
+        if (!store.edit().putString("openai-key-encrypted", Base64.encodeToString(
+                cipher.doFinal(credential.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP))
+                .putString("openai-key-nonce", Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP)).commit()) {
+            throw new GeneralSecurityException("OpenAI API 키를 저장하지 못했습니다.");
+        }
+    }
+
+    void clearOpenAiKey() throws GeneralSecurityException {
+        if (!store.edit().remove("openai-key-encrypted").remove("openai-key-nonce").commit()) {
+            throw new GeneralSecurityException("OpenAI API 키를 삭제하지 못했습니다.");
+        }
+    }
+
     String serverAddress() {
         return PairedAddress.forEndpoint(endpoint(), store.getString("paired-host", ""),
                 store.getString("paired-address", ""));
@@ -136,7 +191,7 @@ final class Preferences {
         }
         try {
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, Base64.decode(nonce, Base64.NO_WRAP)));
+            cipher.init(Cipher.DECRYPT_MODE, key(KEY_ALIAS), new GCMParameterSpec(128, Base64.decode(nonce, Base64.NO_WRAP)));
             return new String(cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP)), StandardCharsets.UTF_8);
         } catch (IllegalArgumentException error) {
             throw new GeneralSecurityException("저장된 인증 정보를 다시 입력해 주세요.");
@@ -165,7 +220,7 @@ final class Preferences {
                 throw new IllegalArgumentException("서버의 96자리 인증 토큰을 입력해 주세요.");
             }
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, key());
+            cipher.init(Cipher.ENCRYPT_MODE, key(KEY_ALIAS));
             editor.putString("token-encrypted", Base64.encodeToString(
                     cipher.doFinal(token.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP));
             editor.putString("token-nonce", Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP));
@@ -177,18 +232,18 @@ final class Preferences {
         }
     }
 
-    private SecretKey key() throws GeneralSecurityException {
+    private SecretKey key(String alias) throws GeneralSecurityException {
         KeyStore keys = KeyStore.getInstance("AndroidKeyStore");
         try {
             keys.load(null);
         } catch (java.io.IOException error) {
             throw new GeneralSecurityException("안전한 인증 저장소를 열지 못했습니다.");
         }
-        if (keys.containsAlias(KEY_ALIAS)) {
-            return (SecretKey) keys.getKey(KEY_ALIAS, null);
+        if (keys.containsAlias(alias)) {
+            return (SecretKey) keys.getKey(alias, null);
         }
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-        generator.init(new KeyGenParameterSpec.Builder(KEY_ALIAS,
+        generator.init(new KeyGenParameterSpec.Builder(alias,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)

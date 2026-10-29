@@ -70,6 +70,11 @@ impl LlmProvider for OpenAiProvider {
             "content": format!("<transcription>\n{}\n</transcription>", req.raw_text)
         }));
 
+        if super::openai_direct::matches(config) {
+            return super::openai_direct::polish(&self.client, config, req, messages, on_chunk)
+                .await;
+        }
+
         let api_kind = protocol::detect_api_kind(&config.provider, &config.base_url);
         let endpoint = protocol::chat_endpoint(&config.provider, &config.base_url)
             .map_err(AppError::Config)?;

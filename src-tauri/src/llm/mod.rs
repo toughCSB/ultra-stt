@@ -1,8 +1,10 @@
+pub(crate) mod cli;
 pub mod cloud;
 pub mod codex;
 pub mod context_policy;
 pub mod model_capabilities;
 pub mod openai;
+pub(crate) mod openai_direct;
 pub mod prompt;
 pub mod protocol;
 
@@ -93,7 +95,7 @@ pub trait LlmProvider: Send + Sync {
 pub fn provider_requires_api_key(provider: &str) -> bool {
     !matches!(
         provider.trim().to_ascii_lowercase().as_str(),
-        "ollama" | "codex-cli"
+        "ollama" | "codex-cli" | "claude-cli" | "grok-cli"
     )
 }
 
@@ -120,6 +122,8 @@ pub fn create_provider(
 ) -> Box<dyn LlmProvider> {
     match (provider_name, client) {
         ("codex-cli", _) => Box::new(codex::CodexProvider),
+        ("claude-cli", _) => Box::new(cli::ClaudeCliProvider),
+        ("grok-cli", _) => Box::new(cli::GrokCliProvider),
         ("cloud", Some(c)) => Box::new(cloud::CloudLlmProvider::with_client(c)),
         ("cloud", None) => Box::new(cloud::CloudLlmProvider::new()),
         (_, Some(c)) => Box::new(openai::OpenAiProvider::with_client(c)),
@@ -136,9 +140,19 @@ mod provider_capability_tests {
         assert!(!provider_requires_api_key("ollama"));
         assert!(!provider_requires_api_key(" Ollama "));
         assert!(!provider_requires_api_key("codex-cli"));
+        assert!(!provider_requires_api_key("claude-cli"));
+        assert!(!provider_requires_api_key("grok-cli"));
         assert_eq!(
             create_provider("codex-cli", None).name(),
             "Codex (ChatGPT subscription)"
+        );
+        assert_eq!(
+            create_provider("claude-cli", None).name(),
+            "Claude Code (subscription)"
+        );
+        assert_eq!(
+            create_provider("grok-cli", None).name(),
+            "Grok CLI (subscription)"
         );
         assert!(provider_requires_api_key("openai"));
         assert!(provider_requires_api_key("custom-openai-compatible"));

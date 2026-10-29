@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RecordingRecovery } from './RecordingRecovery'
 import * as api from '../../lib/tauri'
 import i18n from '../../i18n'
+import { useAppStore } from '../../stores/appStore'
 
 vi.mock('../../lib/tauri', () => ({
   listRecordingArchives: vi.fn(),
@@ -22,6 +23,10 @@ const recording: api.ArchivedRecording = {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  useAppStore.setState({
+    savedConfig: null,
+    config: { ...useAppStore.getState().config, engine_mode: 'existing' },
+  })
   void i18n.changeLanguage('en')
   vi.mocked(api.listRecordingArchives).mockResolvedValue([{ ...recording }])
   vi.mocked(api.openRecordingArchiveFolder).mockResolvedValue(undefined)
@@ -32,6 +37,21 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('RecordingRecovery', () => {
+  it('requires explicit destination and cost confirmation before uploading saved audio', async () => {
+    useAppStore.setState({
+      savedConfig: { ...useAppStore.getState().config, engine_mode: 'openai' },
+    })
+    vi.mocked(api.retryRecordingArchive).mockResolvedValue('Recovered text')
+    render(<RecordingRecovery />)
+    await screen.findByText('10:00')
+    expect(screen.getByText(i18n.t('audioRecovery.externalNotice'))).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('audioRecovery.retryExternal') }))
+    expect(api.retryRecordingArchive).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('audioRecovery.confirmExternal') }))
+    await waitFor(() => expect(api.retryRecordingArchive).toHaveBeenCalledWith(recording.id, true))
+    expect(api.deleteRecordingArchive).not.toHaveBeenCalled()
+  })
+
   it('retries transcription and shows the saved original without automatic insertion', async () => {
     vi.mocked(api.retryRecordingArchive).mockImplementation(async () => {
       vi.mocked(api.listRecordingArchives).mockResolvedValue([

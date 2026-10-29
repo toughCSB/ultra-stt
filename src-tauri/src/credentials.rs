@@ -334,6 +334,11 @@ pub fn resolve_stt_config_secret<V: CredentialSecretReader>(
     config: &AppConfig,
     vault: &V,
 ) -> Result<String> {
+    if config.engine_mode == crate::engine_profile::OPENAI_ENGINE {
+        return Ok(vault
+            .get_secret("stt", crate::engine_profile::OPENAI_CREDENTIAL)?
+            .unwrap_or_default());
+    }
     let provider = stt_credential_provider(config);
     if provider == crate::stt::config::CUSTOM_WHISPER_PROVIDER {
         // A custom endpoint key can land in either field depending on whether the
@@ -356,6 +361,19 @@ pub fn resolve_llm_config_secret<V: CredentialSecretReader>(
     config: &AppConfig,
     vault: &V,
 ) -> Result<String> {
+    if config.engine_mode == crate::engine_profile::OPENAI_ENGINE {
+        return if crate::engine_profile::is_openai_model(&config.desktop_polish_model) {
+            resolve_stt_config_secret(config, vault)
+        } else {
+            Ok(String::new())
+        };
+    }
+    if matches!(
+        config.llm_provider.as_str(),
+        "codex-cli" | "claude-cli" | "grok-cli"
+    ) {
+        return Ok(String::new());
+    }
     resolve_config_secret(&config.llm_api_key, "llm", &config.llm_provider, vault)
 }
 
@@ -410,6 +428,54 @@ mod tests {
                     record_namespace == namespace && record_provider == provider
                 })
                 .map(|(_, _, secret)| secret.clone()))
+        }
+    }
+
+    #[test]
+    fn openai_engine_uses_one_separate_key_for_both_stages() {
+        let mut config = AppConfig::new_ultra_local_profile();
+        config.engine_mode = "openai".into();
+        config.stt_api_key = "legacy-server-key".into();
+        config.stt_custom_api_key = "legacy-custom-key".into();
+        config.llm_api_key = "legacy-llm-key".into();
+        let vault = MemoryVault::default();
+        assert_eq!(resolve_stt_config_secret(&config, &vault).unwrap(), "");
+        assert_eq!(resolve_llm_config_secret(&config, &vault).unwrap(), "");
+        vault
+            .set_secret("stt", "openai-transcribe", "dedicated-key")
+            .unwrap();
+        assert_eq!(
+            resolve_stt_config_secret(&config, &vault).unwrap(),
+            "dedicated-key"
+        );
+        assert_eq!(
+            resolve_llm_config_secret(&config, &vault).unwrap(),
+            "dedicated-key"
+        );
+        config.engine_mode = "existing".into();
+        assert_eq!(
+            resolve_stt_config_secret(&config, &vault).unwrap(),
+            "legacy-custom-key"
+        );
+        assert_eq!(resolve_llm_config_secret(&config, &vault).unwrap(), "");
+        assert_eq!(config.llm_api_key, "legacy-llm-key");
+    }
+
+    #[test]
+    fn local_cli_models_never_read_the_openai_or_legacy_api_key() {
+        let vault = MemoryVault::with_failure("openai-transcribe");
+        for engine in ["existing", "openai"] {
+            for model in ["claude-haiku-5-5", "claude-sonnet-5-5", "grok-4.7"] {
+                let mut config = AppConfig::new_ultra_local_profile();
+                config.engine_mode = engine.into();
+                config.desktop_polish_model = model.into();
+                config.llm_api_key = "must-not-be-used".into();
+                assert!(
+                    resolve_llm_config_secret(&config.effective_engine_config(), &vault)
+                        .unwrap()
+                        .is_empty()
+                );
+            }
         }
     }
 

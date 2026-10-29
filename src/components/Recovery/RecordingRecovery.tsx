@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FolderOpen, Mic, RefreshCw } from 'lucide-react'
+import { useAppStore } from '../../stores/appStore'
 import {
   copyRecordingTranscript,
   deleteRecordingArchive,
@@ -18,6 +19,10 @@ export function RecordingRecovery() {
   const [copied, setCopied] = useState('')
   const [confirmDelete, setConfirmDelete] = useState('')
   const [revision, setRevision] = useState(0)
+  const [confirmExternal, setConfirmExternal] = useState('')
+  const externalEngine = useAppStore(
+    (state) => (state.savedConfig ?? state.config).engine_mode === 'openai',
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -73,6 +78,11 @@ export function RecordingRecovery() {
       <p className="mt-2 text-xs leading-relaxed text-text-secondary">
         {t('audioRecovery.description')}
       </p>
+      {externalEngine && (
+        <p className="mt-2 text-xs leading-relaxed text-text-secondary">
+          {t('audioRecovery.externalNotice')}
+        </p>
+      )}
       {entries.length === 0 && (
         <p className="mt-3 text-xs text-text-secondary">{t('audioRecovery.empty')}</p>
       )}
@@ -96,11 +106,30 @@ export function RecordingRecovery() {
               <button
                 type="button"
                 disabled={busy !== null || entry.active}
-                onClick={() => void action(entry.id, () => retryRecordingArchive(entry.id))}
+                onClick={() => {
+                  if (externalEngine && confirmExternal !== entry.id) {
+                    setConfirmExternal(entry.id)
+                    return
+                  }
+                  void action(entry.id, () =>
+                    externalEngine
+                      ? retryRecordingArchive(entry.id, true)
+                      : retryRecordingArchive(entry.id),
+                  )
+                  setConfirmExternal('')
+                }}
                 className="flex items-center gap-1 rounded-lg bg-accent px-3 py-2 text-white disabled:opacity-50"
               >
                 <RefreshCw size={13} className={busy === entry.id ? 'animate-spin' : ''} />
-                {busy === entry.id ? t('audioRecovery.working') : t('audioRecovery.retry')}
+                {busy === entry.id
+                  ? t('audioRecovery.working')
+                  : externalEngine
+                    ? t(
+                        confirmExternal === entry.id
+                          ? 'audioRecovery.confirmExternal'
+                          : 'audioRecovery.retryExternal',
+                      )
+                    : t('audioRecovery.retry')}
               </button>
               {entry.transcript && (
                 <button

@@ -171,7 +171,7 @@ fn remote_polish_options(config: &storage::AppConfig) -> Option<stt::RemotePolis
         && config.stt_custom_preset == stt::config::ULTRA_REMOTE_STT_PRESET)
         .then(|| stt::RemotePolishOptions {
             style: config.polish_style.clone(),
-            enabled: config.polish_enabled,
+            enabled: false,
         })
 }
 
@@ -267,6 +267,7 @@ fn remote_output_is_final(
 ) -> bool {
     config.stt_provider == crate::stt::config::CUSTOM_WHISPER_PROVIDER
         && config.stt_custom_preset == crate::stt::config::ULTRA_REMOTE_STT_PRESET
+        && !config.polish_enabled
         && mode == crate::voice_intent::VoiceMode::Dictate
         && kind == crate::voice_intent::VoiceIntentKind::DictateInsert
         && !selected_text_has_content(selected)
@@ -278,11 +279,18 @@ mod remote_command_regression {
     use super::*;
     use crate::voice_intent::{VoiceIntentKind, VoiceMode};
     #[test]
-    fn remote_dictation_keeps_its_fast_path_but_commands_reach_the_llm() {
+    fn remote_dictation_polishes_on_this_computer_and_commands_reach_the_llm() {
         let mut config = storage::AppConfig::default();
         config.stt_provider = crate::stt::config::CUSTOM_WHISPER_PROVIDER.into();
         config.stt_custom_preset = crate::stt::config::ULTRA_REMOTE_STT_PRESET.into();
         config.translate_enabled = false;
+        assert!(!remote_output_is_final(
+            &config,
+            VoiceMode::Dictate,
+            VoiceIntentKind::DictateInsert,
+            None
+        ));
+        config.polish_enabled = false;
         assert!(remote_output_is_final(
             &config,
             VoiceMode::Dictate,
@@ -1609,7 +1617,7 @@ impl PipelineHandle {
     }
 
     async fn load_config(&self) -> storage::AppConfig {
-        self.settings.load_config().await
+        self.settings.load_config().await.effective_engine_config()
     }
 
     /// Toggle: starts a recording when idle; otherwise finishes it like stop()
@@ -3897,6 +3905,8 @@ mod tests {
                 enabled: false
             })
         );
+        config.polish_enabled = true;
+        assert!(!remote_polish_options(&config).unwrap().enabled);
         config.stt_custom_preset = "custom".to_string();
         assert!(remote_polish_options(&config).is_none());
     }

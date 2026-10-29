@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { DesktopPolishModel } from './desktop-polish-models'
 import type {
   AppConfig,
   HistoryEntry,
@@ -25,8 +26,8 @@ export interface ArchivedRecording {
 
 export const listRecordingArchives = (): Promise<ArchivedRecording[]> =>
   invoke('list_recording_archives')
-export const retryRecordingArchive = (id: string): Promise<string> =>
-  invoke('retry_recording_archive', { id })
+export const retryRecordingArchive = (id: string, allowExternal = false): Promise<string> =>
+  invoke('retry_recording_archive', allowExternal ? { id, allowExternal: true } : { id })
 export const deleteRecordingArchive = (id: string): Promise<void> =>
   invoke('delete_recording_archive', { id })
 export const copyRecordingTranscript = (id: string): Promise<void> =>
@@ -376,6 +377,19 @@ export async function getSttProviderDiagnostics(
 }
 
 // Connection test
+export interface EngineSetupTestResult {
+  success: boolean
+  message: string
+}
+
+export async function testEngineSetup(
+  kind: 'stt' | 'llm',
+  engineMode: 'existing' | 'openai',
+  desktopPolishModel: DesktopPolishModel,
+): Promise<EngineSetupTestResult> {
+  return invoke('test_engine_setup', { kind, engineMode, desktopPolishModel })
+}
+
 export async function testSttConnection(
   apiKey: string,
   provider: string,

@@ -36,6 +36,10 @@ final class HttpTransport {
         return builder.build();
     }
 
+    static OkHttpClient openAiClient() {
+        return BASE.newBuilder().dns(Dns.SYSTEM).build();
+    }
+
     static String read(ResponseBody body, int limit) throws IOException {
         if (body == null) {
             throw new IOException("Missing response body");

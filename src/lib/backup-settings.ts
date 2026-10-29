@@ -9,8 +9,11 @@ import type {
   TranslationConfig,
   VoiceRoutingFlags,
 } from '../stores/appStore'
+import { isDesktopPolishModel } from './desktop-polish-models'
 
 type SafeScalarKey =
+  | 'engine_mode'
+  | 'desktop_polish_model'
   | 'stt_provider'
   | 'stt_language'
   | 'stt_custom_preset'
@@ -71,6 +74,10 @@ function safeBinding(binding: ShortcutBinding | null | undefined): ShortcutBindi
 
 export function createBackupSettings(config: AppConfig): BackupSettings {
   const settings: BackupSettings = {
+    engine_mode: config.engine_mode,
+    desktop_polish_model: isDesktopPolishModel(config.desktop_polish_model)
+      ? config.desktop_polish_model
+      : 'gpt-6-luna',
     stt_provider: config.stt_provider,
     stt_language: config.stt_language,
     stt_custom_preset: config.stt_custom_preset,
@@ -200,6 +207,8 @@ export function createBackupSettings(config: AppConfig): BackupSettings {
 }
 
 const SAFE_SCALAR_KEYS: readonly SafeScalarKey[] = [
+  'engine_mode',
+  'desktop_polish_model',
   'stt_provider',
   'stt_language',
   'stt_custom_preset',
@@ -252,6 +261,8 @@ export function mergeBackupSettings(current: AppConfig, backup: unknown): AppCon
   const writable = next as unknown as Record<string, unknown>
   for (const key of SAFE_SCALAR_KEYS) {
     const incoming = backup[key]
+    if (key === 'engine_mode' && incoming !== 'existing' && incoming !== 'openai') continue
+    if (key === 'desktop_polish_model' && !isDesktopPolishModel(incoming)) continue
     if (typeof incoming === typeof current[key]) writable[key] = incoming
   }
 

@@ -334,6 +334,8 @@ fn normalize_translation_code(value: &str) -> Option<String> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
+    pub engine_mode: String,
+    pub desktop_polish_model: String,
     pub stt_provider: String,
     pub stt_api_key: String,
     pub stt_custom_api_key: String,
@@ -391,6 +393,8 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            engine_mode: "existing".to_string(),
+            desktop_polish_model: "gpt-6-luna".to_string(),
             stt_provider: "glm-asr".to_string(),
             stt_api_key: String::new(),
             stt_custom_api_key: String::new(),

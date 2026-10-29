@@ -69,13 +69,19 @@ fn selected_home() -> Result<Option<PathBuf>, AppError> {
 }
 
 #[cfg(not(target_os = "macos"))]
+fn selected_root(root: Option<PathBuf>) -> Result<Option<PathBuf>, AppError> {
+    match root {
+        Some(path) if path.is_absolute() => Ok(Some(path)),
+        Some(_) => Err(AppError::Config("ULTRA_STT_ROOT must be absolute".into())),
+        None => Ok(None),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
 fn selected_home() -> Result<Option<PathBuf>, AppError> {
-    let root = std::env::var_os("ULTRA_STT_ROOT")
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .ok_or_else(|| {
-            AppError::Config("Launch Codex integration via start-ultra-stt.ps1".into())
-        })?;
+    let Some(root) = selected_root(std::env::var_os("ULTRA_STT_ROOT").map(PathBuf::from))? else {
+        return Ok(None);
+    };
     #[cfg(test)]
     let override_value = std::env::var("ULTRA_STT_CODEX_PROFILE").ok();
     #[cfg(not(test))]
@@ -153,13 +159,10 @@ fn spawn(args: &[&str], limits: Limits, home: Option<&Path>) -> Result<LocalProc
                 "Native Codex executable is unavailable".into(),
             ));
         }
-        let root = std::env::var_os("ULTRA_STT_ROOT")
-            .map(PathBuf::from)
-            .filter(|path| path.is_absolute())
-            .ok_or_else(|| {
-                AppError::Config("Launch Codex integration via start-ultra-stt.ps1".into())
-            })?;
-        let cwd = root.join("runtime/codex");
+        let cwd = match selected_root(std::env::var_os("ULTRA_STT_ROOT").map(PathBuf::from))? {
+            Some(root) => root.join("runtime/codex"),
+            None => std::env::temp_dir().join("opentypeless-codex"),
+        };
         (package_root, exe, cwd)
     };
     std::fs::create_dir_all(&cwd)
@@ -264,13 +267,21 @@ fn parse_final(stdout: &[u8]) -> Result<String, AppError> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ReasoningEffort {
+pub(crate) enum ReasoningEffort {
     Low,
     Medium,
     High,
 }
 
 impl ReasoningEffort {
+    pub(crate) fn api_value(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
+
     fn config_override(self) -> &'static str {
         match self {
             Self::Low => "model_reasoning_effort=\"low\"",
@@ -280,7 +291,7 @@ impl ReasoningEffort {
     }
 }
 
-fn polish_effort(req: &PolishRequest) -> ReasoningEffort {
+pub(crate) fn polish_effort(req: &PolishRequest) -> ReasoningEffort {
     if matches!(
         req.voice_intent.kind,
         crate::voice_intent::VoiceIntentKind::AskSelection
@@ -361,7 +372,11 @@ pub async fn run_text(model: &str, content: &str) -> Result<String, AppError> {
     run_text_with_effort(model, content, ReasoningEffort::High).await
 }
 
-async fn run_text_with_effort(
+fn supported_model(model: &str) -> bool {
+    matches!(model, "gpt-6-luna" | "gpt-6.1-sol" | "gpt-6.1-terra")
+}
+
+pub(crate) async fn run_text_with_effort(
     model: &str,
     content: &str,
     effort: ReasoningEffort,
@@ -369,10 +384,8 @@ async fn run_text_with_effort(
     if content.len() > MAX_PROMPT {
         return Err(AppError::Config("Codex prompt exceeded limit".into()));
     }
-    if model != "gpt-6-luna" {
-        return Err(AppError::Config(
-            "Only the verified gpt-6-luna model is supported".into(),
-        ));
+    if !supported_model(model) {
+        return Err(AppError::Config("Unsupported Codex CLI model".into()));
     }
     let deadline = Instant::now() + Duration::from_secs(60);
     let home = selected_home()?;
@@ -412,7 +425,7 @@ async fn run_text_with_effort(
 
 pub struct CodexProvider;
 
-fn preserve_dictation(req: &PolishRequest, polished: String) -> String {
+pub(crate) fn preserve_dictation(req: &PolishRequest, polished: String) -> String {
     if req.voice_intent.kind != crate::voice_intent::VoiceIntentKind::DictateInsert {
         return polished;
     }
@@ -444,7 +457,7 @@ fn preserve_dictation(req: &PolishRequest, polished: String) -> String {
     }
 }
 
-fn polish_content(req: &PolishRequest) -> String {
+pub(crate) fn polish_content(req: &PolishRequest) -> String {
     let has_selected_text = req
         .selected_text
         .as_ref()
@@ -502,6 +515,31 @@ impl LlmProvider for CodexProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn selected_root_allows_local_cli_without_app_root_and_rejects_relative_root() {
+        assert_eq!(selected_root(None).unwrap(), None);
+        assert!(matches!(
+            selected_root(Some(PathBuf::from("relative/runtime"))),
+            Err(AppError::Config(message)) if message.contains("ULTRA_STT_ROOT")
+        ));
+        let absolute = std::env::temp_dir();
+        assert_eq!(
+            selected_root(Some(absolute.clone())).unwrap(),
+            Some(absolute)
+        );
+    }
+
+    #[test]
+    fn supported_subscription_models_are_exact() {
+        for model in ["gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra"] {
+            assert!(supported_model(model));
+        }
+        for model in ["gpt-6", "gpt-6.1", "gpt-6.1-sol ", "gpt-6.1-unknown"] {
+            assert!(!supported_model(model));
+        }
+    }
 
     #[test]
     fn dictation_cleanup_does_not_return_only_a_short_opening_prefix() {

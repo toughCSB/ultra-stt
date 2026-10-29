@@ -18,11 +18,13 @@ final class TranscriptionRequest implements Runnable {
     interface Listener {
         void onResult(String text);
         void onError(String message);
+        default void onNotice(String message) {}
     }
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private final String endpoint;
+    private final String engine;
     private final String address;
     private final String token;
     private final String mode;
@@ -33,6 +35,7 @@ final class TranscriptionRequest implements Runnable {
 
     TranscriptionRequest(String endpoint, String address, String token, String mode, boolean polish,
             byte[] wav, Listener listener) {
+        this.engine = Engine.LEGACY;
         this.endpoint = Endpoint.normalize(endpoint);
         this.address = address;
         this.token = token;
@@ -40,6 +43,21 @@ final class TranscriptionRequest implements Runnable {
         this.polish = polish;
         this.wav = wav;
         this.listener = listener;
+    }
+
+    private TranscriptionRequest(String key, String mode, boolean polish, byte[] wav, Listener listener) {
+        this.engine = Engine.OPENAI;
+        this.endpoint = DirectOpenAi.TRANSCRIPTIONS;
+        this.address = "";
+        this.token = key;
+        this.mode = Modes.IDS[Modes.index(mode)];
+        this.polish = polish;
+        this.wav = wav;
+        this.listener = listener;
+    }
+
+    static TranscriptionRequest direct(String key, String mode, boolean polish, byte[] wav, Listener listener) {
+        return new TranscriptionRequest(key, mode, polish, wav, listener);
     }
 
     void cancel() {
@@ -52,6 +70,10 @@ final class TranscriptionRequest implements Runnable {
 
     @Override
     public void run() {
+        if (Engine.OPENAI.equals(engine)) {
+            runDirect();
+            return;
+        }
         try {
             if (cancelled.get()) {
                 return;
@@ -105,6 +127,34 @@ final class TranscriptionRequest implements Runnable {
             } else {
                 message = "서버에 연결하지 못했습니다. 휴대폰의 Tailscale 연결과 서버 PC를 확인해 주세요.";
             }
+            main.post(() -> {
+                if (!cancelled.get()) {
+                    listener.onError(message);
+                }
+            });
+        } finally {
+            call = null;
+        }
+    }
+
+    private void runDirect() {
+        try {
+            java.util.concurrent.atomic.AtomicReference<String> warning = new java.util.concurrent.atomic.AtomicReference<>();
+            String text = DirectOpenAi.process(HttpTransport.openAiClient(), token, wav, mode, polish,
+                    cancelled, active -> call = active, warning::set);
+            main.post(() -> {
+                if (!cancelled.get()) {
+                    if (warning.get() != null) {
+                        listener.onNotice(warning.get());
+                    }
+                    listener.onResult(text);
+                }
+            });
+        } catch (Exception error) {
+            String message = error instanceof DirectOpenAi.DirectError ? error.getMessage()
+                    : error instanceof java.io.InterruptedIOException
+                    ? "OpenAI 음성 처리 시간이 초과됐습니다. 다시 시도해 주세요."
+                    : "OpenAI에 연결하거나 응답을 읽지 못했습니다. 네트워크를 확인해 주세요.";
             main.post(() -> {
                 if (!cancelled.get()) {
                     listener.onError(message);

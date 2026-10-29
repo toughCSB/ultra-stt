@@ -63,6 +63,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     private boolean launchingRecorder;
     private boolean destroyed;
     private long session;
+    private String recordingEngine = Engine.LEGACY;
     private int anchorX;
     private int anchorY;
     private final Rect safeDisplay = new Rect();
@@ -247,6 +248,14 @@ public final class VoiceAccessibilityService extends AccessibilityService {
         if (destroyed || preferences == null || preparingKeyboard || launchingRecorder) {
             return;
         }
+        if (bubble != null && bubble.isInteracting() && !guard.isActive() && preferences.floatingEnabled()) {
+            PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+            KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+            if (power.isInteractive() && !keyguard.isKeyguardLocked()) {
+                scheduleUpdate();
+                return;
+            }
+        }
         AccessibilityNodeInfo editor = preferences.floatingEnabled() ? findEditor() : null;
         if (guard.isActive() && targetLostReason == null
                 && (editor == null || captured == null || !captured.equals(editor) || !unchangedTarget())) {
@@ -283,7 +292,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             windows.getDefaultDisplay().getRealMetrics(metrics);
             display = new Rect(0, Ui.dp(this, 32), metrics.widthPixels, metrics.heightPixels - Ui.dp(this, 32));
         }
-        int margin = Ui.dp(this, 8);
+        int margin = Ui.dp(this, 16);
         int size = Ui.dp(this, BubblePlacement.TOUCH_SIZE);
         safeDisplay.set(display);
         safeDisplay.inset(margin, margin);
@@ -301,18 +310,17 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
                 Rect bounds = new Rect();
                 window.getBoundsInScreen(bounds);
-                if (!bounds.isEmpty() && bounds.bottom > field.top) {
+                if (!bounds.isEmpty() && bounds.bottom > field.top && bounds.top > safeDisplay.top) {
                     keyboardTop = Math.min(keyboardTop, bounds.top);
                     keyboardVisible = true;
                 }
             }
         }
         float density = getResources().getDisplayMetrics().density;
-        int safeBottom = Math.round(BubblePlacement.highestAllowedBottom(field.top / density,
-                available.bottom / density, keyboardTop / density) * density);
-        dragBounds.set(available.left, available.top,
-                Math.max(available.left, available.right - size),
-                Math.max(available.top, safeBottom - size));
+        dragBounds.set(safeDisplay.left, safeDisplay.top,
+                Math.max(safeDisplay.left, safeDisplay.right - size),
+                Math.round(BubblePlacement.manualMaxTop(safeDisplay.top / density,
+                        safeDisplay.bottom / density) * density));
         int desired = Math.round(BubblePlacement.defaultTop(field.top / density, field.bottom / density,
                 keyboardTop / density, keyboardVisible) * density);
         float savedX = preferences.bubbleX();
@@ -321,7 +329,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             anchorX = Math.round(BubblePlacement.restore(savedX, safeDisplay.left, safeDisplay.right - size));
             anchorY = Math.round(BubblePlacement.restore(savedY, safeDisplay.top, safeDisplay.bottom - size));
         } else {
-            anchorX = dragBounds.right;
+            anchorX = Math.max(available.left, available.right - size);
             anchorY = desired;
         }
         anchorX = Math.round(BubblePlacement.clamp(anchorX, dragBounds.left, dragBounds.right));
@@ -428,6 +436,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
     }
 
     private void prepareRecording() {
+        String selectedEngine = preferences.engine();
         AccessibilityNodeInfo editor = findEditor();
         if (!eligible(editor)) {
             notice("입력창을 먼저 눌러 주세요. 비밀번호 칸에서는 사용할 수 없습니다.");
@@ -438,12 +447,19 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             return;
         }
         try {
-            if (!Endpoint.validToken(preferences.token())) {
-                notice("PC 연결 설정이 아직 없습니다. Ultra STT 앱에서 연결 상태를 확인해 주세요.");
-                return;
+            if (Engine.OPENAI.equals(selectedEngine)) {
+                if (!preferences.hasOpenAiKey() || preferences.openAiKey().isEmpty()) {
+                    notice("OpenAI API 키를 Ultra STT 설정에서 저장해 주세요.");
+                    return;
+                }
+            } else {
+                if (!Endpoint.validToken(preferences.token())) {
+                    notice("PC 연결 설정이 아직 없습니다. Ultra STT 앱에서 연결 상태를 확인해 주세요.");
+                    return;
+                }
             }
         } catch (java.security.GeneralSecurityException error) {
-            notice("서버 연결 정보를 다시 설정해 주세요.");
+            notice("선택한 엔진의 인증 정보를 다시 설정해 주세요.");
             return;
         }
         captured = AccessibilityNodeInfo.obtain(editor);
@@ -474,6 +490,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             return;
         }
         session = guard.begin();
+        recordingEngine = selectedEngine;
         targetLostReason = null;
         hideBubble();
         preparingKeyboard = true;
@@ -516,6 +533,7 @@ public final class VoiceAccessibilityService extends AccessibilityService {
             return;
         }
         launchingRecorder = false;
+        final String selectedEngine = recordingEngine;
         if (!unchangedTarget()) {
             cancelWork("입력창이 바뀌어 취소했습니다.");
             return;
@@ -530,8 +548,15 @@ public final class VoiceAccessibilityService extends AccessibilityService {
                 sending = true;
                 refreshBubble();
                 try {
-                    request = new TranscriptionRequest(preferences.endpoint(), preferences.serverAddress(), preferences.token(),
-                            preferences.mode(), preferences.polishEnabled(), wav, new TranscriptionRequest.Listener() {
+                    TranscriptionRequest.Listener listener = new TranscriptionRequest.Listener() {
+                        @Override
+                        public void onNotice(String message) {
+                            if (guard.accepts(expected)) {
+                                android.widget.Toast.makeText(VoiceAccessibilityService.this, message,
+                                        android.widget.Toast.LENGTH_LONG).show();
+                            }
+                        }
+
                         @Override
                         public void onResult(String text) {
                             if (guard.accepts(expected)) {
@@ -545,10 +570,17 @@ public final class VoiceAccessibilityService extends AccessibilityService {
                                 cancelWork(message);
                             }
                         }
-                    });
+                    };
+                    if (Engine.OPENAI.equals(selectedEngine)) {
+                        request = TranscriptionRequest.direct(preferences.openAiKey(), preferences.mode(),
+                                preferences.polishEnabled(), wav, listener);
+                    } else {
+                        request = new TranscriptionRequest(preferences.endpoint(), preferences.serverAddress(),
+                                preferences.token(), preferences.mode(), preferences.polishEnabled(), wav, listener);
+                    }
                     networkWorker.execute(request);
                 } catch (java.security.GeneralSecurityException | IllegalArgumentException error) {
-                    cancelWork("서버 연결 정보를 다시 설정해 주세요.");
+                    cancelWork("선택한 엔진의 인증 정보를 다시 설정해 주세요.");
                 }
             }
 

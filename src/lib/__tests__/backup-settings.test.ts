@@ -4,6 +4,29 @@ import { useAppStore } from '../../stores/appStore'
 import { createBackupSettings, mergeBackupSettings } from '../backup-settings'
 
 describe('createBackupSettings', () => {
+  it('round-trips only supported desktop polish models', () => {
+    const current = useAppStore.getState().config
+    const configured = { ...current, desktop_polish_model: 'claude-sonnet-5-5' as const }
+    expect(createBackupSettings(configured).desktop_polish_model).toBe('claude-sonnet-5-5')
+    expect(
+      mergeBackupSettings(current, { desktop_polish_model: 'grok-4.7' }).desktop_polish_model,
+    ).toBe('grok-4.7')
+    expect(
+      mergeBackupSettings(current, { desktop_polish_model: 'unknown' }).desktop_polish_model,
+    ).toBe('gpt-6-luna')
+    expect(mergeBackupSettings(current, { desktop_polish_model: 42 }).desktop_polish_model).toBe(
+      'gpt-6-luna',
+    )
+  })
+
+  it('round-trips the engine mode while rejecting unknown backup values', () => {
+    const current = useAppStore.getState().config
+    const openai = { ...current, engine_mode: 'openai' as const }
+    expect(createBackupSettings(openai).engine_mode).toBe('openai')
+    expect(mergeBackupSettings(current, { engine_mode: 'openai' }).engine_mode).toBe('openai')
+    expect(mergeBackupSettings(current, { engine_mode: 'other' }).engine_mode).toBe('existing')
+  })
+
   it('uses an explicit allow list and keeps only sync-safe family scene assignments', () => {
     const malicious = {
       stt_provider: 'glm-asr',

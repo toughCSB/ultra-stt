@@ -18,8 +18,6 @@ export function Onboarding() {
   const step = useAppStore((s) => s.onboardingStep)
   const setStep = useAppStore((s) => s.setOnboardingStep)
   const setOnboardingCompleted = useAppStore((s) => s.setOnboardingCompleted)
-  const sttTestStatus = useAppStore((s) => s.sttTestStatus)
-  const llmTestStatus = useAppStore((s) => s.llmTestStatus)
   const config = useAppStore((s) => s.config)
 
   const canNext = (() => {
@@ -27,9 +25,8 @@ export function Onboarding() {
       case 0:
         return true // Welcome — always
       case 1:
-        return sttTestStatus === 'success' // STT must pass
       case 2:
-        return llmTestStatus === 'success' // LLM must pass
+        return true
       case 3:
       case 4:
       case 5:
@@ -42,8 +39,8 @@ export function Onboarding() {
   const titles = [
     { title: t('onboarding.steps.welcome'), subtitle: t('onboarding.steps.welcomeSub') },
     {
-      title: t('onboarding.steps.speechRecognition'),
-      subtitle: t('onboarding.steps.speechRecognitionSub'),
+      title: t('settings.engineSelection'),
+      subtitle: t('settings.engine.onboardingNote'),
     },
     { title: t('onboarding.steps.aiPolish'), subtitle: t('onboarding.steps.aiPolishSub') },
     { title: t('onboarding.steps.permissions'), subtitle: t('onboarding.steps.permissionsSub') },

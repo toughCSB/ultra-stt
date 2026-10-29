@@ -22,23 +22,31 @@ export function useStoredCredential({
   legacyKey,
 }: StoredCredentialOptions) {
   const [draft, setDraft] = useState(legacyKey)
+  const [stored, setStored] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const revision = useRef(0)
   const label = namespace.toUpperCase()
 
   useEffect(() => {
+    const currentRevision = ++revision.current
     if (!enabled) {
       setDraft('')
+      setStored(false)
       setSaveError(null)
       return
     }
 
     let cancelled = false
     setDraft(legacyKey)
+    setStored(false)
     setSaveError(null)
     readCredential(namespace, provider)
       .then((secret) => {
-        if (!cancelled) setDraft(legacyKey || secret || '')
+        if (!cancelled && currentRevision === revision.current) {
+          setDraft(legacyKey || secret || '')
+          setStored(Boolean(secret))
+        }
       })
       .catch((error) => console.error(`[credentials] failed to read ${label} credential`, error))
 
@@ -50,13 +58,20 @@ export function useStoredCredential({
   const persist = useCallback(
     (value: string, delayMs = 350) => {
       if (!enabled) return
+      const currentRevision = ++revision.current
+      setStored(false)
       if (saveTimer.current) clearTimeout(saveTimer.current)
       saveTimer.current = setTimeout(() => {
         saveTimer.current = null
         setCredential(namespace, provider, value)
-          .then(() => setSaveError(null))
+          .then(() => {
+            if (currentRevision === revision.current) {
+              setStored(Boolean(value))
+              setSaveError(null)
+            }
+          })
           .catch((error) => {
-            setSaveError(errorMessage(error))
+            if (currentRevision === revision.current) setSaveError(errorMessage(error))
             console.error(`[credentials] failed to save ${label} credential`, error)
           })
       }, delayMs)
@@ -64,5 +79,5 @@ export function useStoredCredential({
     [enabled, label, namespace, provider],
   )
 
-  return { draft, setDraft, saveError, setSaveError, persist }
+  return { draft, setDraft, stored, saveError, setSaveError, persist }
 }

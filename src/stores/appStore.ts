@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { TARGET_LANGUAGES } from '../lib/constants'
+import type { DesktopPolishModel } from '../lib/desktop-polish-models'
 
 export type PipelineState =
   | 'idle'
@@ -207,6 +208,8 @@ export interface TranslationConfig {
 }
 
 export interface AppConfig {
+  engine_mode: 'existing' | 'openai'
+  desktop_polish_model: DesktopPolishModel
   stt_provider: SttProvider
   stt_api_key: string
   stt_custom_api_key: string
@@ -825,6 +828,8 @@ function syncHotkeyConfig(previous: AppConfig, partial: Partial<AppConfig>): App
 }
 
 const defaultConfig: AppConfig = {
+  engine_mode: 'existing',
+  desktop_polish_model: 'gpt-6-luna',
   stt_provider: 'glm-asr',
   stt_api_key: '',
   stt_custom_api_key: '',

@@ -14,6 +14,7 @@ pub async fn get_stt_recording_capability(
     custom_seconds: u32,
 ) -> Result<stt::capabilities::ResolvedRecordingLimit, String> {
     let mut config = state.load().await.map_err(|error| error.to_string())?;
+    config.engine_mode = "existing".into();
     config.stt_provider = provider;
     config.recording_limit_mode = mode;
     config.custom_recording_limit_seconds = custom_seconds;

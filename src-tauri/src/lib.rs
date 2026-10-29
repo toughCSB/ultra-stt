@@ -6,6 +6,7 @@ pub mod commands;
 pub mod credentials;
 mod dictation_session;
 pub mod dictionary_io;
+mod engine_profile;
 pub mod error;
 pub mod hotkey;
 #[cfg(target_os = "linux")]
@@ -1391,6 +1392,7 @@ pub fn run() {
             commands::stt::cache_managed_stt_capability,
             commands::stt::clear_managed_stt_capability,
             commands::stt::test_stt_connection,
+            commands::engine::test_engine_setup,
             commands::llm::test_llm_connection,
             commands::llm::bench_llm_connection,
             commands::llm::get_llm_model_capability,
