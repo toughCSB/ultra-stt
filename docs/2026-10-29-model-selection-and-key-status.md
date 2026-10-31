@@ -80,7 +80,7 @@ CLI 테스트에는 구독 사용량이 발생할 수 있다. OpenAI 연결 테�
 - Mac의 Claude 실행 파일·안전 실행 옵션은 확인했지만 SSH 인증 조회는 로그인되지 않은 상태였다. 실제 GUI 계정 연결 성공은 미확인이다. Grok 지원은 미완료다.
 - Home의 Codex는 `Logged in using ChatGPT`로 기존 구독 로그인 상태를 확인했다. 이는 인증 상태 조회이며 Home에서 각 모델의 실제 생성까지 검사한 결과는 아니다. 설치에 사용한 일회성 작업은 성공 종료를 확인한 뒤 삭제했다.
 - 데스크톱 OpenAI 바로입력은 발화 단위 HTTP 전사이지 Realtime WebSocket이 아니다. 모바일의 120초 녹음 제한은 그대로다.
-- 설치 근거는 상위 `qa/key-save-20261029/windows-sb/`, `windows-home/`, `mac/v73/`에 있다. Mac의 상위 `mac/STATUS.md`는 이전 후보 기록이며 **`mac/v73/STATUS.md`가 최종본**이다. GitHub 다운로드는 기존 릴리스 그대로다.
+- 설치 근거는 상위 `qa/key-save-20261029/windows-sb/`, `windows-home/`, `mac/v73/`에 있다. Mac의 상위 `mac/STATUS.md`는 이전 후보 기록이며 **`mac/v73/STATUS.md`가 최종본**이다. 이후 v1.1.73 개인 프리뷰를 별도로 공개하고 이전 릴리스를 보존한다.
 
 ## 공식 모델·CLI 문서
 

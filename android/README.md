@@ -1,9 +1,9 @@
 # Ultra STT Android 작은 음성 버튼
 
 현재 소스·Fold7 설치 버전: **1.1.73-android.14** (`versionCode=14`), 패키지 `com.ultrastt.androidvoice`. 두 엔진 선택 카드, 버튼 자유 이동, API 키 저장 완료·수정 상태와 연결 테스트를 적용했다. 실제 Google 검색창의 아래·가로 이동, 위치 유지, 취소, 모드 메뉴 검사를 통과한 수정도 포함한다. 모바일 OpenAI 경로는 GPT Transcribe + GPT-6 Luna를 유지하며 Claude·Grok API 키를 추가하지 않았다. [최신 설정·설치·검증 범위](../docs/2026-10-29-model-selection-and-key-status.md) · [버튼 원인·실기 검증](../docs/2026-10-29-engine-cards-and-mobile-drag.md).
-GitHub `v1.1.62-personal.2`의 다운로드는 아직 **.9**이며 .10 파일로 교체하지 않았다. 이전 릴리스 파일·태그는 그대로 보존한다. [버튼 수정·성능 검토·검증 범위](../docs/2026-10-04-bubble-usability-review.md).
+이전 GitHub `v1.1.62-personal.2`의 .9 파일과 태그는 그대로 보존한다. 현재 개인 프리뷰는 Android .14를 제공한다. [버튼 수정·성능 검토·검증 범위](../docs/2026-10-04-bubble-usability-review.md).
 
-[APK 다운로드: 개인 프리뷰 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2) · [왜 이런 구조인지 쉬운 설명](../README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기)
+[APK 다운로드: v1.1.73 개인 프리뷰](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.73-personal.1) · [왜 이런 구조인지 쉬운 설명](../README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기)
 
 첫 번째 키보드 형태는 폐기했다. 기존 키보드를 대체하거나 자동으로 바꾸지 않는다.
 입력창이 활성화되면 보내기 버튼과 겹치지 않도록 입력칸보다 충분히 높은 오른편에 마이크 버튼을 표시한다.

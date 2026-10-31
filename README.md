@@ -4,7 +4,7 @@
 
 <h1 align="center">Ultra STT</h1>
 
-> **October 29 update:** Desktop **1.1.73 is installed on SB, Home and Mac**, and **1.1.73-android.14 on Fold7**. Settings offers two large STT engine cards, explicit API-key saving with a locked saved state, and connection tests. Desktop cleanup offers three GPT models and two local Claude Code models; Grok 4.7 remains disabled pending safe CLI support. Mobile keeps its OpenAI API workflow. Existing settings, authentication, history and recovery audio are preserved. GitHub downloads are unchanged. [Setup, routing and verification limits](docs/2026-10-29-model-selection-and-key-status.md) · [Mobile drag verification](docs/2026-10-29-engine-cards-and-mobile-drag.md).
+> **October 29 update:** Desktop **1.1.73 is installed on SB, Home and Mac**, and **1.1.73-android.14 on Fold7**. Settings offers two large STT engine cards, explicit API-key saving with a locked saved state, and connection tests. Desktop cleanup offers three GPT models and two local Claude Code models; Grok 4.7 remains disabled pending safe CLI support. Mobile keeps its OpenAI API workflow. Existing settings, authentication, history and recovery audio are preserved. [Setup, routing and verification limits](docs/2026-10-29-model-selection-and-key-status.md) · [Mobile drag verification](docs/2026-10-29-engine-cards-and-mobile-drag.md).
 
 <p align="center"><strong>Your voice. Your words. Your cursor.</strong></p>
 <p align="center">
@@ -25,7 +25,7 @@
 </p>
 <p align="center"><em>Actual installed Windows app, captured October 2, 2026. Minimal is selected.</em></p>
 
-> **Current release:** [Personal Preview 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2) includes Android **1.1.62-android.9** and unchanged Windows/Mac 1.1.62 installers. This is the user-owned **private** repository [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt); repository access is required to download. Android keeps your existing keyboard. Linux and Intel Mac are not validated release targets; iOS remains a browser recorder. [Android setup](android/README.md) · [Korean guide](README_ko.md).
+> **Current release:** [Personal Preview v1.1.73](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.73-personal.1) provides Windows x64, Apple Silicon Mac, and Android **1.1.73-android.14** packages. This is the user-owned **private** repository [toughCSB/ultra-stt](https://github.com/toughCSB/ultra-stt); repository access is required to download. Windows is unsigned, macOS is ad-hoc signed without notarization, and Android uses the existing debug signing key. Android keeps your existing keyboard. Linux and Intel Mac are not validated release targets; iOS remains a browser recorder. [Android setup](android/README.md) · [Korean guide](README_ko.md).
 
 > **Desktop hotfix (October 3):** The recording capsule now reasserts its native window level without stealing the editor's focus. Home's above-other-windows behavior is user-confirmed. This source update is newer than the unchanged Personal Preview 2 desktop downloads. [Fix, installation status, and limits](docs/2026-10-03-capsule-topmost.md).
 
@@ -201,19 +201,19 @@ The originating device inserts into the original text field
 
 **Why the extra connection handling?** The tested phone could connect to Tailscale but could not resolve the host's name. Pairing therefore supplies a private IP mapping for that host only. The original HTTPS hostname, certificate checks, encryption, and server token remain mandatory. No global DNS/VPN changes or insecure TLS fallback are used. If the host's Tailscale IP changes, pair again. Tokens are not embedded in downloads; Android encrypts its provisioned token with Android Keystore, while desktop credentials use the OS vault.
 
-**Why isolate Codex?** The server's app-only `CODEX_HOME` is a separate workroom: app instructions and an explicitly authorized ChatGPT login, not the development account's skills, settings, or copied auth files. Ordinary remote dictation needs no local Codex login on a client, and runs cleanup once on the server. Client-side Ask/translation/selected-text features are not equivalent to that remote path; local AI connection tests do not test the server's login.
+**Why isolate Codex?** The server's app-only `CODEX_HOME` is a separate workroom with app instructions and an explicitly authorized ChatGPT login. With the current desktop remote-Whisper path, the server returns raw transcription and the selected local CLI or API performs cleanup once on the desktop. Mobile's existing server path still performs cleanup on SB. [Current routes](docs/2026-10-29-model-selection-and-key-status.md).
 
 Cleanup still takes seconds depending on the request and network. Fast mode and task-sensitive reasoning reduce avoidable overhead but are not a latency guarantee. Disabling cleanup removes that stage and changes the output quality. See [measurements and limits](docs/VALIDATION.md), and the [full plain-language Korean explanation](README_ko.md#왜-이렇게-만들었나요-쉽게-이해하기).
 
 ## Downloads and first setup
 
-Use [Personal Preview 2](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.62-personal.2). Repository access is required; downloads do not contain server credentials or models. Windows/Mac assets are byte-for-byte unchanged from Preview 1; this release updates Android and documentation only.
+Use [Personal Preview v1.1.73](https://github.com/toughCSB/ultra-stt/releases/tag/v1.1.73-personal.1). Repository access is required; downloads do not contain server credentials or models.
 
-| Device               | Download                                 | First setup                                                                                                                                                                               |
-| -------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Windows x64          | `Ultra-STT-1.1.62-windows-x64-setup.exe` | Install; configure a speech provider or pair with your server. Use the shortcut saved in Settings; existing bindings are preserved.                                                       |
-| Apple Silicon Mac    | `Ultra-STT-1.1.62-macos-arm64.zip`       | Extract the app into Applications; explicitly allow microphone and Accessibility; configure the server.                                                                                   |
-| Android (min SDK 28) | `Ultra-STT-1.1.62-android.9-debug.apk`   | Update without uninstalling; existing pairing remains. New devices pair once and allow microphone/accessibility. Keep your normal keyboard. [Steps and tested device](android/README.md). |
+| Device               | Download                                 | First setup                                                                                                                                                                                         |
+| -------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows x64          | `Ultra-STT-1.1.73-windows-x64-setup.exe` | Install; configure a speech provider or pair with your server. Use the shortcut saved in Settings; existing bindings are preserved.                                                                 |
+| Apple Silicon Mac    | `Ultra-STT-1.1.73-macos-arm64.zip`       | Extract the app into Applications; explicitly allow microphone and Accessibility; configure the chosen engine.                                                                                      |
+| Android (min SDK 28) | `Ultra-STT-1.1.73-android.14-debug.apk`  | Update without uninstalling; existing pairing remains. New devices configure an engine and allow microphone/accessibility. Keep your normal keyboard. [Steps and tested device](android/README.md). |
 
 This is a **personal prerelease**, not a store release: Windows is unsigned, Mac is ad-hoc signed and not notarized, and Android is a debug APK. Check `SHA256SUMS.txt` against your download; a checksum checks file integrity, not a trusted publisher signature. Follow OS warnings rather than globally disabling security protections. Updates are manual; no signed `latest.json` automatic-update feed is published. Android updates must retain the signing key and app data. Intel Mac, Linux, Windows ARM, native iOS, and offline phone inference are not released targets.
 
